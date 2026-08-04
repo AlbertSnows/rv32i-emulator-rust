@@ -1,0 +1,5 @@
+machine language
+
+assembly language
+
+
