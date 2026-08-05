@@ -4,6 +4,15 @@
 
 - Rust toolchain (rustup/cargo) — already installed, see `cargo --version`
 
+
+## Dev loop
+
+```
+bacon run
+```
+
+^ -> Allows you to essentially hot reload changed files
+
 ## Build & Run
 
 ```
@@ -19,10 +28,10 @@ cargo test
 
 ## Project Structure
 
-_(fill in as the project takes shape)_
+todo
 
 ## Design Decisions
 
-_(log the "why" behind non-obvious choices here as you make them — e.g. how you're
-representing the register file, how you're structuring the fetch-decode-execute loop,
-any RV32I encoding quirks that tripped you up)_
+todo
+
+
