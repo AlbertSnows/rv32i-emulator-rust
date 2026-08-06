@@ -1,0 +1,12 @@
+enums by format
+
+little endian: right -> left
+e.g. for 0x002081B3, 0x1000 is B3
+
+recipe has instructions
+pantry has numbers (memory)
+
+components:
+- fetch
+- decode
+- execute
