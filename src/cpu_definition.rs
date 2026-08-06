@@ -13,7 +13,7 @@ pub fn build_cpu_state() -> CPUState {
 }
 
 pub struct MemoryState {
-    storage: [u8; TEST_MEM_SIZE]
+    pub storage: [u8; TEST_MEM_SIZE]
 }
 
 const TEST_MEM_SIZE: usize = 4096;
@@ -23,7 +23,7 @@ fn build_memory_state() -> MemoryState {
 }
 
 pub struct PCState {
-    pub value: u32
+    pub value: usize
 }
 
 fn build_PC_state() -> PCState {
