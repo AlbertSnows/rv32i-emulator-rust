@@ -1,10 +1,11 @@
 
 use crate::cpu_definition::PCState;
 use crate::cpu_definition::MemoryState;
-
+use crate::cpu_definition::build_memory_state;
+use crate::cpu_definition::build_pc_state;
 // word in this context refers to the fixed-sized chunk of data to interface with
 // words for us are 32bits of data that we'll have to decode later, for now it's just raw bits
-pub struct InstructionWord(u32);
+pub struct InstructionWord(pub u32);
 
 pub fn fetch_word_from_memory(pc: &PCState, mem: &MemoryState) -> InstructionWord {
     // RV32I does little endian by default. that means that even though bytes are stored first->last
@@ -33,3 +34,23 @@ pub fn fetch_word_from_memory(pc: &PCState, mem: &MemoryState) -> InstructionWor
 
     InstructionWord(raw_word)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_fetch_word_from_memory() {
+        let pc = build_pc_state();
+        let mut mem = build_memory_state(); 
+        // mem is u8, so each index is 8 bits apart
+        mem.storage[0] = 1;
+        mem.storage[1] = 2;
+        mem.storage[2] = 3;
+        mem.storage[3] = 4;
+        let outcome = fetch_word_from_memory(&pc, &mem);
+        let expected_outcome = 0b0000_0100_0000_0011_0000_0010_0000_0001;
+        assert_eq!(outcome.0, expected_outcome);
+    }
+}
+

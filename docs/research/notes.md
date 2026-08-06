@@ -128,3 +128,12 @@ structure
 - register file: 32 slots array?
 - PC: one number, keeps track of current instruction
 - memory: big byte array
+----------------
+what is an immediate? 
+- constant value
+- baked directly into the instruction's own bits
+- no lookup needed
+
+what is op code?
+- field, tells decode what kind of instruction it is
+- 6 formats, 7 bits, 

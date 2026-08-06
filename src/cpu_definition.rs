@@ -7,7 +7,7 @@ pub struct CPUState {
 pub fn build_cpu_state() -> CPUState {
     CPUState {
         register: build_register_file(),
-        pc: build_PC_state(),
+        pc: build_pc_state(),
         mem: build_memory_state()
     }
 }
@@ -18,7 +18,7 @@ pub struct MemoryState {
 
 const TEST_MEM_SIZE: usize = 4096;
 const FULL_MEM_SIZE: usize = 65536;
-fn build_memory_state() -> MemoryState {
+pub fn build_memory_state() -> MemoryState {
     MemoryState { storage: [0; TEST_MEM_SIZE] }
 }
 
@@ -26,7 +26,7 @@ pub struct PCState {
     pub value: usize
 }
 
-fn build_PC_state() -> PCState {
+pub fn build_pc_state() -> PCState {
     PCState { value: 0 }
 }
 
