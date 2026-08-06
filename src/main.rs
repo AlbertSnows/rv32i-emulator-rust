@@ -1,4 +1,7 @@
 mod cpu_definition;
+mod decoder;
+mod fetcher;
+mod instructions;
 fn main() {
     println!("Hello, welcome to my emulation!");
     let cpu = cpu_definition::build_cpu_state();
