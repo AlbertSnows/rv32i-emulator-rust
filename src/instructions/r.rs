@@ -14,7 +14,7 @@ use crate::definitions::cpu_definition::RegisterFile;
 use crate::definitions::op_codes;
 use crate::definitions::masks;
 use crate::fetcher::InstructionWord;
-use crate::instructions::Instruction;
+use crate::instructions::Format;
 use crate::utility::bit_operations::mask_and_shift;
 
 #[derive(Debug, PartialEq)]
@@ -31,7 +31,7 @@ pub enum AluOp {
     And
 }
 
-pub fn parse_r_inst(raw_word: InstructionWord) -> Instruction {
+pub fn parse_r_inst(raw_word: InstructionWord) -> Format {
     let content = raw_word.0;
     let reg_dest = mask_and_shift(content, masks::REG_DESTINATION);
     let funct_three = mask_and_shift(content, masks::FUNCT_3);
@@ -51,7 +51,7 @@ pub fn parse_r_inst(raw_word: InstructionWord) -> Instruction {
         (0b0000000, 0b111) => AluOp::And,
         _ => panic!("undefined R type")
     };
-    Instruction::RType { 
+    Format::RType { 
         op: instruction_name, 
         rd: reg_dest as usize, 
         rs1: reg_source_one as usize, 

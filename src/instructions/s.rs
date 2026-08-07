@@ -8,11 +8,19 @@
 // two register operands in, no register operand out, one 12-bit immediate
 // split across two non-adjacent chunks.
 // e.g. sb, sh, sw
+use crate::instructions::Format;
+use crate::fetcher::InstructionWord;
 
+#[derive(Debug, PartialEq)]
 pub enum SOp {
-
+    Foo
 }
 
-pub fn parse_s_inst() -> Instruction {
-
+pub fn parse_s_inst(raw_word: InstructionWord) -> Format {
+    Format::SType { 
+        op: SOp::Foo,
+        imm: 1,
+        rs1: 1,
+        rs2: 1
+    }
 }

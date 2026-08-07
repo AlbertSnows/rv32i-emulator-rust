@@ -10,11 +10,18 @@
 // that becomes the upper bits of a 32-bit value. used (with an I-type addi)
 // to build large constants two instructions at a time.
 // e.g. lui, auipc
+use crate::instructions::Format;
+use crate::fetcher::InstructionWord;
 
+#[derive(Debug, PartialEq)]
 pub enum UOp {
-
+    Foo
 }
 
-pub fn parse_u_inst() -> Instruction {
-
+pub fn parse_u_inst(raw_word: InstructionWord) -> Format {
+    Format::UType { 
+        op: UOp::Foo,
+        rd: 1,
+        imm: 1
+    }
 }

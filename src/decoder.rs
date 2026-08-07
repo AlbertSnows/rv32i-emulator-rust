@@ -5,11 +5,15 @@ use crate::definitions::op_codes;
 use crate::definitions::masks;
 use crate::instructions::r::inst_r_add;
 use crate::instructions::r::parse_r_inst;
-use crate::instructions::Instruction;
+use crate::instructions::Format;
+use crate::instructions::i::parse_i_inst;
+use crate::instructions::s::parse_s_inst;
+use crate::instructions::u::parse_u_inst;
+use crate::instructions::j::parse_j_inst;
+use crate::instructions::b::parse_b_inst;
 use crate::utility::bit_operations::mask;
 use crate::fetcher::InstructionWord;
-
-pub fn decode_word_to_instruction(raw_word: InstructionWord) -> Result<Instruction, String> {
+pub fn decode_word_to_instruction(raw_word: InstructionWord) -> Result<Format, String> {
     // op code is 7 bits wide.
     // the mask will keep the first 7 bits, toss the rest.
     let opcode = mask(raw_word.0, masks::OP_CODE);

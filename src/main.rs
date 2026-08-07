@@ -23,12 +23,12 @@ fn main() {
     let fetch_result = fetch_word_from_memory(&cpu.pc, &cpu.mem); // 51 = 0x33 = 0011 0011
     let raw_word = match fetch_result {
         Ok(rw) => rw,
-        Err(m) => panic!(m)
+        Err(m) => panic!("{}", m)
     };
     let instruction_result = decode_word_to_instruction(raw_word);
     let instruction = match instruction_result {
         Ok(i) => i,
-        Err(m) => panic!(m)
+        Err(m) => panic!("{}", m)
     };
     // &mut cpu passes a mutable reference to cpu
     // &mut cpu = this reference has "mutable" permission to cpu
