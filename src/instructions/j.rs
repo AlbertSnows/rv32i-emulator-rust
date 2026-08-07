@@ -11,6 +11,7 @@
 // e.g. jal
 use crate::instructions::Format;
 use crate::fetcher::InstructionWord;
+use crate::definitions::cpu_definition::RegisterFile;
 
 #[derive(Debug, PartialEq)]
 pub enum JOp {
@@ -23,4 +24,8 @@ pub fn parse_j_inst(raw_word: InstructionWord) -> Format {
         rd: 1,
         imm: 1
     }
+}
+
+pub fn execute_j_type(op: &JOp, rd: usize, imm: usize, register: &mut RegisterFile) {
+    
 }

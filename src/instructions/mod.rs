@@ -10,10 +10,10 @@ use u::UOp;
 use j::JOp;
 use b::BOp;
 use s::SOp;
-use i::LoadOp;
-use i::AluImmOp;
-use i::IShOp;
-use i::SystemOp;
+use i::load::LoadOp;
+use i::alu_imm::AluImmOp;
+use i::shift::IShOp;
+use i::system::SystemOp;
 
 #[derive(Debug, PartialEq)]
 pub enum Format {
@@ -33,25 +33,25 @@ impl Format {
     pub fn execute(&self, cpu_state: &mut CPUState) {
         match self {
             Format::UType { op, rd, imm } 
-                => u::execute_r_type(op, *rd, *rs1, *rs2, &mut cpu_state.register),
+                => u::execute_u_type(op, *rd, *imm, &mut cpu_state.register),
             Format::JType { op, rd, imm } 
-                => j::execute_r_type(op, *rd, *rs1, *rs2, &mut cpu_state.register),
+                => j::execute_j_type(op, *rd, *imm, &mut cpu_state.register),
             Format::BType { op, imm, rs1, rs2 } 
-                => b::execute_r_type(op, *rd, *rs1, *rs2, &mut cpu_state.register),
+                => b::execute_b_type(op, *imm, *rs1, *rs2, &mut cpu_state.register),
             Format::SType { op, imm, rs1, rs2 } 
-                => s::execute_r_type(op, *rd, *rs1, *rs2, &mut cpu_state.register),
+                => s::execute_s_type(op, *imm, *rs1, *rs2, &mut cpu_state.register),
             Format::RType { op, rd, rs1, rs2 } // all &references because self is &self
                 => r::execute_r_type(op, *rd, *rs1, *rs2, &mut cpu_state.register),
             Format::LoadType { op, rd, rs1, imm } 
-                => i::execute_i_shift_type(op, *rd, *rs1, *shamt, &mut cpu_state.register),
+                => i::load::execute_i_load_type(op, *rd, *rs1, *imm, &mut cpu_state.register),
             Format::AluImmType { op, rd, rs1, imm } 
-                => i::execute_i_shift_type(op, *rd, *rs1, *shamt, &mut cpu_state.register),
-            Format::JalrType { op, rs1, imm } 
-                => i::execute_i_shift_type(op, *rd, *rs1, *shamt, &mut cpu_state.register),
+                => i::alu_imm::execute_i_alu_imm_type(op, *rd, *rs1, *imm, &mut cpu_state.register),
+            Format::JalrType { rd, rs1, imm } 
+                => i::jalr::execute_i_jalr_type(*rd, *rs1, *imm, &mut cpu_state.register),
             Format::IShiftType { op, rd, rs1, shamt } 
-                => i::execute_i_shift_type(op, *rd, *rs1, *shamt),
+                => i::shift::execute_i_shift_type(op, *rd, *rs1, *shamt, &mut cpu_state.register),
             Format::SystemType { op }
-                => i::execute_i_system_type(op, &mut cpu_state.register),
+                => i::system::execute_i_system_type(op),
             _ => panic!("Unrecognized instruction type")
         }
     }

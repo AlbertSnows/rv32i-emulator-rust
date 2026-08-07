@@ -12,6 +12,7 @@
 // e.g. lui, auipc
 use crate::instructions::Format;
 use crate::fetcher::InstructionWord;
+use crate::definitions::cpu_definition::RegisterFile;
 
 #[derive(Debug, PartialEq)]
 pub enum UOp {
@@ -24,4 +25,8 @@ pub fn parse_u_inst(raw_word: InstructionWord) -> Format {
         rd: 1,
         imm: 1
     }
+}
+
+pub fn execute_u_type(op: &UOp, rd: usize, imm: usize, register: &mut RegisterFile) {
+
 }
