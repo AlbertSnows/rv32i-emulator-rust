@@ -32,12 +32,24 @@ pub enum Format {
 impl Format {
     pub fn execute(&self, cpu_state: &mut CPUState) {
         match self {
+            Format::UType { op, rd, imm } 
+                => u::execute_r_type(op, *rd, *rs1, *rs2, &mut cpu_state.register),
+            Format::JType { op, rd, imm } 
+                => j::execute_r_type(op, *rd, *rs1, *rs2, &mut cpu_state.register),
+            Format::BType { op, imm, rs1, rs2 } 
+                => b::execute_r_type(op, *rd, *rs1, *rs2, &mut cpu_state.register),
+            Format::SType { op, imm, rs1, rs2 } 
+                => s::execute_r_type(op, *rd, *rs1, *rs2, &mut cpu_state.register),
             Format::RType { op, rd, rs1, rs2 } // all &references because self is &self
                 => r::execute_r_type(op, *rd, *rs1, *rs2, &mut cpu_state.register),
-            // Format::IType { op, rd, rs1, imm } 
-            //     => i::execute_i_type(op, *rd, *rs1, *imm, &mut cpu_state.register),
-            Format::IShiftType { op, rd, rs1, shamt } 
+            Format::LoadType { op, rd, rs1, imm } 
                 => i::execute_i_shift_type(op, *rd, *rs1, *shamt, &mut cpu_state.register),
+            Format::AluImmType { op, rd, rs1, imm } 
+                => i::execute_i_shift_type(op, *rd, *rs1, *shamt, &mut cpu_state.register),
+            Format::JalrType { op, rs1, imm } 
+                => i::execute_i_shift_type(op, *rd, *rs1, *shamt, &mut cpu_state.register),
+            Format::IShiftType { op, rd, rs1, shamt } 
+                => i::execute_i_shift_type(op, *rd, *rs1, *shamt),
             Format::SystemType { op }
                 => i::execute_i_system_type(op, &mut cpu_state.register),
             _ => panic!("Unrecognized instruction type")
