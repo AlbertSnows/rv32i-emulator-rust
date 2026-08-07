@@ -23,3 +23,20 @@ pub fn decode_word_to_instruction(raw_word: InstructionWord) -> Instruction {
 
     word_parser(raw_word)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_decode_word_to_instruction() {
+        use crate::instructions::r::AluOp;
+
+        // add x3, x1, x2 -- confirms opcode dispatch routes to parse_r_inst
+        // correctly; parse_r_inst's own funct3/funct7 logic is covered by
+        // r.rs's tests, not re-tested here.
+        let raw_word = InstructionWord(0x002081B3);
+        let result = decode_word_to_instruction(raw_word);
+        assert_eq!(result, Instruction::RType { op: AluOp::Add, rd: 3, rs1: 1, rs2: 2 });
+    }
+}

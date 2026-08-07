@@ -6,7 +6,7 @@ pub mod s;
 pub mod u;
 use r::AluOp;
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum Instruction {
     RType { op: AluOp, rd: usize, rs1: usize, rs2: usize },
     JType,

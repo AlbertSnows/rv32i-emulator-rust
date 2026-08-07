@@ -17,7 +17,7 @@ use crate::fetcher::InstructionWord;
 use crate::instructions::Instruction;
 use crate::utility::bit_operations::mask_and_shift;
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum AluOp {
     Add, 
     Sub, 
@@ -82,5 +82,23 @@ mod tests {
         rf.storage[3] = 4;
         inst_r_add(rs1, rs2, rd, &mut rf);
         assert_eq!(rf.storage[rd], 7)
+    }
+
+    #[test]
+    fn test_parse_r_inst_add() {
+        // add x3, x1, x2
+        let raw_word = InstructionWord(0x002081B3);
+        let result = parse_r_inst(raw_word);
+        assert_eq!(result, Instruction::RType { op: AluOp::Add, rd: 3, rs1: 1, rs2: 2 });
+    }
+
+    #[test]
+    fn test_parse_r_inst_sub() {
+        // sub x5, x1, x2 -- funct7=0b0100000, funct3=0b000, rd=5, rs1=1, rs2=2,
+        // opcode=0b0110011. Same field-packing process as the add x3,x1,x2
+        // walkthrough, just with sub's funct7 instead of add's.
+        let raw_word = InstructionWord(0x402082B3);
+        let result = parse_r_inst(raw_word);
+        assert_eq!(result, Instruction::RType { op: AluOp::Sub, rd: 5, rs1: 1, rs2: 2 });
     }
 }
