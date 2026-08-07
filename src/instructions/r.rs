@@ -101,4 +101,14 @@ mod tests {
         let result = parse_r_inst(raw_word);
         assert_eq!(result, Instruction::RType { op: AluOp::Sub, rd: 5, rs1: 1, rs2: 2 });
     }
+
+    #[test]
+    #[should_panic]
+    fn test_parse_r_inst_invalid_combo_panics() {
+        // funct7=0b0000001, funct3=0b000 -- not a real combination for any
+        // R-type instruction (only 0b0000000 and 0b0100000 are valid funct7
+        // values), so this should hit the catch-all and panic.
+        let raw_word = InstructionWord(0x02000033);
+        parse_r_inst(raw_word);
+    }
 }

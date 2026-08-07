@@ -39,4 +39,13 @@ mod tests {
         let result = decode_word_to_instruction(raw_word);
         assert_eq!(result, Instruction::RType { op: AluOp::Add, rd: 3, rs1: 1, rs2: 2 });
     }
+
+    #[test]
+    #[should_panic]
+    fn test_decode_word_to_instruction_unimplemented_opcode_panics() {
+        // LOAD's opcode -- a real, valid RV32I opcode, but decode only
+        // handles R-type so far, so this should hit the catch-all and panic.
+        let raw_word = InstructionWord(0b0000011);
+        decode_word_to_instruction(raw_word);
+    }
 }
