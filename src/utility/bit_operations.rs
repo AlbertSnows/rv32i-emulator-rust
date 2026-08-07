@@ -1,3 +1,18 @@
+use crate::definitions::cpu_definition::MemoryState;
+
+pub fn store_in_mem(data: &[u8], mem: &mut MemoryState, location: usize) {
+    assert!(location + data.len() <= mem.storage.len());
+    let placement_range = location..(location+data.len());
+    // copy from slice takes every element from a source slice and copies it
+    // in order into the slice you call it on
+    // example: 
+    // mem.storage is  [0, 0, 0, 0, 0, 0, 0, 0] 
+    // data is [0xB3, 0x81, 0x20, 0x00]
+    // Call mem.storage[0..4].copy_from_slice(data)
+    // mem.storage is now [0xB3, 0x81, 0x20, 0x00, 0, 0, 0, 0] 
+    mem.storage[placement_range].copy_from_slice(data)
+}
+
 // A bit "mask" is a sequence of bits used to separate other bits from one another
 // It's called a mask from the term masking tape. mask over that which you don't want changed.
 pub fn mask(maskee: u32, masker: u32) -> u32 {

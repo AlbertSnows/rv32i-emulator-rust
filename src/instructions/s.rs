@@ -8,3 +8,11 @@
 // two register operands in, no register operand out, one 12-bit immediate
 // split across two non-adjacent chunks.
 // e.g. sb, sh, sw
+
+pub enum SOp {
+
+}
+
+pub fn parse_s_inst() -> Instruction {
+
+}

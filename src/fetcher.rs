@@ -7,12 +7,15 @@ use crate::cpu_definition::build_pc_state;
 // words for us are 32bits of data that we'll have to decode later, for now it's just raw bits
 pub struct InstructionWord(pub u32);
 
-pub fn fetch_word_from_memory(pc: &PCState, mem: &MemoryState) -> InstructionWord {
+pub fn fetch_word_from_memory(pc: &PCState, mem: &MemoryState) -> Result<InstructionWord, String> {
     // RV32I does little endian by default. that means that even though bytes are stored first->last
     // the 32 bit int needs to be set up in the form last<-first
     // so, we have the range pc, pc+1, ... 
     // but if we reverse it to pc+3, pc+2, ...
     // then we get little endian ordering by default, which makes constructing the word a bit easier. 
+    if pc.value + 3 >= mem.storage.len() {
+        return Err(format!("fetch out of bounds: pc={} exceeds memory size {}", pc.value, mem.storage.len()));
+    }
     let pc_byte_range = (pc.value..(pc.value+4)).rev(); // Rev<Range<usize>>
     let byte_values_from_mem = pc_byte_range.map(|byte_index: usize| {
         mem.storage[byte_index]
@@ -32,7 +35,7 @@ pub fn fetch_word_from_memory(pc: &PCState, mem: &MemoryState) -> InstructionWor
     }); 
 
 
-    InstructionWord(raw_word)
+    Ok(InstructionWord(raw_word))
 }
 
 #[cfg(test)]
@@ -50,7 +53,7 @@ mod tests {
         mem.storage[3] = 4;
         let outcome = fetch_word_from_memory(&pc, &mem);
         let expected_outcome = 0b0000_0100_0000_0011_0000_0010_0000_0001;
-        assert_eq!(outcome.0, expected_outcome);
+        assert_eq!(outcome.unwrap().0, expected_outcome);
     }
 }
 

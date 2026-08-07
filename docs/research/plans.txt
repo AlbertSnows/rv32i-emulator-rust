@@ -13,15 +13,16 @@ components:
 
 --- remaining work ---
 
+up next:
+[ ] x0-always-zero enforcement (RegisterFile is still a plain array, no special-casing)
+[ ] SYSTEM instructions -- start with ebreak, so the loop has a real halt signal
+    instead of overloading fetch-out-of-bounds as the stopping condition
+    (ecall, csrrw/csrrs/csrrc/csrrwi/csrrsi/csrrci after that)
+
 toward a working loop:
-[ ] src/programs.rs -- module holding raw program byte arrays (not tests/ --
-    tests/ files are separate integration-test crates, can't be reused from main.rs)
-[ ] load a program's bytes into cpu.mem.storage starting at address 0
-    (pc starts at 0, so fetch reads from there first)
-[ ] wire main.rs to call fetch_word_from_memory instead of hardcoding InstructionWord
 [ ] pc advancement after execute (pc += 4 -- outer loop's job, per earlier decision)
 [ ] the actual fetch-decode-execute loop (currently runs once, linearly, no loop at all)
-[ ] loop stopping condition (fixed iteration count for now, or eventually ebreak)
+[ ] loop stopping condition -- ebreak, once implemented
 
 instruction coverage:
 [ ] execute logic for the other 9 R-type ops (sub, sll, slt, sltu, xor, srl, sra, or, and)
@@ -30,7 +31,4 @@ instruction coverage:
 
 deferred:
 [ ] tests for the other 8 R-type ops
-[ ] add's overflow behavior (should be wrapping_add, currently panics on overflow)
-[ ] fetch's out-of-bounds handling (no bounds check on pc+3 vs memory length yet)
-[ ] x0-always-zero enforcement (RegisterFile is still a plain array, no special-casing)
 

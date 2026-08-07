@@ -71,7 +71,12 @@ pub fn inst_r_add(rs1: usize, rs2: usize, rd: usize, reg_file: &mut RegisterFile
     let storage = reg_file.storage;
     let left = storage[rs1];
     let right = storage[rs2];
-    let sum = left + right;
+    // the hardware wraps by defalut
+    // https://docs.riscv.org/reference/isa/_attachments/riscv-unprivileged.pdf
+    // "We did not include special instruction-set support for overflow checks on integer arithmetic
+    // operations in the base instruction set, as many overflow checks can be cheaply implemented
+    // using RISC-V branches"
+    let sum = left.wrapping_add(right);
     reg_file.storage[rd] = sum;
     reg_file
 }

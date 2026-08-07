@@ -10,3 +10,11 @@
 // that becomes the upper bits of a 32-bit value. used (with an I-type addi)
 // to build large constants two instructions at a time.
 // e.g. lui, auipc
+
+pub enum UOp {
+
+}
+
+pub fn parse_u_inst() -> Instruction {
+
+}

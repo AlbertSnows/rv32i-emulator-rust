@@ -1,0 +1,3 @@
+pub fn basic_addition() -> [u8; 4] {
+    [0xB3, 0x81, 0x20, 0x00]
+}

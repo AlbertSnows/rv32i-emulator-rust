@@ -9,15 +9,24 @@ use crate::instructions::Instruction;
 use crate::utility::bit_operations::mask;
 use crate::fetcher::InstructionWord;
 
-pub fn decode_word_to_instruction(raw_word: InstructionWord) -> Instruction {
+pub fn decode_word_to_instruction(raw_word: InstructionWord) -> Result<Instruction, String> {
     // op code is 7 bits wide.
     // the mask will keep the first 7 bits, toss the rest.
     let opcode = mask(raw_word.0, masks::OP_CODE);
-    let word_parser = match opcode {
-        op_codes::R => parse_r_inst,
-        _ => panic!("undefined op code")
-    };
-    word_parser(raw_word)
+    match opcode {
+        op_codes::LOAD => Ok(parse_i_inst(raw_word)), // todo: implement i type closure that takes op code type as first param?
+        op_codes::ALU_IMM => Ok(parse_i_inst(raw_word)),
+        op_codes::SYSTEM => Ok(parse_i_inst(raw_word)),
+        op_codes::JALR => Ok(parse_i_inst(raw_word)),
+        op_codes::R => Ok(parse_r_inst(raw_word)),
+        op_codes::S => Ok(parse_s_inst(raw_word)),
+        op_codes::B => Ok(parse_b_inst(raw_word)),
+        op_codes::LUI => Ok(parse_u_inst(raw_word)),
+        op_codes::AUIPC => Ok(parse_u_inst(raw_word)),
+        op_codes::J => Ok(parse_j_inst(raw_word)),
+        // b = binary format, # = signify binary format, 09 = output 9 total characters w/ 0 as padding
+        _ => Err(format!("undefined opcode: {:#09b}", opcode))
+    }
 }
 
 #[cfg(test)]
@@ -37,11 +46,12 @@ mod tests {
     }
 
     #[test]
-    #[should_panic]
-    fn test_decode_word_to_instruction_unimplemented_opcode_panics() {
-        // LOAD's opcode -- a real, valid RV32I opcode, but decode only
-        // handles R-type so far, so this should hit the catch-all and panic.
-        let raw_word = InstructionWord(0b0000011);
-        decode_word_to_instruction(raw_word);
+    fn test_decode_word_to_instruction_unrecognized_opcode_returns_err() {
+        // 0b0000000 isn't any of the 10 real RV32I opcodes (doesn't even
+        // end in 11), so this should hit the catch-all and return Err
+        // rather than a decoded Instruction.
+        let raw_word = InstructionWord(0b0000000);
+        let result = decode_word_to_instruction(raw_word);
+        assert!(result.is_err());
     }
 }
