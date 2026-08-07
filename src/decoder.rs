@@ -17,10 +17,6 @@ pub fn decode_word_to_instruction(raw_word: InstructionWord) -> Instruction {
         op_codes::R => parse_r_inst,
         _ => panic!("undefined op code")
     };
-
-    
-
-
     word_parser(raw_word)
 }
 

@@ -59,6 +59,14 @@ pub fn parse_r_inst(raw_word: InstructionWord) -> Instruction {
     }
 }
 
+pub fn execute_r_type(op: &AluOp, rd: usize, rs1: usize, rs2: usize, reg_file: &mut RegisterFile) {
+    match op {
+        AluOp::Add => { inst_r_add(rs1, rs2, rd, reg_file); },
+        _ => panic!("unecognized op in alu r type")
+    }
+}
+
+
 pub fn inst_r_add(rs1: usize, rs2: usize, rd: usize, reg_file: &mut RegisterFile) -> &mut RegisterFile {
     let storage = reg_file.storage;
     let left = storage[rs1];

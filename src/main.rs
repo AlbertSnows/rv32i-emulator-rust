@@ -10,9 +10,14 @@ use fetcher::InstructionWord;
 
 fn main() {
     println!("Hello, welcome to my emulation!");
-    let cpu = cpu_definition::build_cpu_state();
+    // mut allows cpu to change in the local scope
+    let mut cpu = cpu_definition::build_cpu_state();
     let raw_word = InstructionWord(0x002081B3); // 51 = 0x33 = 0011 0011
-    println!("{:?}", decode_word_to_instruction(raw_word));
+    let instruction = decode_word_to_instruction(raw_word);
+    // &mut cpu passes a mutable reference to cpu
+    // &mut cpu = this reference has "mutable" permission to cpu
+    instruction.execute(&mut cpu);
+    println!("{:?}", cpu.register);
 }
 
 #[cfg(test)]

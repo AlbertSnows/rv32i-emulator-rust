@@ -1,3 +1,4 @@
+#[derive(Debug)]
 pub struct CPUState {
     pub register: RegisterFile,
     pub pc: PCState,
@@ -12,6 +13,7 @@ pub fn build_cpu_state() -> CPUState {
     }
 }
 
+#[derive(Debug)]
 pub struct MemoryState {
     pub storage: [u8; TEST_MEM_SIZE]
 }
@@ -22,6 +24,7 @@ pub fn build_memory_state() -> MemoryState {
     MemoryState { storage: [0; TEST_MEM_SIZE] }
 }
 
+#[derive(Debug)]
 pub struct PCState {
     pub value: usize
 }
@@ -30,6 +33,7 @@ pub fn build_pc_state() -> PCState {
     PCState { value: 0 }
 }
 
+#[derive(Debug)]
 pub struct RegisterFile {
     pub storage: [u32; 32]
 }
