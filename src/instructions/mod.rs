@@ -6,10 +6,10 @@ pub mod s;
 pub mod u;
 
 pub enum InstructionFormats {
-    TypeR,
-    TypeJ,
-    TypeU,
-    TypeI,
-    TypeS,
-    TypeB
+    RType { op: AluOp, rd: usize, rs1: usize, rs2: usize },
+    JType,
+    UType,
+    IType,
+    SType,
+    BType
 }

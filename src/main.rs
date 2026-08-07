@@ -1,9 +1,13 @@
-mod cpu_definition;
+#![allow(unused)]
 mod decoder;
 mod fetcher;
 mod instructions;
+mod definitions;
+mod utility;
+use definitions::cpu_definition;
 use decoder::decode_word_to_instruction;
 use fetcher::InstructionWord;
+
 fn main() {
     println!("Hello, welcome to my emulation!");
     let cpu = cpu_definition::build_cpu_state();

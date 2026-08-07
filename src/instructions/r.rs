@@ -12,7 +12,24 @@
 use crate::cpu_definition::build_register_file;
 use crate::cpu_definition::RegisterFile;
 
-fn inst_r_add(rs1: usize, rs2: usize, rd: usize, reg_file: &mut RegisterFile) -> &mut RegisterFile {
+enum AluOp {
+    Add, 
+    Sub, 
+    Sll, 
+    Slt, 
+    Sltu, 
+    Xor, 
+    Srl, 
+    Sra, 
+    Or, 
+    And
+}
+
+pub fn parse_r_type(raw_word: InstructionWord) -> Instruction {
+    
+}
+
+pub fn inst_r_add(rs1: usize, rs2: usize, rd: usize, reg_file: &mut RegisterFile) -> &mut RegisterFile {
     let storage = reg_file.storage;
     let left = storage[rs1];
     let right = storage[rs2];

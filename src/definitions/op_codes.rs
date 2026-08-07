@@ -2,17 +2,18 @@
 // Several instructions can share the same opcode (see the reference card),
 // so there are 10 constants here even though there are only 6 formats.
 // Fill in each value from the RV32I Reference Card encoding table.
-// the bits are written in u8 form, but typed as u32, so they're padded out with 0's in the front
+// the bits are typed as u32, so they're padded out with 0's in the front
 
-// These instructions have to do with loading/fetching from a register by indexing via imm
+// These instructions have to do with loading/fetching from mem via a register by indexing via imm
 pub const LOAD: u32 = 0b0000011; // I-type: lb, lh, lw, lbu, lhu
 // similar to R type. these ones take one register value, rs1, and one constant imm. 
 // all these commands do some operation with rs1 and imm and put the result in rd
 // note: three instructions use shamt instead of imm, which is a narrower field of 5 bits (0-31) to do shifting with.
 // these are slli, srli, srai. 
-pub const ALU_IMM: u32 = 0; // I-type: addi, slti, sltiu, xori, ori, andi, slli, srli, srai
+pub const ALU_IMM: u32 = 0b0010011; // I-type: addi, slti, sltiu, xori, ori, andi, slli, srli, srai
 
-pub const SYSTEM: u32 = 0; // I-type: ecall, ebreak, csrrw, csrrs, csrrc, csrrwi, csrrsi, csrrci
+// These interface with the system teh program is running on, not the program (cpu)'s data
+pub const SYSTEM: u32 = 0b1110011; // I-type: ecall, ebreak, csrrw, csrrs, csrrc, csrrwi, csrrsi, csrrci
 
 pub const R: u32 = 0b0110011; // R-type: add, sub, and, or, xor, sll, srl, sra, slt, sltu
 pub const JALR: u32 = 0b1100111; // I-type: jalr
