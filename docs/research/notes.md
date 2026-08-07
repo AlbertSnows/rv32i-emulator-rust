@@ -1,3 +1,22 @@
+3 bit thing in the middle, what is it?
+
+it's funct 3. it helps the op code id the specific instruction.
+
+
+what about the remaining 7 bits for slli, srli, and srai?
+srli differs from srai via funct7, the remaining 7 bits? 
+addi through andi use up all of func3, so the remaining 7 bits
+
+----
+shamt has 5 bits
+imm has 12
+why imm have 12?
+imm has 12 because that's the remainder, there's no special reason. 
+shamt has 5 because that gives the range 0-31 to shift a 32 bit value, which is all it needs.
+
+-------------------------------------------
+old notes
+-------------------------------------------
 machine language
 
 assembly language
