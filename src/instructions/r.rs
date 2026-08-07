@@ -102,7 +102,7 @@ mod tests {
         // add x3, x1, x2
         let raw_word = InstructionWord(0x002081B3);
         let result = parse_r_inst(raw_word);
-        assert_eq!(result, Instruction::RType { op: AluOp::Add, rd: 3, rs1: 1, rs2: 2 });
+        assert_eq!(result, Format::RType { op: AluOp::Add, rd: 3, rs1: 1, rs2: 2 });
     }
 
     #[test]
@@ -112,7 +112,7 @@ mod tests {
         // walkthrough, just with sub's funct7 instead of add's.
         let raw_word = InstructionWord(0x402082B3);
         let result = parse_r_inst(raw_word);
-        assert_eq!(result, Instruction::RType { op: AluOp::Sub, rd: 5, rs1: 1, rs2: 2 });
+        assert_eq!(result, Format::RType { op: AluOp::Sub, rd: 5, rs1: 1, rs2: 2 });
     }
 
     #[test]

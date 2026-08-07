@@ -46,7 +46,7 @@ mod tests {
         // r.rs's tests, not re-tested here.
         let raw_word = InstructionWord(0x002081B3);
         let result = decode_word_to_instruction(raw_word);
-        assert_eq!(result, Instruction::RType { op: AluOp::Add, rd: 3, rs1: 1, rs2: 2 });
+        assert_eq!(result, Ok(Format::RType { op: AluOp::Add, rd: 3, rs1: 1, rs2: 2 }));
     }
 
     #[test]
