@@ -6,22 +6,27 @@ use crate::definitions::masks;
 use crate::instructions::r::inst_r_add;
 use crate::instructions::r::parse_r_inst;
 use crate::instructions::Format;
-use crate::instructions::i::parse_i_inst;
+use crate::instructions::i::load::parse_load_inst;
+use crate::instructions::i::alu_imm::parse_alu_imm_inst;
+use crate::instructions::i::system::parse_system_inst;
+use crate::instructions::i::jalr::parse_jalr_inst;
+
 use crate::instructions::s::parse_s_inst;
 use crate::instructions::u::parse_u_inst;
 use crate::instructions::j::parse_j_inst;
 use crate::instructions::b::parse_b_inst;
 use crate::utility::bit_operations::mask;
 use crate::fetcher::InstructionWord;
+
 pub fn decode_word_to_instruction(raw_word: InstructionWord) -> Result<Format, String> {
     // op code is 7 bits wide.
     // the mask will keep the first 7 bits, toss the rest.
     let opcode = mask(raw_word.0, masks::OP_CODE);
     match opcode {
-        op_codes::LOAD => Ok(parse_i_inst(raw_word)), // todo: implement i type closure that takes op code type as first param?
-        op_codes::ALU_IMM => Ok(parse_i_inst(raw_word)),
-        op_codes::SYSTEM => Ok(parse_i_inst(raw_word)),
-        op_codes::JALR => Ok(parse_i_inst(raw_word)),
+        op_codes::LOAD => Ok(parse_load_inst(raw_word)), // todo: implement i type closure that takes op code type as first param?
+        op_codes::ALU_IMM => Ok(parse_alu_imm_inst(raw_word)),
+        op_codes::SYSTEM => Ok(parse_system_inst(raw_word)),
+        op_codes::JALR => Ok(parse_jalr_inst(raw_word)),
         op_codes::R => Ok(parse_r_inst(raw_word)),
         op_codes::S => Ok(parse_s_inst(raw_word)),
         op_codes::B => Ok(parse_b_inst(raw_word)),
