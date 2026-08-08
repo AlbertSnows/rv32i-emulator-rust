@@ -28,16 +28,17 @@ pub enum UOp {
 pub fn parse_u_inst(raw_word: InstructionWord, opcode: u32) -> Result<Format, String> {
     let content = raw_word.0;
     let reg_dest = mask_and_shift(content, masks::REG_DESTINATION);
-    let imm_val = mask_and_shift(content, masks::U_TYPE_IMM);
+    let imm_signed = (content & masks::U_TYPE_IMM) as i32;
     let instruction_name = match opcode {
-        op_codes::LUI => UOp::Lui,
-        op_codes::AUIPC => UOp::Auipc        
-    };
-    Format::UType { 
+        op_codes::LUI => Ok(UOp::Lui),
+        op_codes::AUIPC => Ok(UOp::Auipc),
+        _ => Err(format!("Unrecognized U type"))
+    }?;
+    Ok(Format::UType { 
         op: instruction_name,
         rd: reg_dest as usize,
-        imm: imm_val
-    }
+        imm: imm_signed
+    })
 }
 
 pub fn execute_u_type(op: &UOp, rd: usize, imm: i32, register: &mut RegisterFile) -> Result<ExecutionSignal, String> {

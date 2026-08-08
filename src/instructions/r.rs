@@ -113,7 +113,7 @@ mod tests {
         // add x3, x1, x2
         let raw_word = InstructionWord(0x002081B3);
         let result = parse_r_inst(raw_word);
-        assert_eq!(result, Format::RType { op: AluOp::Add, rd: 3, rs1: 1, rs2: 2 });
+        assert_eq!(result.unwrap(), Format::RType { op: AluOp::Add, rd: 3, rs1: 1, rs2: 2 });
     }
 
     #[test]
@@ -123,16 +123,16 @@ mod tests {
         // walkthrough, just with sub's funct7 instead of add's.
         let raw_word = InstructionWord(0x402082B3);
         let result = parse_r_inst(raw_word);
-        assert_eq!(result, Format::RType { op: AluOp::Sub, rd: 5, rs1: 1, rs2: 2 });
+        assert_eq!(result.unwrap(), Format::RType { op: AluOp::Sub, rd: 5, rs1: 1, rs2: 2 });
     }
 
     #[test]
-    #[should_panic]
     fn test_parse_r_inst_invalid_combo_panics() {
         // funct7=0b0000001, funct3=0b000 -- not a real combination for any
         // R-type instruction (only 0b0000000 and 0b0100000 are valid funct7
         // values), so this should hit the catch-all and panic.
         let raw_word = InstructionWord(0x02000033);
-        parse_r_inst(raw_word);
+        let outcome = parse_r_inst(raw_word);
+        assert!(outcome.is_err());
     }
 }

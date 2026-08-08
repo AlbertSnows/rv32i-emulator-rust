@@ -55,9 +55,9 @@ mod tests {
         // same word, but now every field comes back shifted down to bit 0.
         let raw_word = 0x002081B3;
         assert_eq!(mask_and_shift(raw_word, masks::REG_DESTINATION), 3);
-        assert_eq!(mask_and_shift(raw_word, masks::FUNCT_3), 0);
+        assert_eq!(mask_and_shift(raw_word, masks::FUNCT_THREE), 0);
         assert_eq!(mask_and_shift(raw_word, masks::REG_SOURCE_ONE), 1);
         assert_eq!(mask_and_shift(raw_word, masks::REG_SOURCE_TWO), 2);
-        assert_eq!(mask_and_shift(raw_word, masks::FUNCT_7), 0);
+        assert_eq!(mask_and_shift(raw_word, masks::FUNCT_SEVEN), 0);
     }
 }

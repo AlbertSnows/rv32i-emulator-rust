@@ -15,6 +15,7 @@ use crate::definitions::cpu_definition::RegisterFile;
 use crate::definitions::codes::ExecutionSignal;
 use crate::utility::bit_operations::mask_and_shift;
 use crate::utility::bit_operations::merge_bits;
+use crate::utility::bit_operations::shake_to_signed;
 use crate::definitions::masks;
 
 #[derive(Debug, PartialEq)]

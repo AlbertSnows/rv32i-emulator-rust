@@ -12,6 +12,10 @@ use crate::instructions::Format;
 use crate::fetcher::InstructionWord;
 use crate::definitions::cpu_definition::RegisterFile;
 use crate::definitions::codes::ExecutionSignal;
+use crate::utility::bit_operations::mask_and_shift;
+use crate::definitions::masks;
+use crate::utility::bit_operations::merge_bits;
+use crate::utility::bit_operations::shake_to_signed;
 
 #[derive(Debug, PartialEq)]
 pub enum SOp {

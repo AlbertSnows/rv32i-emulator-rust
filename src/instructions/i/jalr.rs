@@ -11,10 +11,10 @@ use crate::definitions::masks;
 pub fn parse_jalr_inst(raw_word: InstructionWord) -> Result<Format, String> {
     let content = raw_word.0;
     let reg_dest = mask_and_shift(content, masks::REG_DESTINATION);
-    let imm_val = mask_and_shift(content, masks::I_TYPE_JALR);
+    let imm_signed = (content & masks::I_TYPE_JALR) as i32;
     let reg_source_one = mask_and_shift(content, masks::REG_SOURCE_ONE);
     Ok(Format::JalrType {
-        imm: imm_val, // todo: shake?
+        imm: imm_signed,
         rd: reg_dest as usize,
         rs1: reg_source_one as usize
     })
