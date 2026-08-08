@@ -16,18 +16,23 @@ use crate::definitions::codes::ExecutionSignal;
 
 #[derive(Debug, PartialEq)]
 pub enum BOp {
-    Foo
+    Beq,
+    Bne,
+    Blt,
+    Bge,
+    Bltu,
+    Bgeu
 }
 
 pub fn parse_b_inst(raw_word: InstructionWord) -> Format {
     Format::BType { 
-        op: BOp::Foo,
+        op: BOp::Beq,
         imm: 1,
         rs1: 1,
         rs2: 1
     }
 }
 
-pub fn execute_b_type(op: &BOp, rd: usize, rs1: usize, rs2: usize, register: &mut RegisterFile) -> Result<ExecutionSignal, String> {
+pub fn execute_b_type(op: &BOp, imm: i32, rs1: usize, rs2: usize, register: &mut RegisterFile) -> Result<ExecutionSignal, String> {
     Ok(ExecutionSignal::Continue)
 }

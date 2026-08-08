@@ -13,10 +13,11 @@ pub fn fetch_word_from_memory(pc: &PCState, mem: &MemoryState) -> Result<Instruc
     // so, we have the range pc, pc+1, ... 
     // but if we reverse it to pc+3, pc+2, ...
     // then we get little endian ordering by default, which makes constructing the word a bit easier. 
-    if pc.value + 3 >= mem.storage.len() {
-        return Err(format!("fetch out of bounds: pc={} exceeds memory size {}", pc.value, mem.storage.len()));
+    let pc_value = pc.read();
+    if pc_value + 3 >= mem.storage.len() {
+        return Err(format!("fetch out of bounds: pc={} exceeds memory size {}", pc_value, mem.storage.len()));
     }
-    let pc_byte_range = (pc.value..(pc.value+4)).rev(); // Rev<Range<usize>>
+    let pc_byte_range = (pc_value..(pc_value+4)).rev(); // Rev<Range<usize>>
     let byte_values_from_mem = pc_byte_range.map(|byte_index: usize| {
         mem.storage[byte_index]
     }); // effectively holds a Vec<u8>, can also be thought of as [u8; 4]

@@ -18,14 +18,14 @@ use crate::definitions::codes::ExecutionSignal;
 
 #[derive(Debug, PartialEq)]
 pub enum Format {
-    UType { op: UOp, rd: usize, imm: usize },
-    JType { op: JOp, rd: usize, imm: usize },
-    BType { op: BOp, imm: usize, rs1: usize, rs2: usize },
-    SType { op: SOp, imm: usize, rs1: usize, rs2: usize },
+    UType { op: UOp, rd: usize, imm: i32 },
+    JType { op: JOp, rd: usize, imm: i32 },
+    BType { op: BOp, imm: i32, rs1: usize, rs2: usize },
+    SType { op: SOp, imm: i32, rs1: usize, rs2: usize },
     RType { op: AluOp, rd: usize, rs1: usize, rs2: usize },
-    LoadType { op: LoadOp, rd: usize, rs1: usize, imm: usize },
-    AluImmType { op: AluImmOp, rd: usize, rs1: usize, imm: usize },
-    JalrType { rd: usize, rs1: usize, imm: usize },
+    LoadType { op: LoadOp, rd: usize, rs1: usize, imm: i32 },
+    AluImmType { op: AluImmOp, rd: usize, rs1: usize, imm: i32 },
+    JalrType { rd: usize, rs1: usize, imm: i32 },
     IShiftType { op: IShOp, rd: usize, rs1: usize, shamt: usize },
     SystemType { op: SystemOp }
 }

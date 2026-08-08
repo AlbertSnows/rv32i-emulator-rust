@@ -26,8 +26,18 @@ pub fn build_memory_state() -> MemoryState {
 
 #[derive(Debug)]
 pub struct PCState {
-    pub value: usize
+    value: usize
 }
+impl PCState {
+    pub fn write(&mut self, new_count: usize) -> usize {
+        self.value = new_count;
+        self.value
+    }
+    pub fn read(&self) -> usize {
+        self.value
+    }
+}
+
 
 pub fn build_pc_state() -> PCState {
     PCState { value: 0 }
