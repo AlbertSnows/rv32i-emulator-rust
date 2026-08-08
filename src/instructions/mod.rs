@@ -52,8 +52,7 @@ impl Format {
             Format::IShiftType { op, rd, rs1, shamt } 
                 => i::shift::execute_i_shift_type(op, *rd, *rs1, *shamt, &mut cpu_state.register),
             Format::SystemType { op }
-                => i::system::execute_i_system_type(op),
-            _ => panic!("Unrecognized instruction type")
+                => i::system::execute_i_system_type(op)
         }
     }
 }

@@ -16,8 +16,8 @@ fn main() {
     println!("Hello, welcome to my emulation!");
     // mut allows cpu to change in the local scope
     let mut cpu = cpu_definition::build_cpu_state();
-    cpu.register.storage[1] = 10;
-    cpu.register.storage[2] = 7;
+    cpu.register.write(1, 10);
+    cpu.register.write(2, 7);
     let mem = &mut cpu.mem;
     store_in_mem(&basic_addition(), mem, 0);
     let fetch_result = fetch_word_from_memory(&cpu.pc, &cpu.mem); // 51 = 0x33 = 0011 0011

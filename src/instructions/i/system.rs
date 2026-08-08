@@ -36,5 +36,8 @@ pub fn parse_system_inst(raw_word: InstructionWord) -> Format {
 
 
 pub fn execute_i_system_type(op: &SystemOp) -> Result<ExecutionSignal, String> {
-    Ok(ExecutionSignal::Continue)
+    match op {
+        SystemOp::ECall => Ok(ExecutionSignal::Continue),
+        SystemOp::EBreak => Ok(ExecutionSignal::Halt)
+    }    
 }

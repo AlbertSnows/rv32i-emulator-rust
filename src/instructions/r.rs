@@ -62,27 +62,33 @@ pub fn parse_r_inst(raw_word: InstructionWord) -> Format {
 
 pub fn execute_r_type(op: &AluOp, rd: usize, rs1: usize, rs2: usize, reg_file: &mut RegisterFile) -> Result<ExecutionSignal, String> {
     match op {
-        AluOp::Add => { 
-            inst_r_add(rs1, rs2, rd, reg_file); 
-            Ok(ExecutionSignal::Continue)
-        },
-        // todo: impement the other op codes
-        _ => Err(format!("unecognized op in alu r type"))
+        AluOp::Add => {
+            inst_r_add(rs1, rs2, rd, reg_file);
+        }
+        AluOp::Sub => todo!(),
+        AluOp::Sll => todo!(),
+        AluOp::Slt => todo!(),
+        AluOp::Sltu => todo!(),
+        AluOp::Xor => todo!(),
+        AluOp::Srl => todo!(),
+        AluOp::Sra => todo!(),
+        AluOp::Or => todo!(),
+        AluOp::And => todo!(),
     }
+    Ok(ExecutionSignal::Continue)
 }
 
 
 pub fn inst_r_add(rs1: usize, rs2: usize, rd: usize, reg_file: &mut RegisterFile) -> &mut RegisterFile {
-    let storage = reg_file.storage;
-    let left = storage[rs1];
-    let right = storage[rs2];
+    let left = reg_file.read(rs1);
+    let right = reg_file.read(rs2);
     // the hardware wraps by defalut
     // https://docs.riscv.org/reference/isa/_attachments/riscv-unprivileged.pdf
     // "We did not include special instruction-set support for overflow checks on integer arithmetic
     // operations in the base instruction set, as many overflow checks can be cheaply implemented
     // using RISC-V branches"
     let sum = left.wrapping_add(right);
-    reg_file.storage[rd] = sum;
+    reg_file.write(rd, sum);
     reg_file
 }
 
@@ -96,10 +102,10 @@ mod tests {
         let rs2 = 3;
         let rd = 30;
         let mut rf = build_register_file();
-        rf.storage[1] = 3;
-        rf.storage[3] = 4;
+        rf.write(1, 3);
+        rf.write(3, 4);
         inst_r_add(rs1, rs2, rd, &mut rf);
-        assert_eq!(rf.storage[rd], 7)
+        assert_eq!(rf.read(rd), 7)
     }
 
     #[test]

@@ -35,7 +35,41 @@ pub fn build_pc_state() -> PCState {
 
 #[derive(Debug)]
 pub struct RegisterFile {
-    pub storage: [u32; 32]
+    storage: [u32; 32]
+}
+
+impl RegisterFile {
+    pub fn write(&mut self, index: usize, value: u32) -> u32 {
+        if index != 0 {
+            self.storage[index] = value
+        }
+        self.storage[index]
+    }
+
+    pub fn read(&self, index: usize) -> u32 {
+        self.storage[index]
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_write_to_x0_is_ignored() {
+        let mut rf = build_register_file();
+        let returned = rf.write(0, 42);
+        assert_eq!(rf.read(0), 0);
+        assert_eq!(returned, 0);
+    }
+
+    #[test]
+    fn test_write_to_other_register_succeeds() {
+        let mut rf = build_register_file();
+        let returned = rf.write(5, 42);
+        assert_eq!(rf.read(5), 42);
+        assert_eq!(returned, 42);
+    }
 }
 
 // A file, historically, is an ordered row or collection of things. 
