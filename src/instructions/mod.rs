@@ -4,6 +4,7 @@ pub mod i;
 pub mod j;
 pub mod s;
 pub mod u;
+pub mod pc;
 use r::AluOp;
 use crate::definitions::cpu_definition::CPUState;
 use u::UOp;

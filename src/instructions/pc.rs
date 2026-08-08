@@ -1,4 +1,9 @@
-pub fn advance(pc: &mut PCState, instruction: &Format, reg_file: &RegisterFile) -> usize {
+use crate::definitions::cpu_definition::PCState;
+use crate::definitions::cpu_definition::RegisterFile;
+use crate::instructions::Format;
+use crate::instructions::b::BOp;
+
+pub fn advance_pc(pc: &mut PCState, instruction: &Format, reg_file: &RegisterFile) -> usize {
     let pc_value = pc.read() as i32;
     let new_value = match instruction {
         Format::JType { op, rd, imm } => pc_value + *imm,

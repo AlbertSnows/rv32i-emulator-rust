@@ -13,22 +13,25 @@ components:
 
 --- remaining work ---
 
-up next:
-[ ] x0-always-zero enforcement (RegisterFile is still a plain array, no special-casing)
-[ ] SYSTEM instructions -- start with ebreak, so the loop has a real halt signal
-    instead of overloading fetch-out-of-bounds as the stopping condition
-    (ecall, csrrw/csrrs/csrrc/csrrwi/csrrsi/csrrci after that)
 
 toward a working loop:
 [ ] pc advancement after execute (pc += 4 -- outer loop's job, per earlier decision)
 [ ] the actual fetch-decode-execute loop (currently runs once, linearly, no loop at all)
-[ ] loop stopping condition -- ebreak, once implemented
+[ ] loop stopping condition -- check the Result<ExecutionSignal, String> from
+    .execute() each iteration (Err -> report + stop, Ok(Halt) -> stop, Ok(Continue) -> keep going)
+    -- currently main.rs calls .execute() and discards the return value entirely
 
 instruction coverage:
 [ ] execute logic for the other 9 R-type ops (sub, sll, slt, sltu, xor, srl, sra, or, and)
-    -- AluOp already covers all 10, only inst_r_add exists
-[ ] parsers for the other 5 formats (I/S/B/U/J) -- still unit-variant placeholders
+    -- AluOp match now has an explicit arm per variant (todo!() stubs), return
+    type settled as Result<ExecutionSignal, String> on execute_r_type
+[ ] real parsers for U/J/B/S -- still hardcoded placeholders (op: Foo/rd:1/imm:1/etc.)
+[ ] real parsers for I-type's other sub-families (load/alu_imm/shift/jalr) --
+    still hardcoded placeholders; only i/system.rs's parse_system_inst is real
+[ ] Format::execute's dead `_ => panic!(...)` arm can be deleted (Format has
+    exactly 10 variants, all already matched -- wildcard is unreachable)
 
 deferred:
 [ ] tests for the other 8 R-type ops
+[ ] remaining SYSTEM instructions (csrrw/csrrs/csrrc/csrrwi/csrrsi/csrrci) -- later
 

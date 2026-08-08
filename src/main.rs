@@ -12,6 +12,7 @@ use utility::bit_operations::store_in_mem;
 use programs::basic_addition;
 use fetcher::fetch_word_from_memory;
 use crate::definitions::codes::ExecutionSignal;
+use crate::instructions::pc::advance_pc;
 
 fn main() {
     println!("Hello, welcome to my emulation!");
