@@ -23,16 +23,16 @@ pub fn decode_word_to_instruction(raw_word: InstructionWord) -> Result<Format, S
     // the mask will keep the first 7 bits, toss the rest.
     let opcode = mask(raw_word.0, masks::OP_CODE);
     match opcode {
-        op_codes::LOAD => Ok(parse_load_inst(raw_word)), // todo: implement i type closure that takes op code type as first param?
-        op_codes::ALU_IMM => Ok(parse_alu_imm_inst(raw_word)),
-        op_codes::SYSTEM => Ok(parse_system_inst(raw_word)),
-        op_codes::JALR => Ok(parse_jalr_inst(raw_word)),
-        op_codes::R => Ok(parse_r_inst(raw_word)),
-        op_codes::S => Ok(parse_s_inst(raw_word)),
-        op_codes::B => Ok(parse_b_inst(raw_word)),
-        op_codes::LUI => Ok(parse_u_inst(raw_word)),
-        op_codes::AUIPC => Ok(parse_u_inst(raw_word)),
-        op_codes::J => Ok(parse_j_inst(raw_word)),
+        op_codes::LOAD => parse_load_inst(raw_word), // todo: implement i type closure that takes op code type as first param?
+        op_codes::ALU_IMM => parse_alu_imm_inst(raw_word),
+        op_codes::SYSTEM => parse_system_inst(raw_word),
+        op_codes::JALR => parse_jalr_inst(raw_word),
+        op_codes::R => parse_r_inst(raw_word),
+        op_codes::S => parse_s_inst(raw_word),
+        op_codes::B => parse_b_inst(raw_word),
+        op_codes::LUI => parse_u_inst(raw_word, op_codes::LUI),
+        op_codes::AUIPC => parse_u_inst(raw_word, op_codes::AUIPC),
+        op_codes::J => parse_j_inst(raw_word),
         // b = binary format, # = signify binary format, 09 = output 9 total characters w/ 0 as padding
         _ => Err(format!("undefined opcode: {:#09b}", opcode))
     }

@@ -1,5 +1,17 @@
 use crate::definitions::cpu_definition::MemoryState;
 
+// The width will be 31 - position + 1
+pub fn shake_to_signed(unsigned_bits: u32, width: u32) -> i32 {
+    let shift_distance = 32 - width;
+    ((unsigned_bits << shift_distance) as i32) >> shift_distance
+}
+
+pub fn merge_bits(bit_list: &[(u32, u32)]) -> u32 {
+    bit_list.iter().fold(0, |acc_bit, &(value, shift)|{
+        acc_bit | (value << shift)
+    })
+}
+
 pub fn store_in_mem(data: &[u8], mem: &mut MemoryState, location: usize) {
     assert!(location + data.len() <= mem.storage.len());
     let placement_range = location..(location+data.len());

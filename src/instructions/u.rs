@@ -15,17 +15,28 @@ use crate::fetcher::InstructionWord;
 use crate::definitions::cpu_definition::RegisterFile;
 use crate::instructions::i::system::SystemOp;
 use crate::definitions::codes::ExecutionSignal;
+use crate::utility::bit_operations::mask_and_shift;
+use crate::definitions::masks;
+use crate::definitions::op_codes;
 
 #[derive(Debug, PartialEq)]
 pub enum UOp {
-    Foo
+    Lui,
+    Auipc
 }
 
-pub fn parse_u_inst(raw_word: InstructionWord) -> Format {
+pub fn parse_u_inst(raw_word: InstructionWord, opcode: u32) -> Result<Format, String> {
+    let content = raw_word.0;
+    let reg_dest = mask_and_shift(content, masks::REG_DESTINATION);
+    let imm_val = mask_and_shift(content, masks::U_TYPE_IMM);
+    let instruction_name = match opcode {
+        op_codes::LUI => UOp::Lui,
+        op_codes::AUIPC => UOp::Auipc        
+    };
     Format::UType { 
-        op: UOp::Foo,
-        rd: 1,
-        imm: 1
+        op: instruction_name,
+        rd: reg_dest as usize,
+        imm: imm_val
     }
 }
 

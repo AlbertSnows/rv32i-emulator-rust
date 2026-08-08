@@ -21,7 +21,7 @@ pub enum CsrType {
     Csrrci
 }
 
-pub fn parse_system_inst(raw_word: InstructionWord) -> Format {
+pub fn parse_system_inst(raw_word: InstructionWord) -> Result<Format, String> {
     let content = raw_word.0;
     let distinguishing_bit = mask_and_shift(content, masks::BIT_TWENTY);
     let instruction_name = match distinguishing_bit {
@@ -29,9 +29,9 @@ pub fn parse_system_inst(raw_word: InstructionWord) -> Format {
         1 => SystemOp::EBreak,
         _ => SystemOp::EBreak
     };
-    Format::SystemType {
+    Ok(Format::SystemType {
         op: instruction_name
-    }
+    })
 }
 
 

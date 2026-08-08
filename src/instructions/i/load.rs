@@ -12,13 +12,13 @@ pub enum LoadOp {
     Lhu
 }
 
-pub fn parse_load_inst(raw_word: InstructionWord) -> Format {
-    Format::LoadType {
+pub fn parse_load_inst(raw_word: InstructionWord) -> Result<Format, String> {
+    Ok(Format::LoadType {
         imm: 1,
         op: LoadOp::Lb,
         rd: 1,
         rs1: 1
-    }
+    })
 }
 
 

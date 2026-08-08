@@ -13,6 +13,9 @@ use crate::instructions::Format;
 use crate::fetcher::InstructionWord;
 use crate::definitions::cpu_definition::RegisterFile;
 use crate::definitions::codes::ExecutionSignal;
+use crate::utility::bit_operations::mask_and_shift;
+use crate::utility::bit_operations::merge_bits;
+use crate::definitions::masks;
 
 #[derive(Debug, PartialEq)]
 pub enum BOp {
@@ -24,13 +27,66 @@ pub enum BOp {
     Bgeu
 }
 
-pub fn parse_b_inst(raw_word: InstructionWord) -> Format {
-    Format::BType { 
-        op: BOp::Beq,
-        imm: 1,
-        rs1: 1,
-        rs2: 1
-    }
+// suppose imm_first = 29
+// 29 = 11101
+// imm_first is [4:1|11] which means
+// 1    1    1    0    1
+// imm4 imm3 imm2 imm1 imm11
+// so the first bit is imm11
+// suppose imm_second = 127
+// 127 = 1111111
+// imm_second is [12|10:5] which means
+// 1     1     1    1    1    1    1
+// imm12 imm10 imm9 imm8 imm7 imm6 imm5
+
+pub fn parse_b_inst(raw_word: InstructionWord) -> Result<Format, String> {
+    let content = raw_word.0;
+    let reg_source_one = mask_and_shift(content, masks::REG_SOURCE_ONE);
+    let reg_source_two = mask_and_shift(content, masks::REG_SOURCE_TWO);
+    // Syntax:
+    // X:Y = bits X to y, e.g. 10:8 = 10, 9, 8
+    // A|B = separate, notcontigous groups
+    // [4:1|11] = imm[4:1], imm[11 @ 0]
+    let imm_first = mask_and_shift(content, masks::B_TYPE_IMM_FIRST);
+    let imm_four_to_one = imm_first >> 1; // 01010 -> 00101
+    let imm_eleven = imm_first & 1;
+    // [12|10:5] = imm[12], im[10:5],
+    let imm_second = mask_and_shift(content, masks::B_TYPE_IMM_SECOND); // e.g. 0b|1|010101
+    let imm_twelve = imm_second >> 6; // 1
+    let imm_ten_to_five = imm_second & 0b111111; // 010101
+    // NOTE: Now we have, say, 0b1_0101_0101_0101
+    // But for u32, that means we have 0b0000_0000_0000_0000_0001_0101_0101_0101
+    // imm is i32 not u32, so we need to covert the leading digits from 0 to 1
+    let imm_combined_unsigned = merge_bits(&[
+        (imm_twelve, 12), 
+        (imm_eleven, 11), 
+        (imm_ten_to_five, 5), 
+        (imm_four_to_one, 1)
+    ]);
+    // for 0bX00, X determines what's brought down if we shift right (>>)
+    // for 0b1000 >> 2 => 0b1110 
+    // for 0b0111 >> 2 => 0b0001
+    // we want imm to be signed, and it's left most bit is currently bit position 13
+    // 32 - 13 = 19, so we "shake" 19, e.g. << 19 and >> 19
+    // remember: u32 has no notion of sign, to drag the leftmost bit down, we must mark it as i32
+    let imm_signed = shake_to_signed(imm_combined_unsigned, 13);
+
+    let funct_3 = mask_and_shift(content, masks::FUNCT_THREE);
+    let instruction_name = match funct_3 {
+        0b000 => Ok(BOp::Beq),
+        0b001 => Ok(BOp::Bne),
+        0b100 => Ok(BOp::Blt),
+        0b101 => Ok(BOp::Bge),
+        0b110 => Ok(BOp::Bltu),
+        0b111 => Ok(BOp::Bgeu),
+        _ => Err(format!("undefined b type detected"))
+    }?;
+    Ok(Format::BType { 
+        op: instruction_name,
+        imm: imm_signed,
+        rs1: reg_source_one as usize,
+        rs2: reg_source_two as usize
+    })
 }
 
 pub fn execute_b_type(op: &BOp, imm: i32, rs1: usize, rs2: usize, register: &mut RegisterFile) -> Result<ExecutionSignal, String> {
