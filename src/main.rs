@@ -18,9 +18,7 @@ use core::step;
 fn main() {
     println!("Hello, welcome to my emulation!");
     let mut cpu = cpu_definition::build_cpu_state();
-    cpu.register.write(1, 10);
-    cpu.register.write(2, 7);
-    store_in_mem(&basic_addition(), &mut cpu.mem, 0);
+    store_in_mem(&basic_addition(&mut cpu), &mut cpu.mem, 0);
 
     let mut execution_outcome = ExecutionSignal::Continue;
     while execution_outcome == ExecutionSignal::Continue {
