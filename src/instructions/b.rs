@@ -27,6 +27,6 @@ pub fn parse_b_inst(raw_word: InstructionWord) -> Format {
     }
 }
 
-pub fn execute_b_type(op: &BOp, rd: usize, rs1: usize, rs2: usize, register: &mut RegisterFile) {
-    
+pub fn execute_b_type(op: &BOp, rd: usize, rs1: usize, rs2: usize, register: &mut RegisterFile) -> Result<ExecutionSignal, String> {
+    ExecutionSignal::Continue
 }

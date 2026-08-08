@@ -13,6 +13,6 @@ pub fn parse_jalr_inst(raw_word: InstructionWord) -> Format {
     }
 }
 
-pub fn execute_i_jalr_type(rd: usize, rs1: usize, rs2: usize, register: &mut RegisterFile) {
-    
+pub fn execute_i_jalr_type(rd: usize, rs1: usize, rs2: usize, register: &mut RegisterFile) -> Result<ExecutionSignal, String> {
+    ExecutionSignal::Continue
 }

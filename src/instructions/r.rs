@@ -16,6 +16,7 @@ use crate::definitions::masks;
 use crate::fetcher::InstructionWord;
 use crate::instructions::Format;
 use crate::utility::bit_operations::mask_and_shift;
+use crate::definitions::codes::ExecutionSignal;
 
 #[derive(Debug, PartialEq)]
 pub enum AluOp {
@@ -59,10 +60,14 @@ pub fn parse_r_inst(raw_word: InstructionWord) -> Format {
     }
 }
 
-pub fn execute_r_type(op: &AluOp, rd: usize, rs1: usize, rs2: usize, reg_file: &mut RegisterFile) {
+pub fn execute_r_type(op: &AluOp, rd: usize, rs1: usize, rs2: usize, reg_file: &mut RegisterFile) -> Result<ExecutionSignal, String> {
     match op {
-        AluOp::Add => { inst_r_add(rs1, rs2, rd, reg_file); },
-        _ => panic!("unecognized op in alu r type")
+        AluOp::Add => { 
+            inst_r_add(rs1, rs2, rd, reg_file); 
+            Ok(ExecutionSignal::Continue)
+        },
+        // todo: impement the other op codes
+        _ => Err(format!("unecognized op in alu r type"))
     }
 }
 

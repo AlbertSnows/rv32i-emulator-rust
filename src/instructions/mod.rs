@@ -30,7 +30,7 @@ pub enum Format {
 }
 
 impl Format {
-    pub fn execute(&self, cpu_state: &mut CPUState) {
+    pub fn execute(&self, cpu_state: &mut CPUState) -> SystemOp {
         match self {
             Format::UType { op, rd, imm } 
                 => u::execute_u_type(op, *rd, *imm, &mut cpu_state.register),

@@ -26,6 +26,6 @@ pub fn parse_j_inst(raw_word: InstructionWord) -> Format {
     }
 }
 
-pub fn execute_j_type(op: &JOp, rd: usize, imm: usize, register: &mut RegisterFile) {
-    
+pub fn execute_j_type(op: &JOp, rd: usize, imm: usize, register: &mut RegisterFile) -> Result<ExecutionSignal, String> {
+    ExecutionSignal::Continue
 }
