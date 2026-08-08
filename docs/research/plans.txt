@@ -14,13 +14,6 @@ components:
 --- remaining work ---
 
 
-toward a working loop:
-[ ] pc advancement after execute (pc += 4 -- outer loop's job, per earlier decision)
-[ ] the actual fetch-decode-execute loop (currently runs once, linearly, no loop at all)
-[ ] loop stopping condition -- check the Result<ExecutionSignal, String> from
-    .execute() each iteration (Err -> report + stop, Ok(Halt) -> stop, Ok(Continue) -> keep going)
-    -- currently main.rs calls .execute() and discards the return value entirely
-
 instruction coverage:
 [ ] execute logic for the other 9 R-type ops (sub, sll, slt, sltu, xor, srl, sra, or, and)
     -- AluOp match now has an explicit arm per variant (todo!() stubs), return
