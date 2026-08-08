@@ -19,7 +19,7 @@ use crate::definitions::codes::ExecutionSignal;
 
 #[derive(Debug, PartialEq)]
 pub enum Format {
-    UType { op: UOp, rd: usize, imm: i32 },
+    UType { op: UOp, rd: usize, imm_upper: i32 },
     JType { op: JOp, rd: usize, imm: i32 },
     BType { op: BOp, imm: i32, rs1: usize, rs2: usize },
     SType { op: SOp, imm: i32, rs1: usize, rs2: usize },
@@ -34,8 +34,8 @@ pub enum Format {
 impl Format {
     pub fn execute(&self, cpu_state: &mut CPUState) -> Result<ExecutionSignal, String> {
         match self {
-            Format::UType { op, rd, imm } 
-                => u::execute_u_type(op, *rd, *imm, &mut cpu_state.register),
+            Format::UType { op, rd, imm_upper } 
+                => u::execute_u_type(op, *rd, *imm_upper, &mut cpu_state.register),
             Format::JType { op, rd, imm } 
                 => j::execute_j_type(op, *rd, *imm, &mut cpu_state.register),
             Format::BType { op, imm, rs1, rs2 } 

@@ -9,6 +9,8 @@ pub fn advance_pc(pc: &mut PCState, instruction: &Format, reg_file: &RegisterFil
         Format::JType { op, rd, imm } => pc_value + *imm,
         Format::JalrType { rd, rs1, imm } => {
             let rs1_val = reg_file.read(*rs1);
+            // 1 = ..001, !1 = ..110
+            // (combine rs1 and imm) -> and with !1 which means keep all bits in (rs1 + imm) but force it to be even (rounded down)
             let new_value = (rs1_val as i32 + *imm) & !1;
             new_value
         },

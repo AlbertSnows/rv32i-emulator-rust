@@ -28,7 +28,7 @@ pub enum UOp {
 pub fn parse_u_inst(raw_word: InstructionWord, opcode: u32) -> Result<Format, String> {
     let content = raw_word.0;
     let reg_dest = mask_and_shift(content, masks::REG_DESTINATION);
-    let imm_signed = (content & masks::U_TYPE_IMM) as i32;
+    let imm_as_upper_bits = (content & masks::U_TYPE_IMM) as i32;
     let instruction_name = match opcode {
         op_codes::LUI => Ok(UOp::Lui),
         op_codes::AUIPC => Ok(UOp::Auipc),
@@ -37,10 +37,10 @@ pub fn parse_u_inst(raw_word: InstructionWord, opcode: u32) -> Result<Format, St
     Ok(Format::UType { 
         op: instruction_name,
         rd: reg_dest as usize,
-        imm: imm_signed
+        imm_upper: imm_as_upper_bits
     })
 }
 
-pub fn execute_u_type(op: &UOp, rd: usize, imm: i32, register: &mut RegisterFile) -> Result<ExecutionSignal, String> {
+pub fn execute_u_type(op: &UOp, rd: usize, imm_upper: i32, register: &mut RegisterFile) -> Result<ExecutionSignal, String> {
     Ok(ExecutionSignal::Continue)
 }
