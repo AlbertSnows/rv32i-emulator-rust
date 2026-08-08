@@ -14,6 +14,7 @@ use i::load::LoadOp;
 use i::alu_imm::AluImmOp;
 use i::shift::IShOp;
 use i::system::SystemOp;
+use crate::definitions::codes::ExecutionSignal;
 
 #[derive(Debug, PartialEq)]
 pub enum Format {
@@ -30,7 +31,7 @@ pub enum Format {
 }
 
 impl Format {
-    pub fn execute(&self, cpu_state: &mut CPUState) -> SystemOp {
+    pub fn execute(&self, cpu_state: &mut CPUState) -> Result<ExecutionSignal, String> {
         match self {
             Format::UType { op, rd, imm } 
                 => u::execute_u_type(op, *rd, *imm, &mut cpu_state.register),

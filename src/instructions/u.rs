@@ -14,6 +14,7 @@ use crate::instructions::Format;
 use crate::fetcher::InstructionWord;
 use crate::definitions::cpu_definition::RegisterFile;
 use crate::instructions::i::system::SystemOp;
+use crate::definitions::codes::ExecutionSignal;
 
 #[derive(Debug, PartialEq)]
 pub enum UOp {
@@ -29,5 +30,5 @@ pub fn parse_u_inst(raw_word: InstructionWord) -> Format {
 }
 
 pub fn execute_u_type(op: &UOp, rd: usize, imm: usize, register: &mut RegisterFile) -> Result<ExecutionSignal, String> {
-    ExecutionSignal::Continue
+    Ok(ExecutionSignal::Continue)
 }

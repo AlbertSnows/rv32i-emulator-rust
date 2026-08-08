@@ -11,6 +11,7 @@
 use crate::instructions::Format;
 use crate::fetcher::InstructionWord;
 use crate::definitions::cpu_definition::RegisterFile;
+use crate::definitions::codes::ExecutionSignal;
 
 #[derive(Debug, PartialEq)]
 pub enum SOp {
@@ -27,5 +28,5 @@ pub fn parse_s_inst(raw_word: InstructionWord) -> Format {
 }
 
 pub fn execute_s_type(op: &SOp, rd: usize, rs1: usize, rs2: usize, register: &mut RegisterFile) -> Result<ExecutionSignal, String> {
-    ExecutionSignal::Continue
+    Ok(ExecutionSignal::Continue)
 }

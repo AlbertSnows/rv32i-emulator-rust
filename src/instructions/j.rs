@@ -12,6 +12,7 @@
 use crate::instructions::Format;
 use crate::fetcher::InstructionWord;
 use crate::definitions::cpu_definition::RegisterFile;
+use crate::definitions::codes::ExecutionSignal;
 
 #[derive(Debug, PartialEq)]
 pub enum JOp {
@@ -27,5 +28,5 @@ pub fn parse_j_inst(raw_word: InstructionWord) -> Format {
 }
 
 pub fn execute_j_type(op: &JOp, rd: usize, imm: usize, register: &mut RegisterFile) -> Result<ExecutionSignal, String> {
-    ExecutionSignal::Continue
+    Ok(ExecutionSignal::Continue)
 }

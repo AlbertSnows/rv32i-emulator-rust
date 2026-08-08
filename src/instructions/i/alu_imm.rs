@@ -1,6 +1,7 @@
 use crate::definitions::cpu_definition::RegisterFile;
 use crate::fetcher::InstructionWord;
 use crate::instructions::Format;
+use crate::definitions::codes::ExecutionSignal;
 
 #[derive(Debug, PartialEq)]
 pub enum AluImmOp {
@@ -22,5 +23,5 @@ pub fn parse_alu_imm_inst(raw_word: InstructionWord) -> Format {
 }
 
 pub fn execute_i_alu_imm_type(op: &AluImmOp, rd: usize, rs1: usize, rs2: usize, register: &mut RegisterFile) -> Result<ExecutionSignal, String> {
-    ExecutionSignal::Continue
+    Ok(ExecutionSignal::Continue)
 }

@@ -3,6 +3,8 @@ use crate::fetcher::InstructionWord;
 use crate::instructions::Format;
 use crate::utility::bit_operations::mask_and_shift;
 use crate::definitions::masks;
+use crate::definitions::codes::ExecutionSignal;
+
 #[derive(Debug, PartialEq)]
 pub enum SystemOp {
     ECall,
@@ -34,5 +36,5 @@ pub fn parse_system_inst(raw_word: InstructionWord) -> Format {
 
 
 pub fn execute_i_system_type(op: &SystemOp) -> Result<ExecutionSignal, String> {
-    op
+    Ok(ExecutionSignal::Continue)
 }
