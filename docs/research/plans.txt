@@ -1,0 +1,30 @@
+enums by format
+
+little endian: right -> left
+e.g. for 0x002081B3, 0x1000 is B3
+
+recipe has instructions
+pantry has numbers (memory)
+
+components:
+- fetch
+- decode
+- execute
+
+--- remaining work ---
+
+
+instruction coverage:
+[ ] execute logic for the other 9 R-type ops (sub, sll, slt, sltu, xor, srl, sra, or, and)
+    -- AluOp match now has an explicit arm per variant (todo!() stubs), return
+    type settled as Result<ExecutionSignal, String> on execute_r_type
+[ ] real parsers for U/J/B/S -- still hardcoded placeholders (op: Foo/rd:1/imm:1/etc.)
+[ ] real parsers for I-type's other sub-families (load/alu_imm/shift/jalr) --
+    still hardcoded placeholders; only i/system.rs's parse_system_inst is real
+[ ] Format::execute's dead `_ => panic!(...)` arm can be deleted (Format has
+    exactly 10 variants, all already matched -- wildcard is unreachable)
+
+deferred:
+[ ] tests for the other 8 R-type ops
+[ ] remaining SYSTEM instructions (csrrw/csrrs/csrrc/csrrwi/csrrsi/csrrci) -- later
+
