@@ -12,8 +12,8 @@ use j::JOp;
 use b::BOp;
 use s::SOp;
 use i::load::LoadOp;
-use i::alu_imm::AluImmOp;
-use i::shift::IShOp;
+use i::alu_imm_or_shift::AluImmOp;
+use i::alu_imm_or_shift::IShOp;
 use i::system::SystemOp;
 use crate::definitions::codes::ExecutionSignal;
 
@@ -47,7 +47,7 @@ impl Format {
             Format::LoadType { op, rd, rs1, imm } 
                 => i::load::execute_i_load_type(op, *rd, *rs1, *imm, &mut cpu_state.register),
             Format::AluImmType { op, rd, rs1, imm } 
-                => i::alu_imm::execute_i_alu_imm_type(op, *rd, *rs1, *imm, &mut cpu_state.register),
+                => i::alu_imm_or_shift::execute_i_alu_imm_type(op, *rd, *rs1, *imm, &mut cpu_state.register),
             Format::JalrType { rd, rs1, imm } 
                 => i::jalr::execute_i_jalr_type(*rd, *rs1, *imm, &mut cpu_state.register),
             Format::IShiftType { op, rd, rs1, shamt } 

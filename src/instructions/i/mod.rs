@@ -10,7 +10,7 @@
 //      lb, lh, lw, lbu, lhu, ecall, ebreak, csrrw, csrrs, csrrc, csrrwi, csrrsi, csrrci
 
 pub mod load;
-pub mod alu_imm;
+pub mod alu_imm_or_shift;
 pub mod shift;
 pub mod system;
 pub mod jalr;
@@ -19,5 +19,5 @@ use crate::fetcher::InstructionWord;
 use crate::instructions::Format;
 use crate::utility::bit_operations::mask_and_shift;
 use crate::definitions::masks;
-use shift::IShOp;
+use alu_imm_or_shift::IShOp;
 
