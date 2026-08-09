@@ -14,17 +14,28 @@ components:
 --- remaining work ---
 
 
-instruction coverage:
+test coverage 
+[ ] fetcher: out-of-bounds fetch case
+[ ] decoder: one test per opcode branch, verifying dispatch + correct Format
+    (R already covered; need LOAD/ALU_IMM/SYSTEM/JALR/S/B/LUI/AUIPC/J)
+[ ] core.rs (step): at least one happy-path test
+[ ] bit_operations: store_in_mem, merge_bits, shake_to_signed
+
+test coverage -- deferred, come back to after the above:
+[ ] programs/
+[ ] instructions/ (beyond what's already covered per-file)
+[ ] definitions/
+
+instruction coverage (execution side):
 [ ] execute logic for the other 9 R-type ops (sub, sll, slt, sltu, xor, srl, sra, or, and)
     -- AluOp match now has an explicit arm per variant (todo!() stubs), return
     type settled as Result<ExecutionSignal, String> on execute_r_type
-[ ] real parsers for U/J/B/S -- still hardcoded placeholders (op: Foo/rd:1/imm:1/etc.)
-[ ] real parsers for I-type's other sub-families (load/alu_imm/shift/jalr) --
-    still hardcoded placeholders; only i/system.rs's parse_system_inst is real
+[ ] execute logic for B/J/S/U/JALR/AluImm/Shift/Load -- all still
+    Ok(ExecutionSignal::Continue) stubs, none touch registers/memory yet
+    (system.rs is the only execute_* that's real so far)
 [ ] Format::execute's dead `_ => panic!(...)` arm can be deleted (Format has
     exactly 10 variants, all already matched -- wildcard is unreachable)
 
 deferred:
-[ ] tests for the other 8 R-type ops
 [ ] remaining SYSTEM instructions (csrrw/csrrs/csrrc/csrrwi/csrrsi/csrrci) -- later
 

@@ -110,8 +110,10 @@ mod tests {
 
     #[test]
     fn test_parse_r_inst_add() {
+        use crate::programs::instructions::ADD_X3_X1_X2;
+
         // add x3, x1, x2
-        let raw_word = InstructionWord(0x002081B3);
+        let raw_word = InstructionWord(ADD_X3_X1_X2);
         let result = parse_r_inst(raw_word);
         assert_eq!(result.unwrap(), Format::RType { op: AluOp::Add, rd: 3, rs1: 1, rs2: 2 });
     }

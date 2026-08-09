@@ -41,11 +41,12 @@ pub fn mask_and_shift(maskee: u32, masker: u32) -> u32 {
 mod tests {
     use super::*;
     use crate::definitions::masks;
+    use crate::programs::instructions::ADD_X3_X1_X2;
 
     #[test]
     fn test_mask() {
         // add x3, x1, x2 -- rd=3, sitting at bits 11-7, unshifted.
-        let raw_word = 0x002081B3;
+        let raw_word = ADD_X3_X1_X2;
         let result = mask(raw_word, masks::REG_DESTINATION);
         assert_eq!(result, 0b0001_1000_0000); // 3, still positioned at bits 11-7
     }
@@ -53,11 +54,53 @@ mod tests {
     #[test]
     fn test_mask_and_shift() {
         // same word, but now every field comes back shifted down to bit 0.
-        let raw_word = 0x002081B3;
+        let raw_word = ADD_X3_X1_X2;
         assert_eq!(mask_and_shift(raw_word, masks::REG_DESTINATION), 3);
         assert_eq!(mask_and_shift(raw_word, masks::FUNCT_THREE), 0);
         assert_eq!(mask_and_shift(raw_word, masks::REG_SOURCE_ONE), 1);
         assert_eq!(mask_and_shift(raw_word, masks::REG_SOURCE_TWO), 2);
         assert_eq!(mask_and_shift(raw_word, masks::FUNCT_SEVEN), 0);
+    }
+
+    #[test]
+    fn test_store_in_mem() {
+        let mut mem = crate::definitions::cpu_definition::build_memory_state();
+        store_in_mem(&[0xB3, 0x81, 0x20, 0x00], &mut mem, 0);
+        assert_eq!(mem.storage[0..4], [0xB3, 0x81, 0x20, 0x00]);
+    }
+
+    #[test]
+    fn test_store_in_mem_at_offset() {
+        let mut mem = crate::definitions::cpu_definition::build_memory_state();
+        store_in_mem(&[0xAA, 0xBB], &mut mem, 10);
+        assert_eq!(mem.storage[10..12], [0xAA, 0xBB]);
+        // untouched neighbors stay zero
+        assert_eq!(mem.storage[9], 0);
+        assert_eq!(mem.storage[12], 0);
+    }
+
+    #[test]
+    fn test_merge_bits() {
+        // 0b101 shifted up by 4 (0b1010000), OR'd with 0b11 sitting at the bottom
+        let result = merge_bits(&[(0b101, 4), (0b11, 0)]);
+        assert_eq!(result, 0b1010011);
+    }
+
+    #[test]
+    fn test_merge_bits_empty_is_zero() {
+        assert_eq!(merge_bits(&[]), 0);
+    }
+
+    #[test]
+    fn test_shake_to_signed_positive_stays_positive() {
+        // 5 in a 13-bit field, sign bit (12) unset -- should read as plain 5
+        assert_eq!(shake_to_signed(5, 13), 5);
+    }
+
+    #[test]
+    fn test_shake_to_signed_negative() {
+        // 8188 is -4's bit pattern in a 13-bit field (sign bit 12 set) --
+        // same value worked through by hand for b.rs's imm reassembly.
+        assert_eq!(shake_to_signed(8188, 13), -4);
     }
 }
