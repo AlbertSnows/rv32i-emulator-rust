@@ -29,13 +29,13 @@ pub fn parse_alu_imm_or_shift_inst(raw_word: InstructionWord) -> Result<Format, 
     let reg_dest = mask_and_shift(content, masks::REG_DESTINATION);
     let reg_source_one = mask_and_shift(content, masks::REG_SOURCE_ONE);
     match funct_three {
-        (0b000 | 0b010 | 0b011 | 0b100 | 0b110 | 0b111) => parse_i_alum_imm(&content, &funct_three, &reg_dest, &reg_source_one),
-        (0b001 | 0b101) => parse_i_shift(&content, &funct_three, &reg_dest, &reg_source_one),
+        (0b000 | 0b010 | 0b011 | 0b100 | 0b110 | 0b111) => parse_i_alu_imm(&content, &funct_three, reg_dest, reg_source_one),
+        (0b001 | 0b101) => parse_i_shift(&content, &funct_three, reg_dest, reg_source_one),
         _ => Err(format!("Unrecognized funct three format"))
     }
 }
 
-pub fn parse_i_shift(content: &u32, funct_three: &u32, reg_dest: &u32, reg_source_one: &u32) -> Result<Format, String> {
+pub fn parse_i_shift(content: &u32, funct_three: &u32, reg_dest: u32, reg_source_one: u32) -> Result<Format, String> {
     let shamt = mask_and_shift(*content, masks::I_TYPE_SHAMT);
     let funct_seven = mask_and_shift(*content, masks::FUNCT_SEVEN);
     let instruction_name = match (funct_seven, funct_three) {
@@ -47,12 +47,12 @@ pub fn parse_i_shift(content: &u32, funct_three: &u32, reg_dest: &u32, reg_sourc
     Ok(Format::IShiftType {
         op: instruction_name,
         shamt: shamt as usize,
-        rd: *reg_dest as usize,
-        rs1: *reg_source_one as usize
+        rd: reg_dest as usize,
+        rs1: reg_source_one as usize
     })
 }
 
-pub fn parse_i_alum_imm(content: &u32, funct_three: &u32, reg_dest: &u32, reg_source_one: &u32) -> Result<Format, String> {
+pub fn parse_i_alu_imm(content: &u32, funct_three: &u32, reg_dest: u32, reg_source_one: u32) -> Result<Format, String> {
     let imm_unsigned = mask_and_shift(*content, masks::I_TYPE_ALU_IMM);
     let imm_val = shake_to_signed(imm_unsigned, 12);
     let instruction_name = match funct_three {
@@ -62,15 +62,13 @@ pub fn parse_i_alum_imm(content: &u32, funct_three: &u32, reg_dest: &u32, reg_so
         0b100 => Ok(AluImmOp::Xori),
         0b110 => Ok(AluImmOp::Ori),
         0b111 => Ok(AluImmOp::Andi),
-        0b001 => Ok(AluImmOp::Xori),
-        0b101 => Ok(AluImmOp::Ori),       
         _ => Err(format!("undefined alu imm type detected"))
     }?;
     Ok(Format::AluImmType {
         op: instruction_name,
         imm: imm_val,
-        rd: *reg_dest as usize,
-        rs1: *reg_source_one as usize
+        rd: reg_dest as usize,
+        rs1: reg_source_one as usize
     })
 }
 
