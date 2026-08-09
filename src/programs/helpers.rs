@@ -1,5 +1,5 @@
 use crate::definitions::cpu_definition::CPUState;
-use instructions::ADD_X3_X1_X2;
+use crate::programs::instructions::ADD_X3_X1_X2;
 
 pub fn basic_addition(cpu: &mut CPUState) -> [u8; 4] {
     cpu.register.write(1, 10);

@@ -9,4 +9,4 @@
 // - rs2 (bits 24-20) = 00010 = 2 → x2
 // - funct7 (bits 31-25) = 0000000
 pub const ADD_X3_X1_X2: u32 = 0x002081B3;
-pub const NO_OP: u23 = 0x00000000;
+pub const NO_OP: u32 = 0x00000000;
