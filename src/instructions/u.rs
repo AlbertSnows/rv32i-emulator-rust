@@ -44,3 +44,24 @@ pub fn parse_u_inst(raw_word: InstructionWord, opcode: u32) -> Result<Format, St
 pub fn execute_u_type(op: &UOp, rd: usize, imm_upper: i32, register: &mut RegisterFile) -> Result<ExecutionSignal, String> {
     Ok(ExecutionSignal::Continue)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_parse_u_inst_lui() {
+        // lui x1, 5 -- opcode = 0110111 (LUI), rd = 1, imm_upper = 5 << 12
+        let raw_word = InstructionWord(0x000050B7);
+        let result = parse_u_inst(raw_word, op_codes::LUI);
+        assert_eq!(result, Ok(Format::UType { op: UOp::Lui, rd: 1, imm_upper: 5 << 12 }));
+    }
+
+    #[test]
+    fn test_parse_u_inst_auipc() {
+        // auipc x1, 5 -- opcode = 0010111 (AUIPC), same shape as lui otherwise
+        let raw_word = InstructionWord(0x00005097);
+        let result = parse_u_inst(raw_word, op_codes::AUIPC);
+        assert_eq!(result, Ok(Format::UType { op: UOp::Auipc, rd: 1, imm_upper: 5 << 12 }));
+    }
+}

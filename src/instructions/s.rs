@@ -54,3 +54,17 @@ pub fn parse_s_inst(raw_word: InstructionWord) -> Result<Format, String> {
 pub fn execute_s_type(op: &SOp, imm: i32, rs1: usize, rs2: usize, register: &mut RegisterFile) -> Result<ExecutionSignal, String> {
     Ok(ExecutionSignal::Continue)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_parse_s_inst() {
+        // sw x2, 4(x1)
+        // opcode = 0100011 (S), funct3 = 010 (sw), rs1 = 1, rs2 = 2, imm = 4
+        let raw_word = InstructionWord(0x0020A223);
+        let result = parse_s_inst(raw_word);
+        assert_eq!(result, Ok(Format::SType { op: SOp::Sw, imm: 4, rs1: 1, rs2: 2 }));
+    }
+}

@@ -25,3 +25,16 @@ pub fn parse_jalr_inst(raw_word: InstructionWord) -> Result<Format, String> {
 pub fn execute_i_jalr_type(rd: usize, rs1: usize, imm: i32, register: &mut RegisterFile) -> Result<ExecutionSignal, String> {
     Ok(ExecutionSignal::Continue)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_parse_jalr_inst() {
+        // jalr x1, x2, 8 -- opcode = 1100111 (JALR), rd = 1, rs1 = 2, imm = 8
+        let raw_word = InstructionWord(0x008100E7);
+        let result = parse_jalr_inst(raw_word);
+        assert_eq!(result, Ok(Format::JalrType { rd: 1, rs1: 2, imm: 8 }));
+    }
+}

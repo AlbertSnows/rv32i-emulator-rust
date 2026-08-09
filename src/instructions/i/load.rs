@@ -43,3 +43,16 @@ pub fn parse_load_inst(raw_word: InstructionWord) -> Result<Format, String> {
 pub fn execute_i_load_type(op: &LoadOp, rd: usize, rs1: usize, imm: i32, register: &mut RegisterFile) -> Result<ExecutionSignal, String> {
     Ok(ExecutionSignal::Continue)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_parse_load_inst() {
+        // lb x1, 4(x2) -- opcode = 0000011 (LOAD), funct3 = 000 (lb), rd = 1, rs1 = 2, imm = 4
+        let raw_word = InstructionWord(0x00410083);
+        let result = parse_load_inst(raw_word);
+        assert_eq!(result, Ok(Format::LoadType { op: LoadOp::Lb, rd: 1, rs1: 2, imm: 4 }));
+    }
+}

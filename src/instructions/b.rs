@@ -93,3 +93,17 @@ pub fn parse_b_inst(raw_word: InstructionWord) -> Result<Format, String> {
 pub fn execute_b_type(op: &BOp, imm: i32, rs1: usize, rs2: usize, register: &mut RegisterFile) -> Result<ExecutionSignal, String> {
     Ok(ExecutionSignal::Continue)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_parse_b_inst() {
+        // beq x1, x2, 8
+        // opcode = 1100011 (B), funct3 = 000 (beq), rs1 = 1, rs2 = 2, imm = 8
+        let raw_word = InstructionWord(0x00208463);
+        let result = parse_b_inst(raw_word);
+        assert_eq!(result, Ok(Format::BType { op: BOp::Beq, imm: 8, rs1: 1, rs2: 2 }));
+    }
+}

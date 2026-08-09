@@ -80,6 +80,15 @@ mod tests {
         assert_eq!(rf.read(5), 42);
         assert_eq!(returned, 42);
     }
+
+    #[test]
+    fn test_pc_write_and_read() {
+        let mut pc = build_pc_state();
+        assert_eq!(pc.read(), 0);
+        let returned = pc.write(4);
+        assert_eq!(returned, 4);
+        assert_eq!(pc.read(), 4);
+    }
 }
 
 // A file, historically, is an ordered row or collection of things. 

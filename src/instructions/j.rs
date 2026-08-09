@@ -51,3 +51,17 @@ pub fn parse_j_inst(raw_word: InstructionWord) -> Result<Format, String> {
 pub fn execute_j_type(op: &JOp, rd: usize, imm: i32, register: &mut RegisterFile) -> Result<ExecutionSignal, String> {
     Ok(ExecutionSignal::Continue)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_parse_j_inst() {
+        // jal x1, 16
+        // opcode = 1101111 (J), rd = 1, imm = 16
+        let raw_word = InstructionWord(0x010000EF);
+        let result = parse_j_inst(raw_word);
+        assert_eq!(result, Ok(Format::JType { op: JOp::Jal, rd: 1, imm: 16 }));
+    }
+}

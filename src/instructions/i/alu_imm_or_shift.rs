@@ -75,3 +75,24 @@ pub fn parse_i_alu_imm(content: &u32, funct_three: &u32, reg_dest: u32, reg_sour
 pub fn execute_i_alu_imm_type(op: &AluImmOp, rd: usize, rs1: usize, imm: i32, register: &mut RegisterFile) -> Result<ExecutionSignal, String> {
     Ok(ExecutionSignal::Continue)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_parse_alu_imm_or_shift_inst_routes_to_alu_imm() {
+        // addi x5, x1, 10 -- funct3 = 000, routes to parse_i_alu_imm
+        let raw_word = InstructionWord(0x00A08293);
+        let result = parse_alu_imm_or_shift_inst(raw_word);
+        assert_eq!(result, Ok(Format::AluImmType { op: AluImmOp::Addi, rd: 5, rs1: 1, imm: 10 }));
+    }
+
+    #[test]
+    fn test_parse_alu_imm_or_shift_inst_routes_to_shift() {
+        // slli x1, x2, 3 -- funct3 = 001, funct7 = 0000000, routes to parse_i_shift
+        let raw_word = InstructionWord(0x00311093);
+        let result = parse_alu_imm_or_shift_inst(raw_word);
+        assert_eq!(result, Ok(Format::IShiftType { op: IShOp::Slli, rd: 1, rs1: 2, shamt: 3 }));
+    }
+}
