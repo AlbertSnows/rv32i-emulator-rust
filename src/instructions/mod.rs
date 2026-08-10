@@ -30,7 +30,7 @@ pub enum Format {
     JalrType { rd: usize, rs1: usize, imm: i32 },
     IShiftType { op: IShOp, rd: usize, rs1: usize, shamt: usize },
     SystemType { op: SystemOp },
-    CsrType { op: CsrOp, rd: usize, rs1_or_uimm: usize, csr: u32 }
+    CsrType { op: CsrOp, rd: usize, rs1_or_uimm: usize, csr: usize }
 }
 
 impl Format {

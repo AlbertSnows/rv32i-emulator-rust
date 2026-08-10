@@ -98,7 +98,7 @@ impl RegisterFile {
 
 // CSR (Control and Status Register) address space is 12 bits wide (0..4096), per the Zicsr extension 
 // separate storage from the general-purpose, not reg  file
-[derive(Debug)]
+#[derive(Debug)]
 pub struct CsrState {
     storage: [u32; 4096]
 }

@@ -43,111 +43,99 @@ pub fn parse_csr_inst(raw_word: InstructionWord) -> Result<Format, String> {
         op: instruction_name,
         rd: reg_dest as usize,
         rs1_or_uimm: rs1_or_uimm as usize,
-        csr: csr_address
+        csr: csr_address as usize
     })
 }
 
-pub fn execute_i_csr_type(op: &CsrOp, rd: usize, rs1_or_uimm: usize, csr_address: u32, register: &mut RegisterFile, csr: &mut CsrState) -> Result<ExecutionSignal, String> {
+pub fn execute_i_csr_type(op: &CsrOp, rd: usize, rs1_or_uimm: usize, csr_address: usize, register: &mut RegisterFile, csr: &mut CsrState) -> Result<ExecutionSignal, String> {
     match op {
         CsrOp::Csrrw => inst_i_csrrw(rd, rs1_or_uimm, csr_address, register, csr),
         CsrOp::Csrrs => inst_i_csrrs(rd, rs1_or_uimm, csr_address, register, csr),
         CsrOp::Csrrc => inst_i_csrrc(rd, rs1_or_uimm, csr_address, register, csr),
-        CsrOp::Csrrwi => inst_i_csrrwi(rd, rs1_or_uimm, csr_address, register, csr),
-        CsrOp::Csrrsi => inst_i_csrrsi(rd, rs1_or_uimm, csr_address, register, csr),
-        CsrOp::Csrrci => inst_i_csrrci(rd, rs1_or_uimm, csr_address, register, csr),
+        CsrOp::Csrrwi => inst_i_csrrwi(rd, rs1_or_uimm as u32, csr_address, register, csr),
+        CsrOp::Csrrsi => inst_i_csrrsi(rd, rs1_or_uimm as u32, csr_address, register, csr),
+        CsrOp::Csrrci => inst_i_csrrci(rd, rs1_or_uimm as u32, csr_address, register, csr),
     }
     Ok(ExecutionSignal::Continue)
 }
 
-pub fn inst_i_csrrw(rd: usize, rs1: usize, csr_address: u32, register: &mut RegisterFile, csr: &mut CsrState) {
+pub fn inst_i_csrrw(rd: usize, rs1: usize, csr_address: usize, register: &mut RegisterFile, csr: &mut CsrState) {
     // t = CSR[csr]; CSR[csr] = rs1; rd = t
-    // atomic read/write -- old CSR value goes to rd, rs1's value replaces it
-    todo!()
+    let old_val = csr.read(csr_address);
+    let rs1_val = register.read(rs1);
+    csr.write(csr_address, rs1_val);
+    register.write(rd, old_val);
 }
 
-pub fn inst_i_csrrs(rd: usize, rs1: usize, csr_address: u32, register: &mut RegisterFile, csr: &mut CsrState) {
+pub fn inst_i_csrrs(rd: usize, rs1: usize, csr_address: usize, register: &mut RegisterFile, csr: &mut CsrState) {
     // t = CSR[csr]; CSR[csr] = t | rs1; rd = t
-    // atomic read and set bits -- rs1 acts as a bitmask of bits to set
-    todo!()
+    let old_val = csr.read(csr_address);
+    let rs1_val = register.read(rs1);
+    let masked_val = old_val | rs1_val;
+    csr.write(csr_address, masked_val);
+    register.write(rd, old_val);
 }
 
-pub fn inst_i_csrrc(rd: usize, rs1: usize, csr_address: u32, register: &mut RegisterFile, csr: &mut CsrState) {
+pub fn inst_i_csrrc(rd: usize, rs1: usize, csr_address: usize, register: &mut RegisterFile, csr: &mut CsrState) {
     // t = CSR[csr]; CSR[csr] = t & !rs1; rd = t
-    // atomic read and clear bits -- rs1 acts as a bitmask of bits to clear
-    todo!()
+    let old_val = csr.read(csr_address);
+    let rs1_val = register.read(rs1);
+    let masked_val = old_val & !rs1_val;
+    csr.write(csr_address, masked_val);
+    register.write(rd, old_val);
 }
 
-pub fn inst_i_csrrwi(rd: usize, uimm: usize, csr_address: u32, register: &mut RegisterFile, csr: &mut CsrState) {
+pub fn inst_i_csrrwi(rd: usize, uimm: u32, csr_address: usize, register: &mut RegisterFile, csr: &mut CsrState) {
     // t = CSR[csr]; CSR[csr] = uimm; rd = t
-    // same as csrrw, but the replacement value is a 5-bit zero-extended
-    // immediate instead of a register's contents
-    todo!()
+    let old_val = csr.read(csr_address);
+    csr.write(csr_address, uimm);
+    register.write(rd, old_val);
 }
 
-pub fn inst_i_csrrsi(rd: usize, uimm: usize, csr_address: u32, register: &mut RegisterFile, csr: &mut CsrState) {
+pub fn inst_i_csrrsi(rd: usize, uimm: u32, csr_address: usize, register: &mut RegisterFile, csr: &mut CsrState) {
     // t = CSR[csr]; CSR[csr] = t | uimm; rd = t
-    // same as csrrs, but the set-bits mask is a 5-bit zero-extended immediate
-    todo!()
+    let old_val = csr.read(csr_address);
+    let masked_val = old_val | uimm;
+    csr.write(csr_address, masked_val);
+    register.write(rd, old_val);
 }
 
-pub fn inst_i_csrrci(rd: usize, uimm: usize, csr_address: u32, register: &mut RegisterFile, csr: &mut CsrState) {
+pub fn inst_i_csrrci(rd: usize, uimm: u32, csr_address: usize, register: &mut RegisterFile, csr: &mut CsrState) {
     // t = CSR[csr]; CSR[csr] = t & !uimm; rd = t
-    // same as csrrc, but the clear-bits mask is a 5-bit zero-extended immediate
-    todo!()
+    let old_val = csr.read(csr_address);
+    let masked_val = old_val & !uimm;
+    csr.write(csr_address, masked_val);
+    register.write(rd, old_val);
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::definitions::cpu_definition::build_register_file;
+    use crate::definitions::cpu_definition::build_csr_state;
 
     #[test]
-    fn test_parse_csr_inst_csrrw() {
-        // csrrw x1, 0x300, x2 -- opcode = 1110011 (SYSTEM), funct3 = 001 (csrrw),
-        // rd = 1, rs1 = 2, csr = 0x300 (mstatus, a common real CSR address)
-        let raw_word = InstructionWord(0x300110F3);
-        let result = parse_csr_inst(raw_word);
-        assert_eq!(result, Ok(Format::CsrType { op: CsrOp::Csrrw, rd: 1, rs1_or_uimm: 2, csr: 0x300 }));
-    }
+    fn test_parse_csr_inst_all_ops() {
+        // All six CSR ops share the same field layout (rd = 1, rs1/uimm = 2,
+        // csr = 0x300) and differ only by funct3, so one word per op --
+        // built the same way (csr << 20 | rs1 << 15 | funct3 << 12 | rd << 7
+        // | opcode) -- covers every branch of parse_csr_inst's match.
+        //
+        // 0x300110F3 = 0b0011_0000_0000_0001_0001_0000_1111_0011
+        // csr[11:0]  bits 31:20 = 0011_0000_0000 = 0x300
+        // rs1/uimm   bits 19:15 = 00010          = 2
+        // funct3     bits 14:12 = 001                     (varies per op below)
+        // rd         bits 11:7  = 00001          = 1
+        // opcode     bits 6:0   = 1110011        = 0x73
 
-    #[test]
-    fn test_parse_csr_inst_csrrs() {
-        // csrrs x1, 0x300, x2 -- same fields as above, funct3 = 010 (csrrs)
-        let raw_word = InstructionWord(0x300120F3);
-        let result = parse_csr_inst(raw_word);
-        assert_eq!(result, Ok(Format::CsrType { op: CsrOp::Csrrs, rd: 1, rs1_or_uimm: 2, csr: 0x300 }));
-    }
+        let expected = |op| Ok(Format::CsrType { op, rd: 1, rs1_or_uimm: 2, csr: 0x300 });
 
-    #[test]
-    fn test_parse_csr_inst_csrrc() {
-        // csrrc x1, 0x300, x2 -- funct3 = 011 (csrrc)
-        let raw_word = InstructionWord(0x300130F3);
-        let result = parse_csr_inst(raw_word);
-        assert_eq!(result, Ok(Format::CsrType { op: CsrOp::Csrrc, rd: 1, rs1_or_uimm: 2, csr: 0x300 }));
-    }
-
-    #[test]
-    fn test_parse_csr_inst_csrrwi() {
-        // csrrwi x1, 0x300, 2 -- funct3 = 101 (csrrwi), uimm = 2 sitting in
-        // the same bit position rs1 occupies for the register-operand forms
-        let raw_word = InstructionWord(0x300150F3);
-        let result = parse_csr_inst(raw_word);
-        assert_eq!(result, Ok(Format::CsrType { op: CsrOp::Csrrwi, rd: 1, rs1_or_uimm: 2, csr: 0x300 }));
-    }
-
-    #[test]
-    fn test_parse_csr_inst_csrrsi() {
-        // csrrsi x1, 0x300, 2 -- funct3 = 110 (csrrsi)
-        let raw_word = InstructionWord(0x300160F3);
-        let result = parse_csr_inst(raw_word);
-        assert_eq!(result, Ok(Format::CsrType { op: CsrOp::Csrrsi, rd: 1, rs1_or_uimm: 2, csr: 0x300 }));
-    }
-
-    #[test]
-    fn test_parse_csr_inst_csrrci() {
-        // csrrci x1, 0x300, 2 -- funct3 = 111 (csrrci)
-        let raw_word = InstructionWord(0x300170F3);
-        let result = parse_csr_inst(raw_word);
-        assert_eq!(result, Ok(Format::CsrType { op: CsrOp::Csrrci, rd: 1, rs1_or_uimm: 2, csr: 0x300 }));
+        assert_eq!(parse_csr_inst(InstructionWord(0x300110F3)), expected(CsrOp::Csrrw));  // funct3 = 001
+        assert_eq!(parse_csr_inst(InstructionWord(0x300120F3)), expected(CsrOp::Csrrs));  // funct3 = 010
+        assert_eq!(parse_csr_inst(InstructionWord(0x300130F3)), expected(CsrOp::Csrrc));  // funct3 = 011
+        assert_eq!(parse_csr_inst(InstructionWord(0x300150F3)), expected(CsrOp::Csrrwi)); // funct3 = 101
+        assert_eq!(parse_csr_inst(InstructionWord(0x300160F3)), expected(CsrOp::Csrrsi)); // funct3 = 110
+        assert_eq!(parse_csr_inst(InstructionWord(0x300170F3)), expected(CsrOp::Csrrci)); // funct3 = 111
     }
 
     #[test]
@@ -157,5 +145,77 @@ mod tests {
         let raw_word = InstructionWord(0x300140F3);
         let result = parse_csr_inst(raw_word);
         assert!(result.is_err());
+    }
+
+    // --- execution tests ---
+
+    #[test]
+    fn test_inst_i_csrrw() {
+        // t = CSR[csr]; CSR[csr] = rs1; rd = t
+        let mut register = build_register_file();
+        let mut csr = build_csr_state();
+        register.write(2, 55); // rs1's value
+        csr.write(0x300, 100); // CSR's old value
+        inst_i_csrrw(1, 2, 0x300, &mut register, &mut csr);
+        assert_eq!(register.read(1), 100); // rd gets the old CSR value
+        assert_eq!(csr.read(0x300), 55);   // CSR gets rs1's value
+    }
+
+    #[test]
+    fn test_inst_i_csrrs() {
+        // t = CSR[csr]; CSR[csr] = t | rs1; rd = t
+        let mut register = build_register_file();
+        let mut csr = build_csr_state();
+        register.write(2, 0b1100); // rs1 = bits to set
+        csr.write(0x300, 0b0011);  // CSR's old value
+        inst_i_csrrs(1, 2, 0x300, &mut register, &mut csr);
+        assert_eq!(register.read(1), 0b0011);       // rd gets the old CSR value
+        assert_eq!(csr.read(0x300), 0b1111);        // 0b0011 | 0b1100
+    }
+
+    #[test]
+    fn test_inst_i_csrrc() {
+        // t = CSR[csr]; CSR[csr] = t & !rs1; rd = t
+        let mut register = build_register_file();
+        let mut csr = build_csr_state();
+        register.write(2, 0b0011); // rs1 = bits to clear
+        csr.write(0x300, 0b1111);  // CSR's old value
+        inst_i_csrrc(1, 2, 0x300, &mut register, &mut csr);
+        assert_eq!(register.read(1), 0b1111);       // rd gets the old CSR value
+        assert_eq!(csr.read(0x300), 0b1100);        // 0b1111 & !0b0011
+    }
+
+    #[test]
+    fn test_inst_i_csrrwi() {
+        // t = CSR[csr]; CSR[csr] = uimm; rd = t -- same as csrrw, but the
+        // replacement value is a 5-bit immediate, not a register's contents
+        let mut register = build_register_file();
+        let mut csr = build_csr_state();
+        csr.write(0x300, 100); // CSR's old value
+        inst_i_csrrwi(1, 5, 0x300, &mut register, &mut csr); // uimm = 5
+        assert_eq!(register.read(1), 100); // rd gets the old CSR value
+        assert_eq!(csr.read(0x300), 5);    // CSR gets the immediate
+    }
+
+    #[test]
+    fn test_inst_i_csrrsi() {
+        // t = CSR[csr]; CSR[csr] = t | uimm; rd = t
+        let mut register = build_register_file();
+        let mut csr = build_csr_state();
+        csr.write(0x300, 0b0011); // CSR's old value
+        inst_i_csrrsi(1, 0b1100, 0x300, &mut register, &mut csr); // uimm = bits to set
+        assert_eq!(register.read(1), 0b0011); // rd gets the old CSR value
+        assert_eq!(csr.read(0x300), 0b1111);  // 0b0011 | 0b1100
+    }
+
+    #[test]
+    fn test_inst_i_csrrci() {
+        // t = CSR[csr]; CSR[csr] = t & !uimm; rd = t
+        let mut register = build_register_file();
+        let mut csr = build_csr_state();
+        csr.write(0x300, 0b1111); // CSR's old value
+        inst_i_csrrci(1, 0b0011, 0x300, &mut register, &mut csr); // uimm = bits to clear
+        assert_eq!(register.read(1), 0b1111); // rd gets the old CSR value
+        assert_eq!(csr.read(0x300), 0b1100);  // 0b1111 & !0b0011
     }
 }

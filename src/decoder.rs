@@ -88,6 +88,14 @@ mod tests {
     fn test_decode_routes_csr_to_parse_csr_inst() {
         // csrrw x1, 0x300, x2 -- same SYSTEM opcode as ecall/ebreak, but a
         // nonzero funct3 routes it to CSR parsing instead
+        //
+        // 0x300110F3 = 0b0011_0000_0000_0001_0001_0000_1111_0011
+        //
+        // csr[11:0]  bits 31:20 = 0011_0000_0000 = 0x300  
+        // rs1/uimm   bits 19:15 = 00010          = 2      
+        // funct3     bits 14:12 = 001                     
+        // rd         bits 11:7  = 00001          = 1      
+        // opcode     bits 6:0   = 1110011        = 0x73   
         let raw_word = InstructionWord(0x300110F3);
         let result = decode_word_to_instruction(raw_word);
         assert!(matches!(result, Ok(Format::CsrType { .. })));
