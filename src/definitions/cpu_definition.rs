@@ -104,9 +104,16 @@ pub struct CsrState {
 }
 
 impl CsrState {
-    pub fn write(&mut self, address: usize, value: u32) -> u32 {
-        self.storage[address] = value;
-        self.storage[address]
+    pub fn write(&mut self, address: usize, value: u32) -> Result<u32, String> {
+        // "The top two bits (csr[11:10]) indicate whether the register is read/write (00, 01, or 10) or read-only (11). 
+        // The next two bits (csr[9:8]) encode the lowest privilege level that can access the CSR."
+        // https://docs.riscv.org/reference/isa/_attachments/riscv-privileged.pdf
+        let valid_write = (address >> 10) & 0b11 != 0b11;
+        if valid_write {
+            self.storage[address] = value;
+            return Ok(self.storage[address]);
+        }
+        return Err("Invalid write command".to_string());        
     }
 
     pub fn read(&self, address: usize) -> u32 {

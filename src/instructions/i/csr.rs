@@ -61,51 +61,70 @@ pub fn execute_i_csr_type(op: &CsrOp, rd: usize, rs1_or_uimm: usize, csr_address
 
 pub fn inst_i_csrrw(rd: usize, rs1: usize, csr_address: usize, register: &mut RegisterFile, csr: &mut CsrState) {
     // t = CSR[csr]; CSR[csr] = rs1; rd = t
-    let old_val = csr.read(csr_address);
+    // Per the instructions:
+    // "If rd=x0, then the instruction shall not read the CSR and shall not cause any of the side effects that might occur on a CSR read."
+    // https://docs.riscv.org/reference/isa/v20260120/unpriv/zicsr.html
+    if rd != 0 { 
+        let old_val = csr.read(csr_address);
+        register.write(rd, old_val);
+    }
     let rs1_val = register.read(rs1);
     csr.write(csr_address, rs1_val);
-    register.write(rd, old_val);
 }
 
 pub fn inst_i_csrrs(rd: usize, rs1: usize, csr_address: usize, register: &mut RegisterFile, csr: &mut CsrState) {
     // t = CSR[csr]; CSR[csr] = t | rs1; rd = t
+    // "Both CSRRS and CSRRC always read the addressed CSR and cause any read side effects regardless of rs1 and rd fields."
     let old_val = csr.read(csr_address);
-    let rs1_val = register.read(rs1);
-    let masked_val = old_val | rs1_val;
-    csr.write(csr_address, masked_val);
     register.write(rd, old_val);
+    if rs1 != 0 {
+        let rs1_val = register.read(rs1);
+        let masked_val = old_val | rs1_val;
+        csr.write(csr_address, masked_val);
+    }
 }
 
 pub fn inst_i_csrrc(rd: usize, rs1: usize, csr_address: usize, register: &mut RegisterFile, csr: &mut CsrState) {
     // t = CSR[csr]; CSR[csr] = t & !rs1; rd = t
+    // "Both CSRRS and CSRRC always read the addressed CSR and cause any read side effects regardless of rs1 and rd fields."
     let old_val = csr.read(csr_address);
-    let rs1_val = register.read(rs1);
-    let masked_val = old_val & !rs1_val;
-    csr.write(csr_address, masked_val);
     register.write(rd, old_val);
+    if rs1 != 0 {
+        let rs1_val = register.read(rs1);
+        let masked_val = old_val & !rs1_val;
+        csr.write(csr_address, masked_val);
+    }
 }
 
 pub fn inst_i_csrrwi(rd: usize, uimm: u32, csr_address: usize, register: &mut RegisterFile, csr: &mut CsrState) {
     // t = CSR[csr]; CSR[csr] = uimm; rd = t
-    let old_val = csr.read(csr_address);
+    if rd != 0 { 
+        let old_val = csr.read(csr_address);
+        register.write(rd, old_val);
+    }
     csr.write(csr_address, uimm);
-    register.write(rd, old_val);
 }
 
 pub fn inst_i_csrrsi(rd: usize, uimm: u32, csr_address: usize, register: &mut RegisterFile, csr: &mut CsrState) {
     // t = CSR[csr]; CSR[csr] = t | uimm; rd = t
+    //  "For CSRRSI and CSRRCI, if the uimm[4:0] field is zero, then these instructions will not write to the CSR"
     let old_val = csr.read(csr_address);
-    let masked_val = old_val | uimm;
-    csr.write(csr_address, masked_val);
     register.write(rd, old_val);
+    if uimm != 0 {
+        let masked_val = old_val | uimm;
+        csr.write(csr_address, masked_val);
+    }
 }
 
 pub fn inst_i_csrrci(rd: usize, uimm: u32, csr_address: usize, register: &mut RegisterFile, csr: &mut CsrState) {
     // t = CSR[csr]; CSR[csr] = t & !uimm; rd = t
+    //  "For CSRRSI and CSRRCI, if the uimm[4:0] field is zero, then these instructions will not write to the CSR"
     let old_val = csr.read(csr_address);
-    let masked_val = old_val & !uimm;
-    csr.write(csr_address, masked_val);
     register.write(rd, old_val);
+    if uimm != 0 {
+        let masked_val = old_val & !uimm;
+        csr.write(csr_address, masked_val);
+    }
 }
 
 #[cfg(test)]
@@ -162,6 +181,19 @@ mod tests {
     }
 
     #[test]
+    fn test_inst_i_csrrw_skips_register_write_when_rd_is_zero() {
+        // "If rd=x0, then the instruction shall not read the CSR..."
+        // The CSR write is unconditional regardless of rd.
+        let mut register = build_register_file();
+        let mut csr = build_csr_state();
+        register.write(2, 42);  // rs1's value
+        csr.write(0x300, 999);  // CSR's old value
+        inst_i_csrrw(0, 2, 0x300, &mut register, &mut csr); // rd = 0
+        assert_eq!(register.read(0), 0);   // x0 stays 0 -- write was skipped
+        assert_eq!(csr.read(0x300), 42);   // CSR write still happens
+    }
+
+    #[test]
     fn test_inst_i_csrrs() {
         // t = CSR[csr]; CSR[csr] = t | rs1; rd = t
         let mut register = build_register_file();
@@ -195,6 +227,17 @@ mod tests {
         inst_i_csrrwi(1, 5, 0x300, &mut register, &mut csr); // uimm = 5
         assert_eq!(register.read(1), 100); // rd gets the old CSR value
         assert_eq!(csr.read(0x300), 5);    // CSR gets the immediate
+    }
+
+    #[test]
+    fn test_inst_i_csrrwi_skips_register_write_when_rd_is_zero() {
+        // same rd = x0 rule as csrrw
+        let mut register = build_register_file();
+        let mut csr = build_csr_state();
+        csr.write(0x300, 999); // CSR's old value
+        inst_i_csrrwi(0, 42, 0x300, &mut register, &mut csr); // rd = 0, uimm = 42
+        assert_eq!(register.read(0), 0);   // x0 stays 0 -- write was skipped
+        assert_eq!(csr.read(0x300), 42);   // CSR write still happens
     }
 
     #[test]
