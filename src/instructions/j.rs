@@ -12,6 +12,7 @@
 use crate::instructions::Format;
 use crate::fetcher::InstructionWord;
 use crate::definitions::cpu_definition::RegisterFile;
+use crate::definitions::cpu_definition::PCState;
 use crate::definitions::codes::ExecutionSignal;
 use crate::utility::bit_operations::mask_and_shift;
 use crate::definitions::masks;
@@ -48,13 +49,17 @@ pub fn parse_j_inst(raw_word: InstructionWord) -> Result<Format, String> {
     })
 }
 
-pub fn execute_j_type(op: &JOp, rd: usize, imm: i32, register: &mut RegisterFile) -> Result<ExecutionSignal, String> {
+pub fn execute_j_type(op: &JOp, rd: usize, imm: i32, register: &mut RegisterFile, pc: &PCState) -> Result<ExecutionSignal, String> {
+    let write_value = (pc.read() + 4) as u32;
+    register.write(rd, write_value);
     Ok(ExecutionSignal::Continue)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::definitions::cpu_definition::build_register_file;
+    use crate::definitions::cpu_definition::build_pc_state;
 
     #[test]
     fn test_parse_j_inst() {
@@ -63,5 +68,17 @@ mod tests {
         let raw_word = InstructionWord(0x010000EF);
         let result = parse_j_inst(raw_word);
         assert_eq!(result, Ok(Format::JType { op: JOp::Jal, rd: 1, imm: 16 }));
+    }
+
+    #[test]
+    fn test_execute_j_type_writes_return_address() {
+        let mut register = build_register_file();
+        let mut pc = build_pc_state();
+        pc.write(100);
+
+        let outcome = execute_j_type(&JOp::Jal, 5, 16, &mut register, &pc);
+
+        assert_eq!(outcome, Ok(ExecutionSignal::Continue));
+        assert_eq!(register.read(5), 104);
     }
 }

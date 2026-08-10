@@ -1,4 +1,5 @@
 use crate::definitions::cpu_definition::RegisterFile;
+use crate::definitions::cpu_definition::MemoryState;
 use crate::fetcher::InstructionWord;
 use crate::instructions::Format;
 use crate::definitions::codes::ExecutionSignal;
@@ -40,8 +41,52 @@ pub fn parse_load_inst(raw_word: InstructionWord) -> Result<Format, String> {
 }
 
 
-pub fn execute_i_load_type(op: &LoadOp, rd: usize, rs1: usize, imm: i32, register: &mut RegisterFile) -> Result<ExecutionSignal, String> {
+pub fn execute_i_load_type(op: &LoadOp, rd: usize, rs1: usize, imm: i32, register: &mut RegisterFile, mem: &MemoryState) -> Result<ExecutionSignal, String> {
+    match op {
+        LoadOp::Lb => inst_i_lb(),
+        LoadOp::Lh => inst_i_lh(),
+        LoadOp::Lw => inst_i_lw(),
+        LoadOp::Lbu => inst_i_lbu(),
+        LoadOp::Lhu => inst_i_lhu(),
+    }
     Ok(ExecutionSignal::Continue)
+}
+
+pub fn inst_i_lb() {
+    // sext = sign extended
+    // rd <- sext(m8(rs1 + imm_i))
+    let num = rs1 + imm_i;
+    let sext_num = sext(num);
+    register.write(rd, sext_num);
+}
+
+pub fn inst_i_lh() {
+    // rd <- sext(m16(rs1 + imm_i))
+    let num = rs1 + imm_i;
+    let sext_num = sext(num);
+    register.write(rd, sext_num);
+}
+
+pub fn inst_i_lw() {
+    // rd <- sext(m32(rs1 + imm_i))
+    let num = rs1 + imm_i;
+    let sext_num = sext(num);
+    register.write(rd, sext_num);
+}
+
+pub fn inst_i_lbu() {
+    // zero = zero extended
+    // rd <- zext(m8(rs1 + imm_i))
+    let num = rs1 + imm_i;
+    let zext_num = zext(num);
+    register.write(rd, zext_num);
+}
+
+pub fn inst_i_lhu() {
+    // rd <- zext(m16(rs1 + imm_i))
+    let num = rs1 + imm_i;
+    let zext_num = zext(num);
+    register.write(rd, zext_num);
 }
 
 #[cfg(test)]
@@ -54,5 +99,55 @@ mod tests {
         let raw_word = InstructionWord(0x00410083);
         let result = parse_load_inst(raw_word);
         assert_eq!(result, Ok(Format::LoadType { op: LoadOp::Lb, rd: 1, rs1: 2, imm: 4 }));
+    }
+
+    #[test]
+    fn test_inst_i_lb() {
+        let rd = 1;
+        let rs1 = 3;
+        let imm_i = 6;
+        let reg_file = build_register_file();
+        execute_i_jalr_type(); // sext(0b1001) = ?
+        assert_eq!(reg_file.read(1), ?);
+    }
+
+    #[test]
+    fn test_inst_i_lh() {
+        let rd = 1;
+        let rs1 = 3;
+        let imm_i = 6;
+        let reg_file = build_register_file();
+        execute_i_jalr_type(); // sext(0b1001) = ?
+        assert_eq!(reg_file.read(1), ?);
+    }
+
+    #[test]
+    fn test_inst_i_lw() {
+        let rd = 1;
+        let rs1 = 3;
+        let imm_i = 6;
+        let reg_file = build_register_file();
+        execute_i_jalr_type(); // sext(0b1001) = ?
+        assert_eq!(reg_file.read(1), ?);
+    }
+
+    #[test]
+    fn test_inst_i_lbu() {
+        let rd = 1;
+        let rs1 = 3;
+        let imm_i = 6;
+        let reg_file = build_register_file();
+        execute_i_jalr_type(); // zext(0b1001) = ?
+        assert_eq!(reg_file.read(1), ?);
+    }
+
+    #[test]
+    fn test_inst_i_lhu() {
+        let rd = 1;
+        let rs1 = 3;
+        let imm_i = 6;
+        let reg_file = build_register_file();
+        execute_i_jalr_type(); // zext(0b1001) = ?
+        assert_eq!(reg_file.read(1), ?);
     }
 }

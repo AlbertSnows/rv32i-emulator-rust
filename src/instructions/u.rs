@@ -13,6 +13,7 @@
 use crate::instructions::Format;
 use crate::fetcher::InstructionWord;
 use crate::definitions::cpu_definition::RegisterFile;
+use crate::definitions::cpu_definition::PCState;
 use crate::instructions::i::system::SystemOp;
 use crate::definitions::codes::ExecutionSignal;
 use crate::utility::bit_operations::mask_and_shift;
@@ -41,8 +42,22 @@ pub fn parse_u_inst(raw_word: InstructionWord, opcode: u32) -> Result<Format, St
     })
 }
 
-pub fn execute_u_type(op: &UOp, rd: usize, imm_upper: i32, register: &mut RegisterFile) -> Result<ExecutionSignal, String> {
+pub fn execute_u_type(op: &UOp, rd: usize, imm_upper: i32, register: &mut RegisterFile, pc: &PCState) -> Result<ExecutionSignal, String> {
+    match op {
+        UOp::Lui => inst_u_lui(),
+        UOp::Auipc => inst_u_auipc(),
+    }
     Ok(ExecutionSignal::Continue)
+}
+
+pub fn inst_u_lui() {
+    // rd <- imm_upper (already shifted into place, low 12 bits zero)
+    register.write(rd, imm_upper);
+}
+
+pub fn inst_u_auipc() {
+    // rd <- pc + imm_upper
+    register.write(rd, pc + imm_upper);
 }
 
 #[cfg(test)]
@@ -63,5 +78,24 @@ mod tests {
         let raw_word = InstructionWord(0x00005097);
         let result = parse_u_inst(raw_word, op_codes::AUIPC);
         assert_eq!(result, Ok(Format::UType { op: UOp::Auipc, rd: 1, imm_upper: 5 << 12 }));
+    }
+
+    #[test]
+    fn test_inst_u_lui() {
+        let mut reg = build_register_file();
+        let rd = 1;
+        let upper = 0b1111_0000;
+        inst_u_lui(rd, upper, reg);
+        assert_eq!(reg.read(1), 0b1111_0000); 
+    }
+
+    #[test]
+    fn test_inst_u_auipc() {
+        let mut reg = build_register_file();
+        let mut pc = build_pc();
+        let rd = 1;
+        let upper = 0b1111_0000;
+        inst_u_lui(rd, upper, pc, reg);
+        assert_eq!(reg.read(1), 0b1111_0000); 
     }
 }

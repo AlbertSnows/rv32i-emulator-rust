@@ -1,4 +1,5 @@
 use crate::definitions::cpu_definition::RegisterFile;
+use crate::definitions::cpu_definition::PCState;
 use crate::fetcher::InstructionWord;
 use crate::instructions::Format;
 use crate::definitions::codes::ExecutionSignal;
@@ -22,8 +23,14 @@ pub fn parse_jalr_inst(raw_word: InstructionWord) -> Result<Format, String> {
     })
 }
 
-pub fn execute_i_jalr_type(rd: usize, rs1: usize, imm: i32, register: &mut RegisterFile) -> Result<ExecutionSignal, String> {
+pub fn execute_i_jalr_type(rd: usize, rs1: usize, imm: i32, register: &mut RegisterFile, pc: &PCState) -> Result<ExecutionSignal, String> {
+    inst_i_jalr();
     Ok(ExecutionSignal::Continue)
+}
+
+pub fn inst_i_jalr() {
+    // rd <- pc+4
+    reg_file[pd] = pc.read() + 4;
 }
 
 #[cfg(test)]
@@ -36,5 +43,15 @@ mod tests {
         let raw_word = InstructionWord(0x008100E7);
         let result = parse_jalr_inst(raw_word);
         assert_eq!(result, Ok(Format::JalrType { rd: 1, rs1: 2, imm: 8 }));
+    }
+
+    #[test]
+    fn test_inst_i_jalr() {
+        let rd = 1;
+        let pc = build_pc();
+        let reg_file = build_register_file();
+        pc.write(3);
+        execute_i_jalr_type();
+        assert_eq!(reg_file.read(1), 7);
     }
 }

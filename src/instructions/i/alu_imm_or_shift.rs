@@ -73,7 +73,50 @@ pub fn parse_i_alu_imm(content: &u32, funct_three: &u32, reg_dest: u32, reg_sour
 }
 
 pub fn execute_i_alu_imm_type(op: &AluImmOp, rd: usize, rs1: usize, imm: i32, register: &mut RegisterFile) -> Result<ExecutionSignal, String> {
+    match op {
+        AluImmOp::Addi => inst_i_addi(),
+        AluImmOp::Slti => inst_i_slti(),
+        AluImmOp::Sltiu => inst_i_sltiu(),
+        AluImmOp::Xori => inst_i_xori(),
+        AluImmOp::Ori => inst_i_ori(),
+        AluImmOp::Andi => inst_i_andi(),
+    }
     Ok(ExecutionSignal::Continue)
+}
+
+pub fn inst_i_addi() {
+    // rd <- rs1 + imm_i
+    reg_file.write(rd, rs1+imm_i);
+}
+
+pub fn inst_i_slti() {
+    // rd <- (rs1 <s imm_i) ? 1 : 0
+    let outcome = if rs1 < imm_i { 1 } else { 0 };
+    reg_file.write(rd, outcome);
+}
+
+pub fn inst_i_sltiu() {
+    // rd <- (rs1 <u imm_i) ? 1 : 0
+    let outcome = if rs1 < imm_i { 1 } else { 0 };
+    reg_file.write(rd, outcome);
+}
+
+pub fn inst_i_xori() {
+    // rd <- rs1 ^ imm_i
+    let outcome = rs1 ^ imm_1;
+    reg_file.write(rd, outcome);
+}
+
+pub fn inst_i_ori() {
+    // rd <- rs1 | imm_i
+    let outcome = rs1 | imm_1;
+    reg_file.write(rd, outcome);
+}
+
+pub fn inst_i_andi() {
+    // rd <- rs1 & imm_i
+    let outcome = rs1 & imm_1;
+    reg_file.write(rd, outcome);
 }
 
 #[cfg(test)]
@@ -94,5 +137,65 @@ mod tests {
         let raw_word = InstructionWord(0x00311093);
         let result = parse_alu_imm_or_shift_inst(raw_word);
         assert_eq!(result, Ok(Format::IShiftType { op: IShOp::Slli, rd: 1, rs1: 2, shamt: 3 }));
+    }
+
+    #[test]
+    fn test_inst_i_addi() {
+        let mut reg = build_register_file();
+        let rd = 1;
+        let rs1 = 2;
+        let imm_i = 3;
+        inst_i_addi();
+        assert_eq!(reg.read(rd), 5);
+    }
+
+    #[test]
+    fn test_inst_i_slti() {
+        let mut reg = build_register_file();
+        let rd = 1;
+        let rs1 = 5;
+        let imm_i = -8;
+        inst_i_slti();
+        assert_eq!(reg.read(rd), 0);
+    }
+
+    #[test]
+    fn test_inst_i_sltiu() {
+        let mut reg = build_register_file();
+        let rd = 1;
+        let rs1 = 5;
+        let imm_i = 8;
+        inst_i_sltiu();
+        assert_eq!(reg.read(rd), 1);
+    }
+
+    #[test]
+    fn test_inst_i_xori() {
+        let mut reg = build_register_file();
+        let rd = 1;
+        let rs1 = 3;
+        let imm_i = 4;
+        inst_i_sltiu();
+        assert_eq!(reg.read(rd), 81);
+    }
+
+    #[test]
+    fn test_inst_i_ori() {
+        let mut reg = build_register_file();
+        let rd = 1;
+        let rs1 = 0b1010;
+        let imm_i = 0b0101;
+        inst_i_sltiu();
+        assert_eq!(reg.read(rd), 0b1111);
+    }
+
+    #[test]
+    fn test_inst_i_andi() {
+        let mut reg = build_register_file();
+        let rd = 1;
+        let rs1 = 0b1010;
+        let imm_i = 0b0101;
+        inst_i_sltiu();
+        assert_eq!(reg.read(rd), 0b0000);
     }
 }

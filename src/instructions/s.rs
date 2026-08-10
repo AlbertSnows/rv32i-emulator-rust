@@ -11,6 +11,7 @@
 use crate::instructions::Format;
 use crate::fetcher::InstructionWord;
 use crate::definitions::cpu_definition::RegisterFile;
+use crate::definitions::cpu_definition::MemoryState;
 use crate::definitions::codes::ExecutionSignal;
 use crate::utility::bit_operations::mask_and_shift;
 use crate::definitions::masks;
@@ -51,8 +52,35 @@ pub fn parse_s_inst(raw_word: InstructionWord) -> Result<Format, String> {
     })
 }
 
-pub fn execute_s_type(op: &SOp, imm: i32, rs1: usize, rs2: usize, register: &mut RegisterFile) -> Result<ExecutionSignal, String> {
+pub fn execute_s_type(op: &SOp, imm: i32, rs1: usize, rs2: usize, register: &mut RegisterFile, mem: &mut MemoryState) -> Result<ExecutionSignal, String> {
+    match op {
+        SOp::Sb => inst_s_sb(),
+        SOp::Sh => inst_s_sh(),
+        SOp::Sw => inst_s_sw(),
+    }
     Ok(ExecutionSignal::Continue)
+}
+
+pub fn inst_s_sb(rs1, rs2, imm, mem) {
+    // m8(rs1+imm_s) ← rs2[7:0]
+    // m8 = one byte
+    // m8(x) = the single byte of memory at address X
+    let rs2_byte = rs2 & 0b1111_1111
+    let mem_address = rs1 + imm;
+    mem[mem_address] = rs2_byte;
+}
+
+pub fn inst_s_sh() {
+    // m16(rs1+imm_s) <- rs2[15:0]
+    let rs2_bytes = rs2 & 0b1111_1111_1111_1111
+    let mem_address = rs1 + imm;
+    mem[mem_address] = rs2_bytes;
+}
+
+pub fn inst_s_sw() {
+    // m32(rs1+imm_s) <- rs2[31:0]
+    let mem_address = rs1 + imm;
+    mem[mem_address] = rs2;
 }
 
 #[cfg(test)]
@@ -66,5 +94,35 @@ mod tests {
         let raw_word = InstructionWord(0x0020A223);
         let result = parse_s_inst(raw_word);
         assert_eq!(result, Ok(Format::SType { op: SOp::Sw, imm: 4, rs1: 1, rs2: 2 }));
+    }
+
+    #[test]
+    fn test_inst_s_sb() {
+        let mut mem = build_mem();
+        let rs1 = 1;
+        let rs2 = 2;
+        let imm = 7;
+        inst_s_sb(rs1, rs2, imm, mem);
+        assert_eq!(mem.read(rs1 + imm), rs2 & 0b1111_1111)
+    }
+
+    #[test]
+    fn test_inst_s_sh() {
+        let mut mem = build_mem();
+        let rs1 = 1;
+        let rs2 = 2;
+        let imm = 7;
+        inst_s_sb(rs1, rs2, imm, mem);
+        assert_eq!(mem.read(rs1 + imm), rs2 & 0b1111_1111_1111_1111)
+   }
+
+    #[test]
+    fn test_inst_s_sw() {
+        let mut mem = build_mem();
+        let rs1 = 1;
+        let rs2 = 2;
+        let imm = 7;
+        inst_s_sb(rs1, rs2, imm, mem);
+        assert_eq!(mem.read(rs1 + imm), rs2)
     }
 }

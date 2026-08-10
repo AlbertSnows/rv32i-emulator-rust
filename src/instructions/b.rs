@@ -91,6 +91,8 @@ pub fn parse_b_inst(raw_word: InstructionWord) -> Result<Format, String> {
 }
 
 pub fn execute_b_type(op: &BOp, imm: i32, rs1: usize, rs2: usize, register: &mut RegisterFile) -> Result<ExecutionSignal, String> {
+    // B Type only modifies PC, which is handled in the advance_pc step
+    // This execution is a no op
     Ok(ExecutionSignal::Continue)
 }
 
@@ -106,4 +108,5 @@ mod tests {
         let result = parse_b_inst(raw_word);
         assert_eq!(result, Ok(Format::BType { op: BOp::Beq, imm: 8, rs1: 1, rs2: 2 }));
     }
+
 }
