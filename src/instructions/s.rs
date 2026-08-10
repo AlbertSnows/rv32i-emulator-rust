@@ -63,20 +63,23 @@ pub fn execute_s_type(op: &SOp, imm: i32, rs1: usize, rs2: usize, register: &mut
 
 pub fn inst_s_sb(rs1: usize, rs2: usize, imm: i32, mem: &mut MemoryState, reg_file: &mut RegisterFile) {
     // m8(rs1+imm_s) ← rs2[7:0]
-    let mem_address = rs1 + imm;
-    mem.write_bytes(mem_address, &(rs2 as u8).to_le_bytes());
+    let val = reg_file.read(rs1);
+    let mem_address = val + imm as u32;
+    mem.write_bytes(mem_address as usize, &(rs2 as u8).to_le_bytes());
 }
 
 pub fn inst_s_sh(rs1: usize, rs2: usize, imm: i32, mem: &mut MemoryState, reg_file: &mut RegisterFile) {
     // m16(rs1+imm_s) <- rs2[15:0]
-    let mem_address = rs1 + imm;
-    mem.write_bytes(mem_address, &(rs2 as u16).to_le_bytes());
+    let val = reg_file.read(rs1);
+    let mem_address = val + imm as u32;
+    mem.write_bytes(mem_address as usize, &(rs2 as u16).to_le_bytes());
 }
 
 pub fn inst_s_sw(rs1: usize, rs2: usize, imm: i32, mem: &mut MemoryState, reg_file: &mut RegisterFile) {
     // m32(rs1+imm_s) <- rs2[31:0]
-    let mem_address = rs1 + imm;
-    mem.write_bytes(mem_address, &(rs2 as u32).to_le_bytes());
+    let val = reg_file.read(rs1);
+    let mem_address = val + imm as u32;
+    mem.write_bytes(mem_address as usize, &(rs2 as u32).to_le_bytes());
 }
 
 #[cfg(test)]

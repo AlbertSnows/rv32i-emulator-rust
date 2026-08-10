@@ -14,18 +14,6 @@ components:
 --- remaining work ---
 
 
-test coverage 
-[ ] fetcher: out-of-bounds fetch case
-[ ] decoder: one test per opcode branch, verifying dispatch + correct Format
-    (R already covered; need LOAD/ALU_IMM/SYSTEM/JALR/S/B/LUI/AUIPC/J)
-[ ] core.rs (step): at least one happy-path test
-[ ] bit_operations: store_in_mem, merge_bits, shake_to_signed
-
-test coverage -- deferred, come back to after the above:
-[ ] programs/
-[ ] instructions/ (beyond what's already covered per-file)
-[ ] definitions/
-
 instruction coverage (execution side):
 [ ] execute logic for the other 9 R-type ops (sub, sll, slt, sltu, xor, srl, sra, or, and)
     -- AluOp match now has an explicit arm per variant (todo!() stubs), return
@@ -33,8 +21,10 @@ instruction coverage (execution side):
 [ ] execute logic for B/J/S/U/JALR/AluImm/Shift/Load -- all still
     Ok(ExecutionSignal::Continue) stubs, none touch registers/memory yet
     (system.rs is the only execute_* that's real so far)
-[ ] Format::execute's dead `_ => panic!(...)` arm can be deleted (Format has
-    exactly 10 variants, all already matched -- wildcard is unreachable)
+
+[ ] load.rs: switch lb/lh/lw/lbu/lhu address calc from plain `+` to
+    wrapping_add (val.wrapping_add(imm_i as u32) as usize), matching the
+    s.rs store-address fix -- same overflow/panic risk, not yet applied
 
 deferred:
 [ ] remaining SYSTEM instructions (csrrw/csrrs/csrrc/csrrwi/csrrsi/csrrci) -- later

@@ -157,7 +157,7 @@ mod tests {
         let rd = 1;
         let rs1 = 2;
         let imm_i = 3;
-        reg.write(3, 2);
+        reg.write(2, 2);
         inst_i_addi(rd, rs1, imm_i, reg);
         assert_eq!(reg.read(rd), 5);
     }
@@ -168,7 +168,7 @@ mod tests {
         let rd = 1;
         let rs1 = 5;
         let imm_i = -8;
-        reg.write(3, 2);
+        reg.write(5, 2);
         inst_i_slti(rd, rs1, imm_i, reg);
         assert_eq!(reg.read(rd), 0);
     }
@@ -179,7 +179,7 @@ mod tests {
         let rd = 1;
         let rs1 = 5;
         let imm_i = 8;
-        reg.write(3, 2);
+        reg.write(5, 2);
         inst_i_sltiu(rd, rs1, imm_i, reg);
         assert_eq!(reg.read(rd), 1);
     }
@@ -192,27 +192,27 @@ mod tests {
         let imm_i = 4;
         reg.write(3, 2);
         inst_i_xori(rd, rs1, imm_i, reg);
-        assert_eq!(reg.read(rd), 7);
+        assert_eq!(reg.read(rd), 6);
     }
 
     #[test]
     fn test_inst_i_ori() {
         let mut reg = build_register_file();
         let rd = 1;
-        let rs1 = 0b1010;
-        let imm_i = 0b0101;
-        reg.write(3, 2);
+        let rs1 = 10;
+        let imm_i = 0b1100;
+        reg.write(10, 0b1010);
         inst_i_ori(rd, rs1, imm_i, reg);
-        assert_eq!(reg.read(rd), 0b1111);
+        assert_eq!(reg.read(rd), 0b1110);
     }
 
     #[test]
     fn test_inst_i_andi() {
         let mut reg = build_register_file();
         let rd = 1;
-        let rs1 = 0b0001;
+        let rs1 = 3;
         let imm_i = 0b0011;
-        reg.write(3, 2);
+        reg.write(3, 0b0001);
         inst_i_andi(rd, rs1, imm_i, reg);
         assert_eq!(reg.read(rd), 0b0001);
     }
