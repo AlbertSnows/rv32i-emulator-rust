@@ -32,3 +32,74 @@ pub fn advance_pc(pc: &mut PCState, instruction: &Format, reg_file: &RegisterFil
     pc.write(new_value as usize);
     pc.read()
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::definitions::cpu_definition::build_pc_state;
+    use crate::definitions::cpu_definition::build_register_file;
+    use crate::instructions::j::JOp;
+    use crate::instructions::u::UOp;
+
+    // --- boundary tests ---
+
+    #[test]
+    fn test_advance_pc_jtype_wraps_at_i32_max() {
+        let mut pc = build_pc_state();
+        // i32::MAX = 0x7FFF_FFFF = 0b0111_1111_1111_1111_1111_1111_1111_1111
+        pc.write(i32::MAX as usize);
+        let reg_file = build_register_file();
+        let instruction = Format::JType { op: JOp::Jal, rd: 1, imm: 1 };
+        let result = advance_pc(&mut pc, &instruction, &reg_file);
+        // adding 1 carries through every one-bit and flips the sign bit:
+        // 0b0111_...1111 + 1 = 0b1000_0000_0000_0000_0000_0000_0000_0000
+        // = 0x8000_0000 = i32::MIN
+        assert_eq!(result as i32, i32::MIN);
+    }
+
+    #[test]
+    fn test_advance_pc_jalrtype_wraps_at_i32_max() {
+        let mut pc = build_pc_state();
+        let mut reg_file = build_register_file();
+        // i32::MAX = 0x7FFF_FFFF = 0b0111_1111_1111_1111_1111_1111_1111_1111
+        reg_file.write(2, i32::MAX as u32);
+        let instruction = Format::JalrType { rd: 1, rs1: 2, imm: 1 };
+        let result = advance_pc(&mut pc, &instruction, &reg_file);
+        // = i32::MIN, and & !1 leaves it unchanged since bit 0 is already 0
+        assert_eq!(result as i32, i32::MIN);
+    }
+
+    #[test]
+    fn test_advance_pc_btype_taken_wraps_at_i32_max() {
+        let mut pc = build_pc_state();
+        pc.write(i32::MAX as usize);
+        let mut reg_file = build_register_file();
+        reg_file.write(2, 5);
+        reg_file.write(3, 5);
+        let instruction = Format::BType { op: BOp::Beq, imm: 1, rs1: 2, rs2: 3 };
+        let result = advance_pc(&mut pc, &instruction, &reg_file);
+        assert_eq!(result as i32, i32::MIN);
+    }
+
+    #[test]
+    fn test_advance_pc_btype_not_taken_wraps_at_i32_max() {
+        let mut pc = build_pc_state();
+        pc.write(i32::MAX as usize);
+        let mut reg_file = build_register_file();
+        reg_file.write(2, 5);
+        reg_file.write(3, 9); // not equal -- branch not taken, falls through to pc + 4
+        let instruction = Format::BType { op: BOp::Beq, imm: 100, rs1: 2, rs2: 3 };
+        let result = advance_pc(&mut pc, &instruction, &reg_file);
+        assert_eq!(result as i32, -2147483645);
+    }
+
+    #[test]
+    fn test_advance_pc_default_case_wraps_at_i32_max() {
+        let mut pc = build_pc_state();
+        pc.write(i32::MAX as usize);
+        let reg_file = build_register_file();
+        let instruction = Format::UType { op: UOp::Lui, rd: 1, imm_upper: 0 };
+        let result = advance_pc(&mut pc, &instruction, &reg_file);
+        assert_eq!(result as i32, -2147483645);
+    }
+}

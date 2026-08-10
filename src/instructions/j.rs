@@ -81,4 +81,16 @@ mod tests {
         assert_eq!(outcome, Ok(ExecutionSignal::Continue));
         assert_eq!(register.read(5), 104);
     }
+
+    #[test]
+    fn test_execute_j_type_wraps_at_u32_max() {
+        let mut register = build_register_file();
+        let mut pc = build_pc_state();
+        pc.write(u32::MAX as usize);
+
+        let outcome = execute_j_type(&JOp::Jal, 5, 16, &mut register, &pc);
+
+        assert_eq!(outcome, Ok(ExecutionSignal::Continue));
+        assert_eq!(register.read(5), 3);
+    }
 }

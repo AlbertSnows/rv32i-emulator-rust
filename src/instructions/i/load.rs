@@ -185,4 +185,66 @@ mod tests {
         inst_i_lhu(rd, rs1, imm_i, &mem, &mut reg_file).unwrap();
         assert_eq!(reg_file.read(1), 32769);
     }
+
+    // --- boundary tests ---
+
+    #[test]
+    fn test_inst_i_lb_wraps_and_out_of_bounds_returns_err() {
+        let rd = 1;
+        let rs1 = 3;
+        let mut reg_file = build_register_file();
+        reg_file.write(3, u32::MAX);
+        let mem = build_memory_state();
+        let imm_i = mem.storage.len() as i32 + 1;
+        let outcome = inst_i_lb(rd, rs1, imm_i, &mem, &mut reg_file);
+        assert!(outcome.is_err());
+    }
+
+    #[test]
+    fn test_inst_i_lh_wraps_and_out_of_bounds_returns_err() {
+        let rd = 1;
+        let rs1 = 3;
+        let mut reg_file = build_register_file();
+        reg_file.write(3, u32::MAX);
+        let mem = build_memory_state();
+        let imm_i = mem.storage.len() as i32 + 1;
+        let outcome = inst_i_lh(rd, rs1, imm_i, &mem, &mut reg_file);
+        assert!(outcome.is_err());
+    }
+
+    #[test]
+    fn test_inst_i_lw_wraps_and_out_of_bounds_returns_err() {
+        let rd = 1;
+        let rs1 = 3;
+        let mut reg_file = build_register_file();
+        reg_file.write(3, u32::MAX);
+        let mem = build_memory_state();
+        let imm_i = mem.storage.len() as i32 + 1;
+        let outcome = inst_i_lw(rd, rs1, imm_i, &mem, &mut reg_file);
+        assert!(outcome.is_err());
+    }
+
+    #[test]
+    fn test_inst_i_lbu_wraps_and_out_of_bounds_returns_err() {
+        let rd = 1;
+        let rs1 = 3;
+        let mut reg_file = build_register_file();
+        reg_file.write(3, u32::MAX);
+        let mem = build_memory_state();
+        let imm_i = mem.storage.len() as i32 + 1;
+        let outcome = inst_i_lbu(rd, rs1, imm_i, &mem, &mut reg_file);
+        assert!(outcome.is_err());
+    }
+
+    #[test]
+    fn test_inst_i_lhu_wraps_and_out_of_bounds_returns_err() {
+        let rd = 1;
+        let rs1 = 3;
+        let mut reg_file = build_register_file();
+        reg_file.write(3, u32::MAX);
+        let mem = build_memory_state();
+        let imm_i = mem.storage.len() as i32 + 1;
+        let outcome = inst_i_lhu(rd, rs1, imm_i, &mem, &mut reg_file);
+        assert!(outcome.is_err());
+    }
 }

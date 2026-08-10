@@ -102,6 +102,28 @@ mod tests {
         let rd = 1;
         let upper = 5 << 12;
         inst_u_auipc(rd, upper, &pc, &mut reg);
-        assert_eq!(reg.read(1), (5 << 12) + 1); 
+        assert_eq!(reg.read(1), (5 << 12) + 1);
+    }
+
+    // --- boundary tests ---
+
+    #[test]
+    fn test_inst_u_lui_negative_imm_upper_no_panic() {
+        let mut reg = build_register_file();
+        let rd = 1;
+        let upper = i32::MIN;
+        inst_u_lui(rd, upper, &mut reg);
+        assert_eq!(reg.read(1), i32::MIN as u32);
+    }
+
+    #[test]
+    fn test_inst_u_auipc_wraps_at_u32_max() {
+        let mut reg = build_register_file();
+        let mut pc = build_pc_state();
+        pc.write(u32::MAX as usize);
+        let rd = 1;
+        let upper = 10;
+        inst_u_auipc(rd, upper, &pc, &mut reg);
+        assert_eq!(reg.read(1), 9);
     }
 }

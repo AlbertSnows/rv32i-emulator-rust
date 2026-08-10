@@ -55,4 +55,16 @@ mod tests {
         execute_i_jalr_type(rd, rs1, imm, &mut reg_file, &pc);
         assert_eq!(reg_file.read(1), 7);
     }
+
+    #[test]
+    fn test_execute_i_jalr_type_wraps_at_u32_max() {
+        let rd = 1;
+        let mut pc = build_pc_state();
+        let rs1 = 2;
+        let imm = 3;
+        let mut reg_file = build_register_file();
+        pc.write(u32::MAX as usize);
+        execute_i_jalr_type(rd, rs1, imm, &mut reg_file, &pc);
+        assert_eq!(reg_file.read(1), 3);
+    }
 }

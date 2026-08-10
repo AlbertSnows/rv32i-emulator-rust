@@ -335,4 +335,103 @@ mod tests {
         inst_r_and(rd, rs1, rs2, &mut reg);
         assert_eq!(reg.read(5), 1);
     }
+
+    // --- boundary tests ---
+
+    #[test]
+    fn test_inst_r_add_wraps_at_u32_max() {
+        let mut reg = build_register_file();
+        reg.write(2, u32::MAX);
+        reg.write(3, 1);
+        inst_r_add(2, 3, 5, &mut reg);
+        assert_eq!(reg.read(5), 0);
+    }
+
+    #[test]
+    fn test_inst_r_sub_wraps_below_zero() {
+        let mut reg = build_register_file();
+        reg.write(2, 0);
+        reg.write(3, 1);
+        inst_r_sub(5, 2, 3, &mut reg);
+        assert_eq!(reg.read(5), u32::MAX);
+    }
+
+    #[test]
+    fn test_inst_r_sll_at_max_shift_no_panic() {
+        let mut reg = build_register_file();
+        reg.write(2, 1);
+        reg.write(3, 31);
+        inst_r_sll(5, 2, 3, &mut reg);
+        assert_eq!(reg.read(5), 0x8000_0000);
+    }
+
+    #[test]
+    fn test_inst_r_slt_at_i32_extremes() {
+        let mut reg = build_register_file();
+        reg.write(2, i32::MIN as u32);
+        reg.write(3, i32::MAX as u32);
+        inst_r_slt(5, 2, 3, &mut reg);
+        assert_eq!(reg.read(5), 1);
+    }
+
+    #[test]
+    fn test_inst_r_sltu_at_u32_max() {
+        let mut reg = build_register_file();
+        reg.write(2, u32::MAX);
+        reg.write(3, 0);
+        inst_r_sltu(5, 2, 3, &mut reg);
+        assert_eq!(reg.read(5), 0);
+    }
+
+    #[test]
+    fn test_inst_r_xor_self_at_u32_max() {
+        let mut reg = build_register_file();
+        reg.write(2, u32::MAX);
+        reg.write(3, u32::MAX);
+        inst_r_xor(5, 2, 3, &mut reg);
+        assert_eq!(reg.read(5), 0);
+    }
+
+    #[test]
+    fn test_inst_r_srl_at_max_shift_no_panic() {
+        let mut reg = build_register_file();
+        // u32::MAX = 0xFFFF_FFFF = 0b1111_1111_1111_1111_1111_1111_1111_1111
+        reg.write(2, u32::MAX);
+        reg.write(3, 31);
+        inst_r_srl(5, 2, 3, &mut reg);
+        // logical shift right 31: only the original bit 31 survives, now at bit 0
+        // 0b1111_...1111 >> 31 = 0b0000_...0001 = 0x1 = 1
+        assert_eq!(reg.read(5), 1);
+    }
+
+    #[test]
+    fn test_inst_r_sra_at_i32_min_max_shift() {
+        let mut reg = build_register_file();
+        // i32::MIN = 0x8000_0000 = 0b1000_0000_0000_0000_0000_0000_0000_0000 (sign bit set, rest zero)
+        reg.write(2, i32::MIN as u32);
+        reg.write(3, 31);
+        inst_r_sra(5, 2, 3, &mut reg);
+        // arithmetic shift right 31: the sign bit (1) is replicated into every
+        // vacated position, so all 32 bits end up set
+        // 0b1000_...0000 >>s 31 = 0b1111_...1111 = 0xFFFF_FFFF = -1 (as i32)
+        assert_eq!(reg.read(5) as i32, -1);
+    }
+
+    #[test]
+    fn test_inst_r_or_at_u32_max() {
+        let mut reg = build_register_file();
+        reg.write(2, 0);
+        reg.write(3, u32::MAX);
+        inst_r_or(5, 2, 3, &mut reg);
+        assert_eq!(reg.read(5), u32::MAX);
+    }
+
+    #[test]
+    fn test_inst_r_and_at_u32_max() {
+        let mut reg = build_register_file();
+        reg.write(2, u32::MAX);
+        reg.write(3, u32::MAX);
+        inst_r_and(5, 2, 3, &mut reg);
+        assert_eq!(reg.read(5), u32::MAX);
+    }
 }

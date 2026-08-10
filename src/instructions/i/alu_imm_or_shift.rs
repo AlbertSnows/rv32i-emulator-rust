@@ -217,4 +217,72 @@ mod tests {
         inst_i_andi(rd, rs1, imm_i, &mut reg);
         assert_eq!(reg.read(rd), 0b0001);
     }
+
+    // --- boundary tests ---
+
+    #[test]
+    fn test_inst_i_addi_wraps_at_u32_max() {
+        let mut reg = build_register_file();
+        let rd = 1;
+        let rs1 = 2;
+        let imm_i = 1;
+        reg.write(2, u32::MAX);
+        inst_i_addi(rd, rs1, imm_i, &mut reg);
+        assert_eq!(reg.read(rd), 0);
+    }
+
+    #[test]
+    fn test_inst_i_slti_at_i32_extremes() {
+        let mut reg = build_register_file();
+        let rd = 1;
+        let rs1 = 2;
+        let imm_i = i32::MAX;
+        reg.write(2, i32::MIN as u32);
+        inst_i_slti(rd, rs1, imm_i, &mut reg);
+        assert_eq!(reg.read(rd), 1);
+    }
+
+    #[test]
+    fn test_inst_i_sltiu_at_u32_max() {
+        let mut reg = build_register_file();
+        let rd = 1;
+        let rs1 = 2;
+        let imm_i = 0;
+        reg.write(2, u32::MAX);
+        inst_i_sltiu(rd, rs1, imm_i, &mut reg);
+        assert_eq!(reg.read(rd), 0);
+    }
+
+    #[test]
+    fn test_inst_i_xori_self_at_u32_max() {
+        let mut reg = build_register_file();
+        let rd = 1;
+        let rs1 = 2;
+        let imm_i = -1;
+        reg.write(2, u32::MAX);
+        inst_i_xori(rd, rs1, imm_i, &mut reg);
+        assert_eq!(reg.read(rd), 0);
+    }
+
+    #[test]
+    fn test_inst_i_ori_at_u32_max() {
+        let mut reg = build_register_file();
+        let rd = 1;
+        let rs1 = 2;
+        let imm_i = -1;
+        reg.write(2, 0);
+        inst_i_ori(rd, rs1, imm_i, &mut reg);
+        assert_eq!(reg.read(rd), u32::MAX);
+    }
+
+    #[test]
+    fn test_inst_i_andi_at_u32_max() {
+        let mut reg = build_register_file();
+        let rd = 1;
+        let rs1 = 2;
+        let imm_i = -1;
+        reg.write(2, u32::MAX);
+        inst_i_andi(rd, rs1, imm_i, &mut reg);
+        assert_eq!(reg.read(rd), u32::MAX);
+    }
 }

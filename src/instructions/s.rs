@@ -139,4 +139,42 @@ mod tests {
         assert_eq!(mem.storage[12], 0x34);
         assert_eq!(mem.storage[13], 0x12);
     }
+
+    // --- boundary tests ---
+
+    #[test]
+    fn test_inst_s_sb_wraps_and_out_of_bounds_returns_err() {
+        let mut mem = build_memory_state();
+        let mut reg_file = build_register_file();
+        reg_file.write(1, u32::MAX);
+        let rs1 = 1;
+        let rs2 = 0xAA; // 0b1010_1010
+        let imm = mem.storage.len() as i32 + 1;
+        let outcome = inst_s_sb(rs1, rs2, imm, &mut mem, &reg_file);
+        assert!(outcome.is_err());
+    }
+
+    #[test]
+    fn test_inst_s_sh_wraps_and_out_of_bounds_returns_err() {
+        let mut mem = build_memory_state();
+        let mut reg_file = build_register_file();
+        reg_file.write(1, u32::MAX);
+        let rs1 = 1;
+        let rs2 = 0xAABB; // 0b1010_1010_1011_1011
+        let imm = mem.storage.len() as i32 + 1;
+        let outcome = inst_s_sh(rs1, rs2, imm, &mut mem, &reg_file);
+        assert!(outcome.is_err());
+    }
+
+    #[test]
+    fn test_inst_s_sw_wraps_and_out_of_bounds_returns_err() {
+        let mut mem = build_memory_state();
+        let mut reg_file = build_register_file();
+        reg_file.write(1, u32::MAX);
+        let rs1 = 1;
+        let rs2 = 0x12345678; // 0b0001_0010_0011_0100_0101_0110_0111_1000
+        let imm = mem.storage.len() as i32 + 1;
+        let outcome = inst_s_sw(rs1, rs2, imm, &mut mem, &reg_file);
+        assert!(outcome.is_err());
+    }
 }
