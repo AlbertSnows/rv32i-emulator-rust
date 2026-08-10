@@ -44,25 +44,27 @@ pub fn parse_u_inst(raw_word: InstructionWord, opcode: u32) -> Result<Format, St
 
 pub fn execute_u_type(op: &UOp, rd: usize, imm_upper: i32, register: &mut RegisterFile, pc: &PCState) -> Result<ExecutionSignal, String> {
     match op {
-        UOp::Lui => inst_u_lui(),
-        UOp::Auipc => inst_u_auipc(),
+        UOp::Lui => inst_u_lui(rd, imm_upper, register),
+        UOp::Auipc => inst_u_auipc(rd, imm_upper, pc, register),
     }
     Ok(ExecutionSignal::Continue)
 }
 
-pub fn inst_u_lui(rd: usize, imm_upper: u32, register: RegisterFile) {
+pub fn inst_u_lui(rd: usize, imm_upper: i32, register: &mut RegisterFile) {
     // rd <- imm_upper (already shifted into place, low 12 bits zero)
-    register.write(rd, imm_upper);
+    register.write(rd, imm_upper as u32);
 }
 
-pub fn inst_u_auipc(rd: usize, imm_upper: u32, pc: PCState, register: RegisterFile) {
+pub fn inst_u_auipc(rd: usize, imm_upper: i32, pc: &PCState, register: &mut RegisterFile) {
     // rd <- pc + imm_upper
-    register.write(rd, pc.read() + imm_upper);
+    register.write(rd, (pc.read() + imm_upper as usize) as u32);
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::cpu_definition::build_pc_state;
+    use crate::cpu_definition::build_register_file;
 
     #[test]
     fn test_parse_u_inst_lui() {
@@ -88,7 +90,7 @@ mod tests {
         // 5 = 0b101
         // becomes 101_0000_0000_0000 
         let upper = 5 << 12;
-        inst_u_lui(rd, upper, reg);
+        inst_u_lui(rd, upper, &mut reg);
         assert_eq!(reg.read(1), 5 << 12); 
     }
 
@@ -99,7 +101,7 @@ mod tests {
         pc.write(1);
         let rd = 1;
         let upper = 5 << 12;
-        inst_u_auipc(rd, upper, pc, reg);
+        inst_u_auipc(rd, upper, &pc, &mut reg);
         assert_eq!(reg.read(1), (5 << 12) + 1); 
     }
 }

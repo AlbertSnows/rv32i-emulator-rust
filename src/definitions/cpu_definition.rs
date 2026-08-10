@@ -118,16 +118,16 @@ mod tests {
     #[test]
     fn test_write_bytes_single_byte() {
         let mut mem = build_memory_state();
-        let test_val = 0b0101_1010;
-        mem.write_bytes(8, &test_val.to_le_bytes());
+        let test_value: u32 = 0b0101_1010;
+        mem.write_bytes(8, &test_value.to_le_bytes());
         assert_eq!(mem.storage[8], 0b0101_1010);
     }
 
     #[test]
     fn test_write_bytes_halfword_little_endian() {
         let mut mem = build_memory_state();
-        let test_val = 0b1111_0000_1010_0101;
-        mem.write_bytes(8, &test_val.to_le_bytes());
+        let test_value: u32 = 0b1111_0000_1010_0101;
+        mem.write_bytes(8, &test_value.to_le_bytes());
         assert_eq!(mem.storage[8], 0b1010_0101);
         assert_eq!(mem.storage[9], 0b1111_0000);
     }
@@ -135,8 +135,8 @@ mod tests {
     #[test]
     fn test_write_bytes_word_little_endian() {
         let mut mem = build_memory_state();
-        let test_val = 0x12345678;
-        mem.write_bytes(8, &test_val.to_le_bytes());
+        let test_value: u32 = 0x12345678;
+        mem.write_bytes(8, &test_value.to_le_bytes());
         assert_eq!(mem.storage[8], 0x78);
         assert_eq!(mem.storage[9], 0x56);
         assert_eq!(mem.storage[10], 0x34);

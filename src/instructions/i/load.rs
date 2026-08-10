@@ -101,6 +101,8 @@ pub fn inst_i_lhu(rd: usize, rs1: usize, imm_i: i32, mem: &MemoryState, reg_file
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::definitions::cpu_definition::build_register_file;
+    use crate::cpu_definition::build_memory_state;
 
     #[test]
     fn test_parse_load_inst() {
@@ -119,8 +121,8 @@ mod tests {
         reg_file.write(3, 4);
         let mut mem = build_memory_state();
         mem.storage[10] = 0b1000_0001;
-        inst_i_lb(rd, rs1, imm_i, mem, reg_file); 
-        assert_eq!(reg_file.read(1), -127);
+        inst_i_lb(rd, rs1, imm_i, &mem, &mut reg_file); 
+        assert_eq!(reg_file.read(1) as i32, -127);
     }
 
     #[test]
@@ -133,8 +135,8 @@ mod tests {
         let mut mem = build_memory_state();
         mem.storage[10] = 0b0000_0001;
         mem.storage[11] = 0b1000_0000;
-        inst_i_lh(rd, rs1, imm_i, mem, reg_file);
-        assert_eq!(reg_file.read(1), -32767);
+        inst_i_lh(rd, rs1, imm_i, &mem, &mut reg_file);
+        assert_eq!(reg_file.read(1) as i32, -32767);
     }
 
     #[test]
@@ -149,8 +151,8 @@ mod tests {
         mem.storage[11] = 0b0000_0000;
         mem.storage[12] = 0b0000_0000;
         mem.storage[13] = 0b1000_0000;
-        inst_i_lw(rd, rs1, imm_i, mem, reg_file);
-        assert_eq!(reg_file.read(1), -2147483647);
+        inst_i_lw(rd, rs1, imm_i, &mem, &mut reg_file);
+        assert_eq!(reg_file.read(1) as i32, -2147483647);
     }
 
     #[test]
@@ -162,7 +164,7 @@ mod tests {
         reg_file.write(3, 4);
         let mut mem = build_memory_state();
         mem.storage[10] = 0b1000_0001;
-        inst_i_lbu(rd, rs1, imm_i, mem, reg_file); 
+        inst_i_lbu(rd, rs1, imm_i, &mem, &mut reg_file); 
         assert_eq!(reg_file.read(1), 129);
     }
 
@@ -176,7 +178,7 @@ mod tests {
         let mut mem = build_memory_state();
         mem.storage[10] = 0b0000_0001;
         mem.storage[11] = 0b1000_0000;
-        inst_i_lhu(rd, rs1, imm_i, mem, reg_file);
+        inst_i_lhu(rd, rs1, imm_i, &mem, &mut reg_file);
         assert_eq!(reg_file.read(1), 32769);
     }
 }

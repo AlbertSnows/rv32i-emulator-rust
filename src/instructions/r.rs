@@ -222,8 +222,8 @@ mod tests {
         let rs1 = 2;
         let rs2 = 3;
         let rd = 5;
-        inst_r_sub(rs1, rs2, rd, reg);
-        assert_eq!(reg.read(5), -5);
+        inst_r_sub(rs1, rs2, rd, &mut reg);
+        assert_eq!(reg.read(5) as i32, -5);
     }
 
     #[test]
@@ -234,23 +234,23 @@ mod tests {
         let rs1 = 2;
         let rs2 = 3;
         let rd = 5;
-        inst_r_sll(rs1, rs2, rd, reg);
+        inst_r_sll(rs1, rs2, rd, &mut reg);
         assert_eq!(reg.read(5), 0b10_1000);
     }
 
     #[test]
     fn test_inst_r_slt() {
         let mut reg = build_register_file();
-        reg.write(2, -22);
+        reg.write(2, (-22i32) as u32);
         reg.write(3, 33);
         let rs1 = 2;
         let rs2 = 3;
         let rd = 5;
-        inst_r_slt(rs1, rs2, rd, reg);
+        inst_r_slt(rs1, rs2, rd, &mut reg);
         assert_eq!(reg.read(5), 1);
         reg.write(2, 33);
-        reg.write(3, -22);
-        inst_r_slt(rs1, rs2, rd, reg);
+        reg.write(3, (-22i32) as u32);
+        inst_r_slt(rs1, rs2, rd, &mut reg);
         assert_eq!(reg.read(5), 0);
 
     }
@@ -263,11 +263,11 @@ mod tests {
         let rs1 = 2;
         let rs2 = 3;
         let rd = 5;
-        inst_r_sltu(rs1, rs2, rd, reg);
+        inst_r_sltu(rs1, rs2, rd, &mut reg);
         assert_eq!(reg.read(5), 0);
         reg.write(2, 18);
         reg.write(3, 33);
-        inst_r_sltu(rs1, rs2, rd, reg);
+        inst_r_sltu(rs1, rs2, rd, &mut reg);
         assert_eq!(reg.read(5), 1);
     }
 
@@ -280,7 +280,7 @@ mod tests {
         let rs1 = 2;
         let rs2 = 3;
         let rd = 5;
-        inst_r_xor(rs1, rs2, rd, reg);
+        inst_r_xor(rs1, rs2, rd, &mut reg);
         assert_eq!(reg.read(5), 6);
     }
 
@@ -292,7 +292,7 @@ mod tests {
         let rs1 = 2;
         let rs2 = 3;
         let rd = 5;
-        inst_r_srl(rs1, rs2, rd, reg);
+        inst_r_srl(rs1, rs2, rd, &mut reg);
         assert_eq!(reg.read(5), 7) 
     }
 
@@ -304,11 +304,11 @@ mod tests {
         // -30 = 30 -> flip = 1110_0001 + 1 = 1110_0010
         // take 5 -> 0_0010 -> shift amount is 2
         // rs1 = 12 = 0b1100 -> shift = 11 = 3 
-        reg.write(3, -30);
+        reg.write(3, (-30i32) as u32);
         let rs1 = 2;
         let rs2 = 3;
         let rd = 5;
-        inst_r_sra(rs1, rs2, rd, reg);
+        inst_r_sra(rs1, rs2, rd, &mut reg);
         assert_eq!(reg.read(5), 3);
     }
 
@@ -320,7 +320,7 @@ mod tests {
         let rs1 = 2;
         let rs2 = 3;
         let rd = 5;
-        inst_r_or(rs1, rs2, rd, reg);
+        inst_r_or(rs1, rs2, rd, &mut reg);
         assert_eq!(reg.read(5), 11); // 1011
     }
 
@@ -332,7 +332,7 @@ mod tests {
         let rs1 = 2;
         let rs2 = 3;
         let rd = 5;
-        inst_r_and(rs1, rs2, rd, reg);
+        inst_r_and(rs1, rs2, rd, &mut reg);
         assert_eq!(reg.read(5), 1);
     }
 }

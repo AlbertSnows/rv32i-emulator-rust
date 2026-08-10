@@ -134,6 +134,7 @@ pub fn inst_i_andi(rd: usize, rs1: usize, imm_i: i32, reg_file: &mut RegisterFil
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::cpu_definition::build_register_file;
 
     #[test]
     fn test_parse_alu_imm_or_shift_inst_routes_to_alu_imm() {
@@ -158,7 +159,7 @@ mod tests {
         let rs1 = 2;
         let imm_i = 3;
         reg.write(2, 2);
-        inst_i_addi(rd, rs1, imm_i, reg);
+        inst_i_addi(rd, rs1, imm_i, &mut reg);
         assert_eq!(reg.read(rd), 5);
     }
 
@@ -169,7 +170,7 @@ mod tests {
         let rs1 = 5;
         let imm_i = -8;
         reg.write(5, 2);
-        inst_i_slti(rd, rs1, imm_i, reg);
+        inst_i_slti(rd, rs1, imm_i, &mut reg);
         assert_eq!(reg.read(rd), 0);
     }
 
@@ -180,7 +181,7 @@ mod tests {
         let rs1 = 5;
         let imm_i = 8;
         reg.write(5, 2);
-        inst_i_sltiu(rd, rs1, imm_i, reg);
+        inst_i_sltiu(rd, rs1, imm_i, &mut reg);
         assert_eq!(reg.read(rd), 1);
     }
 
@@ -191,7 +192,7 @@ mod tests {
         let rs1 = 3;
         let imm_i = 4;
         reg.write(3, 2);
-        inst_i_xori(rd, rs1, imm_i, reg);
+        inst_i_xori(rd, rs1, imm_i, &mut reg);
         assert_eq!(reg.read(rd), 6);
     }
 
@@ -202,7 +203,7 @@ mod tests {
         let rs1 = 10;
         let imm_i = 0b1100;
         reg.write(10, 0b1010);
-        inst_i_ori(rd, rs1, imm_i, reg);
+        inst_i_ori(rd, rs1, imm_i, &mut reg);
         assert_eq!(reg.read(rd), 0b1110);
     }
 
@@ -213,7 +214,7 @@ mod tests {
         let rs1 = 3;
         let imm_i = 0b0011;
         reg.write(3, 0b0001);
-        inst_i_andi(rd, rs1, imm_i, reg);
+        inst_i_andi(rd, rs1, imm_i, &mut reg);
         assert_eq!(reg.read(rd), 0b0001);
     }
 }

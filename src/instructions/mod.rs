@@ -41,7 +41,7 @@ impl Format {
             Format::BType { op, imm, rs1, rs2 }
                 => b::execute_b_type(op, *imm, *rs1, *rs2, &mut cpu_state.register),
             Format::SType { op, imm, rs1, rs2 }
-                => s::execute_s_type(op, *imm, *rs1, *rs2, &mut cpu_state.register, &mut cpu_state.mem),
+                => s::execute_s_type(op, *imm, *rs1, *rs2, &cpu_state.register, &mut cpu_state.mem),
             Format::RType { op, rd, rs1, rs2 } // all &references because self is &self
                 => r::execute_r_type(op, *rd, *rs1, *rs2, &mut cpu_state.register),
             Format::LoadType { op, rd, rs1, imm }

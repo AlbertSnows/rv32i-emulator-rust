@@ -36,6 +36,7 @@ pub fn inst_i_srai(rd: usize, rs1: usize, shamt: usize, reg_file: &mut RegisterF
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::cpu_definition::build_register_file;
 
     #[test]
     fn test_inst_i_slli() {
@@ -44,7 +45,7 @@ mod tests {
         let rs1 = 2;
         let shamt = 0b0010;
         reg_file.write(2, 0b0101);
-        inst_i_slli(rd, rs1, shamt, reg_file); 
+        inst_i_slli(rd, rs1, shamt, &mut reg_file); 
         assert_eq!(reg_file.read(1), 0b0001_0100);
     }
 
@@ -55,7 +56,7 @@ mod tests {
         let rs1 = 2;
         reg_file.write(2, 0b0101);
         let shamt = 0b11;
-        inst_i_srli(rd, rs1, shamt, reg_file); 
+        inst_i_srli(rd, rs1, shamt, &mut reg_file); 
         assert_eq!(reg_file.read(1), 0b0000_1010);
     }
 
@@ -64,9 +65,9 @@ mod tests {
         let mut reg_file = build_register_file();
         let rd = 1;
         let rs1 = 2;
-        reg_file.write(2, -8);
+        reg_file.write(2, -8i32 as u32);
         let shamt = 1;
-        inst_i_srai(rd, rs1, shamt, reg_file); 
-        assert_eq!(reg_file.read(1), -4);
+        inst_i_srai(rd, rs1, shamt, &mut reg_file); 
+        assert_eq!(reg_file.read(1) as i32, -4);
     }
 }

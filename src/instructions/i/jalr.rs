@@ -34,6 +34,9 @@ pub fn inst_i_jalr(rd: usize, pc: PCState, reg_file: RegisterFile) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::cpu_definition::build_pc_state;
+    use crate::cpu_definition::build_register_file;
+    use crate::cpu_definition::build_memory_state;
 
     #[test]
     fn test_parse_jalr_inst() {
@@ -46,10 +49,12 @@ mod tests {
     #[test]
     fn test_inst_i_jalr() {
         let rd = 1;
-        let pc = build_pc();
-        let reg_file = build_register_file();
+        let mut pc = build_pc_state();
+        let rs1 = 2;
+        let imm = 3;
+        let mut reg_file = build_register_file();
         pc.write(3);
-        execute_i_jalr_type();
+        execute_i_jalr_type(rd, rs1, imm, &mut reg_file, &pc);
         assert_eq!(reg_file.read(1), 7);
     }
 }
