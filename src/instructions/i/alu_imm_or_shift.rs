@@ -74,48 +74,60 @@ pub fn parse_i_alu_imm(content: &u32, funct_three: &u32, reg_dest: u32, reg_sour
 
 pub fn execute_i_alu_imm_type(op: &AluImmOp, rd: usize, rs1: usize, imm: i32, register: &mut RegisterFile) -> Result<ExecutionSignal, String> {
     match op {
-        AluImmOp::Addi => inst_i_addi(),
-        AluImmOp::Slti => inst_i_slti(),
-        AluImmOp::Sltiu => inst_i_sltiu(),
-        AluImmOp::Xori => inst_i_xori(),
-        AluImmOp::Ori => inst_i_ori(),
-        AluImmOp::Andi => inst_i_andi(),
+        AluImmOp::Addi => inst_i_addi(rd, rs1, imm, register),
+        AluImmOp::Slti => inst_i_slti(rd, rs1, imm, register),
+        AluImmOp::Sltiu => inst_i_sltiu(rd, rs1, imm, register),
+        AluImmOp::Xori => inst_i_xori(rd, rs1, imm, register),
+        AluImmOp::Ori => inst_i_ori(rd, rs1, imm, register),
+        AluImmOp::Andi => inst_i_andi(rd, rs1, imm, register),
     }
     Ok(ExecutionSignal::Continue)
 }
 
-pub fn inst_i_addi() {
+pub fn inst_i_addi(rd: usize, rs1: usize, imm_i: i32, reg_file: &mut RegisterFile) {
     // rd <- rs1 + imm_i
-    reg_file.write(rd, rs1+imm_i);
+    let val = reg_file.read(rs1);
+    let imm_u = imm_i as u32;
+    let outcome = val.wrapping_add(imm_u);
+    reg_file.write(rd, outcome);
 }
 
-pub fn inst_i_slti() {
+pub fn inst_i_slti(rd: usize, rs1: usize, imm_i: i32, reg_file: &mut RegisterFile) {
     // rd <- (rs1 <s imm_i) ? 1 : 0
-    let outcome = if rs1 < imm_i { 1 } else { 0 };
+    let val = reg_file.read(rs1) as i32;
+    let outcome = if val < imm_i { 1 } else { 0 };
     reg_file.write(rd, outcome);
 }
 
-pub fn inst_i_sltiu() {
+pub fn inst_i_sltiu(rd: usize, rs1: usize, imm_i: i32, reg_file: &mut RegisterFile) {
     // rd <- (rs1 <u imm_i) ? 1 : 0
-    let outcome = if rs1 < imm_i { 1 } else { 0 };
+    let val = reg_file.read(rs1);
+    let imm_u = imm_i as u32;
+    let outcome = if val < imm_u { 1 } else { 0 };
     reg_file.write(rd, outcome);
 }
 
-pub fn inst_i_xori() {
+pub fn inst_i_xori(rd: usize, rs1: usize, imm_i: i32, reg_file: &mut RegisterFile) {
     // rd <- rs1 ^ imm_i
-    let outcome = rs1 ^ imm_i;
+    let val = reg_file.read(rs1);
+    let imm_u = imm_i as u32;
+    let outcome = val ^ imm_u;
     reg_file.write(rd, outcome);
 }
 
-pub fn inst_i_ori() {
+pub fn inst_i_ori(rd: usize, rs1: usize, imm_i: i32, reg_file: &mut RegisterFile) {
     // rd <- rs1 | imm_i
-    let outcome = rs1 | imm_i;
+    let val = reg_file.read(rs1);
+    let imm_u = imm_i as u32;
+    let outcome = val | imm_u;
     reg_file.write(rd, outcome);
 }
 
-pub fn inst_i_andi() {
+pub fn inst_i_andi(rd: usize, rs1: usize, imm_i: i32, reg_file: &mut RegisterFile) {
     // rd <- rs1 & imm_i
-    let outcome = rs1 & imm_i;
+    let val = reg_file.read(rs1);
+    let imm_u = imm_i as u32;
+    let outcome = val & imm_u;
     reg_file.write(rd, outcome);
 }
 
@@ -145,7 +157,8 @@ mod tests {
         let rd = 1;
         let rs1 = 2;
         let imm_i = 3;
-        inst_i_addi();
+        reg.write(3, 2);
+        inst_i_addi(rd, rs1, imm_i, reg);
         assert_eq!(reg.read(rd), 5);
     }
 
@@ -155,7 +168,8 @@ mod tests {
         let rd = 1;
         let rs1 = 5;
         let imm_i = -8;
-        inst_i_slti();
+        reg.write(3, 2);
+        inst_i_slti(rd, rs1, imm_i, reg);
         assert_eq!(reg.read(rd), 0);
     }
 
@@ -165,7 +179,8 @@ mod tests {
         let rd = 1;
         let rs1 = 5;
         let imm_i = 8;
-        inst_i_sltiu();
+        reg.write(3, 2);
+        inst_i_sltiu(rd, rs1, imm_i, reg);
         assert_eq!(reg.read(rd), 1);
     }
 
@@ -175,8 +190,9 @@ mod tests {
         let rd = 1;
         let rs1 = 3;
         let imm_i = 4;
-        inst_i_xori();
-        assert_eq!(reg.read(rd), 81);
+        reg.write(3, 2);
+        inst_i_xori(rd, rs1, imm_i, reg);
+        assert_eq!(reg.read(rd), 7);
     }
 
     #[test]
@@ -185,7 +201,8 @@ mod tests {
         let rd = 1;
         let rs1 = 0b1010;
         let imm_i = 0b0101;
-        inst_i_ori();
+        reg.write(3, 2);
+        inst_i_ori(rd, rs1, imm_i, reg);
         assert_eq!(reg.read(rd), 0b1111);
     }
 
@@ -193,9 +210,10 @@ mod tests {
     fn test_inst_i_andi() {
         let mut reg = build_register_file();
         let rd = 1;
-        let rs1 = 0b1010;
-        let imm_i = 0b0101;
-        inst_i_andi();
-        assert_eq!(reg.read(rd), 0b0000);
+        let rs1 = 0b0001;
+        let imm_i = 0b0011;
+        reg.write(3, 2);
+        inst_i_andi(rd, rs1, imm_i, reg);
+        assert_eq!(reg.read(rd), 0b0001);
     }
 }

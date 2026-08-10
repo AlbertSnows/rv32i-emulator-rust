@@ -50,12 +50,12 @@ pub fn execute_u_type(op: &UOp, rd: usize, imm_upper: i32, register: &mut Regist
     Ok(ExecutionSignal::Continue)
 }
 
-pub fn inst_u_lui() {
+pub fn inst_u_lui(rd: usize, imm_upper: u32, register: RegisterFile) {
     // rd <- imm_upper (already shifted into place, low 12 bits zero)
     register.write(rd, imm_upper);
 }
 
-pub fn inst_u_auipc() {
+pub fn inst_u_auipc(rd: usize, imm_upper: u32, pc: PCState, register: RegisterFile) {
     // rd <- pc + imm_upper
     register.write(rd, pc.read() + imm_upper);
 }

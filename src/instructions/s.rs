@@ -54,26 +54,26 @@ pub fn parse_s_inst(raw_word: InstructionWord) -> Result<Format, String> {
 
 pub fn execute_s_type(op: &SOp, imm: i32, rs1: usize, rs2: usize, register: &mut RegisterFile, mem: &mut MemoryState) -> Result<ExecutionSignal, String> {
     match op {
-        SOp::Sb => inst_s_sb(),
-        SOp::Sh => inst_s_sh(),
-        SOp::Sw => inst_s_sw(),
+        SOp::Sb => inst_s_sb(rs1, rs2, imm, mem, register),
+        SOp::Sh => inst_s_sh(rs1, rs2, imm, mem, register),
+        SOp::Sw => inst_s_sw(rs1, rs2, imm, mem, register),
     }
     Ok(ExecutionSignal::Continue)
 }
 
-pub fn inst_s_sb(rs1, rs2, imm, mem) {
+pub fn inst_s_sb(rs1: usize, rs2: usize, imm: i32, mem: &mut MemoryState, reg_file: &mut RegisterFile) {
     // m8(rs1+imm_s) ← rs2[7:0]
     let mem_address = rs1 + imm;
     mem.write_bytes(mem_address, &(rs2 as u8).to_le_bytes());
 }
 
-pub fn inst_s_sh(rs1, rs2, imm, mem) {
+pub fn inst_s_sh(rs1: usize, rs2: usize, imm: i32, mem: &mut MemoryState, reg_file: &mut RegisterFile) {
     // m16(rs1+imm_s) <- rs2[15:0]
     let mem_address = rs1 + imm;
     mem.write_bytes(mem_address, &(rs2 as u16).to_le_bytes());
 }
 
-pub fn inst_s_sw(rs1, rs2, imm, mem) {
+pub fn inst_s_sw(rs1: usize, rs2: usize, imm: i32, mem: &mut MemoryState, reg_file: &mut RegisterFile) {
     // m32(rs1+imm_s) <- rs2[31:0]
     let mem_address = rs1 + imm;
     mem.write_bytes(mem_address, &(rs2 as u32).to_le_bytes());

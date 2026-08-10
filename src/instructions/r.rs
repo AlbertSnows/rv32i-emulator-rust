@@ -64,21 +64,21 @@ pub fn execute_r_type(op: &AluOp, rd: usize, rs1: usize, rs2: usize, reg_file: &
     match op {
         AluOp::Add => {
             inst_r_add(rs1, rs2, rd, reg_file);
-        }
-        AluOp::Sub => inst_r_sub(),
-        AluOp::Sll => inst_r_sll(),
-        AluOp::Slt => inst_r_slt(),
-        AluOp::Sltu => inst_r_sltu(),
-        AluOp::Xor => inst_r_xor(),
-        AluOp::Srl => inst_r_srl(),
-        AluOp::Sra => inst_r_sra(),
-        AluOp::Or => inst_r_or(),
-        AluOp::And => inst_r_and(),
+        },
+        AluOp::Sub => inst_r_sub(rd, rs1, rs2, reg_file),
+        AluOp::Sll => inst_r_sll(rd, rs1, rs2, reg_file),
+        AluOp::Slt => inst_r_slt(rd, rs1, rs2, reg_file),
+        AluOp::Sltu => inst_r_sltu(rd, rs1, rs2, reg_file),
+        AluOp::Xor => inst_r_xor(rd, rs1, rs2, reg_file),
+        AluOp::Srl => inst_r_srl(rd, rs1, rs2, reg_file),
+        AluOp::Sra => inst_r_sra(rd, rs1, rs2, reg_file),
+        AluOp::Or => inst_r_or(rd, rs1, rs2, reg_file),
+        AluOp::And => inst_r_and(rd, rs1, rs2, reg_file),
     }
     Ok(ExecutionSignal::Continue)
 }
 
-pub fn inst_r_sub() {
+pub fn inst_r_sub(rd: usize, rs1: usize, rs2: usize, reg_file: &mut RegisterFile) {
     // rd <- rs1 - rs2
     let left = reg_file.read(rs1);
     let right = reg_file.read(rs2);
@@ -86,7 +86,7 @@ pub fn inst_r_sub() {
     reg_file.write(rd, outcome);
 }
 
-pub fn inst_r_sll() {
+pub fn inst_r_sll(rd: usize, rs1: usize, rs2: usize, reg_file: &mut RegisterFile) {
     // rd <- rs1 << rs2[4:0]
     let left = reg_file.read(rs1);
     let right = reg_file.read(rs2);
@@ -95,7 +95,7 @@ pub fn inst_r_sll() {
     reg_file.write(rd, outcome);
 }
 
-pub fn inst_r_slt() {
+pub fn inst_r_slt(rd: usize, rs1: usize, rs2: usize, reg_file: &mut RegisterFile) {
     // rd <- (rs1 <s rs2) ? 1 : 0
     let left = reg_file.read(rs1) as i32;
     let right = reg_file.read(rs2) as i32;
@@ -104,7 +104,7 @@ pub fn inst_r_slt() {
     reg_file.write(rd, bit);
 }
 
-pub fn inst_r_sltu() {
+pub fn inst_r_sltu(rd: usize, rs1: usize, rs2: usize, reg_file: &mut RegisterFile) {
     // rd <- (rs1 <u rs2) ? 1 : 0
     let left = reg_file.read(rs1);
     let right = reg_file.read(rs2);
@@ -113,50 +113,50 @@ pub fn inst_r_sltu() {
     reg_file.write(rd, bit);
 }
 
-pub fn inst_r_xor() {
+pub fn inst_r_xor(rd: usize, rs1: usize, rs2: usize, reg_file: &mut RegisterFile) {
     // rd <- rs1 ^ rs2
     let left = reg_file.read(rs1) as i32;
     let right = reg_file.read(rs2) as i32;
     let exponential_outcome = left ^ right;
-    reg_file.write(rd, exponential_outcome);
+    reg_file.write(rd, exponential_outcome as u32);
 }
 
-pub fn inst_r_srl() {
+pub fn inst_r_srl(rd: usize, rs1: usize, rs2: usize, reg_file: &mut RegisterFile) {
     // rd <- rs1 >>u rs2[4:0]
     let left = reg_file.read(rs1) as u32;
     let right = reg_file.read(rs2) as u32;
     let right_nibble = right & 0b1_1111;
     let shifted_left = left >> right_nibble;
-    reg_file.write(rd, shifted_left);
+    reg_file.write(rd, shifted_left as u32);
 }
 
-pub fn inst_r_sra() {
+pub fn inst_r_sra(rd: usize, rs1: usize, rs2: usize, reg_file: &mut RegisterFile) {
     // rd <- rs1 >>s rs2[4:0]
     // shift by the first 5 bits of rs2
     let left = reg_file.read(rs1) as i32;
     let right = reg_file.read(rs2) as i32;
     let right_nibble = right & 0b1_1111;
     let shifted_left = left >> right_nibble;
-    reg_file.write(rd, shifted_left);
+    reg_file.write(rd, shifted_left as u32);
 }
 
-pub fn inst_r_or() {
+pub fn inst_r_or(rd: usize, rs1: usize, rs2: usize, reg_file: &mut RegisterFile) {
     // rd <- rs1 | rs2
     let left = reg_file.read(rs1) as i32;
     let right = reg_file.read(rs2) as i32;
     let rs_or = left | right;
-    reg_file.write(rd, rs_or);
+    reg_file.write(rd, rs_or as u32);
 }
 
-pub fn inst_r_and() {
+pub fn inst_r_and(rd: usize, rs1: usize, rs2: usize, reg_file: &mut RegisterFile) {
     // rd <- rs1 & rs2
     let left = reg_file.read(rs1) as i32;
     let right = reg_file.read(rs2) as i32;
     let rs_and = left & right;
-    reg_file.write(rd, rs_and);
+    reg_file.write(rd, rs_and as u32);
 }
 
-pub fn inst_r_add(rs1: usize, rs2: usize, rd: usize, reg_file: &mut RegisterFile) -> &mut RegisterFile {
+pub fn inst_r_add(rs1: usize, rs2: usize, rd: usize, reg_file: &mut RegisterFile) {
     let left = reg_file.read(rs1);
     let right = reg_file.read(rs2);
     // the hardware wraps by defalut
@@ -166,7 +166,6 @@ pub fn inst_r_add(rs1: usize, rs2: usize, rd: usize, reg_file: &mut RegisterFile
     // using RISC-V branches"
     let sum = left.wrapping_add(right);
     reg_file.write(rd, sum);
-    Ok(ExecutionSignal::Continue)
 }
 
 #[cfg(test)]
