@@ -12,6 +12,7 @@
 use crate::instructions::Format;
 use crate::fetcher::InstructionWord;
 use crate::definitions::cpu_definition::RegisterFile;
+use crate::definitions::cpu_definition::PCState;
 use crate::definitions::codes::ExecutionSignal;
 use crate::utility::bit_operations::mask_and_shift;
 use crate::definitions::masks;
@@ -48,6 +49,48 @@ pub fn parse_j_inst(raw_word: InstructionWord) -> Result<Format, String> {
     })
 }
 
-pub fn execute_j_type(op: &JOp, rd: usize, imm: i32, register: &mut RegisterFile) -> Result<ExecutionSignal, String> {
+pub fn execute_j_type(op: &JOp, rd: usize, imm: i32, register: &mut RegisterFile, pc: &PCState) -> Result<ExecutionSignal, String> {
+    let write_value = (pc.read() as u32).wrapping_add(4);
+    register.write(rd, write_value);
     Ok(ExecutionSignal::Continue)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::definitions::cpu_definition::build_register_file;
+    use crate::definitions::cpu_definition::build_pc_state;
+
+    #[test]
+    fn test_parse_j_inst() {
+        // jal x1, 16
+        // opcode = 1101111 (J), rd = 1, imm = 16
+        let raw_word = InstructionWord(0x010000EF);
+        let result = parse_j_inst(raw_word);
+        assert_eq!(result, Ok(Format::JType { op: JOp::Jal, rd: 1, imm: 16 }));
+    }
+
+    #[test]
+    fn test_execute_j_type_writes_return_address() {
+        let mut register = build_register_file();
+        let mut pc = build_pc_state();
+        pc.write(100);
+
+        let outcome = execute_j_type(&JOp::Jal, 5, 16, &mut register, &pc);
+
+        assert_eq!(outcome, Ok(ExecutionSignal::Continue));
+        assert_eq!(register.read(5), 104);
+    }
+
+    #[test]
+    fn test_execute_j_type_wraps_at_u32_max() {
+        let mut register = build_register_file();
+        let mut pc = build_pc_state();
+        pc.write(u32::MAX as usize);
+
+        let outcome = execute_j_type(&JOp::Jal, 5, 16, &mut register, &pc);
+
+        assert_eq!(outcome, Ok(ExecutionSignal::Continue));
+        assert_eq!(register.read(5), 3);
+    }
 }

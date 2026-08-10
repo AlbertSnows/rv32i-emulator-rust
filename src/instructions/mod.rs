@@ -15,6 +15,7 @@ use i::load::LoadOp;
 use i::alu_imm_or_shift::AluImmOp;
 use i::alu_imm_or_shift::IShOp;
 use i::system::SystemOp;
+use i::csr::CsrOp;
 use crate::definitions::codes::ExecutionSignal;
 
 #[derive(Debug, PartialEq)]
@@ -28,32 +29,35 @@ pub enum Format {
     AluImmType { op: AluImmOp, rd: usize, rs1: usize, imm: i32 },
     JalrType { rd: usize, rs1: usize, imm: i32 },
     IShiftType { op: IShOp, rd: usize, rs1: usize, shamt: usize },
-    SystemType { op: SystemOp }
+    SystemType { op: SystemOp },
+    CsrType { op: CsrOp, rd: usize, rs1_or_uimm: usize, csr: usize }
 }
 
 impl Format {
     pub fn execute(&self, cpu_state: &mut CPUState) -> Result<ExecutionSignal, String> {
         match self {
-            Format::UType { op, rd, imm_upper } 
-                => u::execute_u_type(op, *rd, *imm_upper, &mut cpu_state.register),
-            Format::JType { op, rd, imm } 
-                => j::execute_j_type(op, *rd, *imm, &mut cpu_state.register),
-            Format::BType { op, imm, rs1, rs2 } 
+            Format::UType { op, rd, imm_upper }
+                => u::execute_u_type(op, *rd, *imm_upper, &mut cpu_state.register, &cpu_state.pc),
+            Format::JType { op, rd, imm }
+                => j::execute_j_type(op, *rd, *imm, &mut cpu_state.register, &cpu_state.pc),
+            Format::BType { op, imm, rs1, rs2 }
                 => b::execute_b_type(op, *imm, *rs1, *rs2, &mut cpu_state.register),
-            Format::SType { op, imm, rs1, rs2 } 
-                => s::execute_s_type(op, *imm, *rs1, *rs2, &mut cpu_state.register),
+            Format::SType { op, imm, rs1, rs2 }
+                => s::execute_s_type(op, *imm, *rs1, *rs2, &cpu_state.register, &mut cpu_state.mem),
             Format::RType { op, rd, rs1, rs2 } // all &references because self is &self
                 => r::execute_r_type(op, *rd, *rs1, *rs2, &mut cpu_state.register),
-            Format::LoadType { op, rd, rs1, imm } 
-                => i::load::execute_i_load_type(op, *rd, *rs1, *imm, &mut cpu_state.register),
-            Format::AluImmType { op, rd, rs1, imm } 
+            Format::LoadType { op, rd, rs1, imm }
+                => i::load::execute_i_load_type(op, *rd, *rs1, *imm, &mut cpu_state.register, &cpu_state.mem),
+            Format::AluImmType { op, rd, rs1, imm }
                 => i::alu_imm_or_shift::execute_i_alu_imm_type(op, *rd, *rs1, *imm, &mut cpu_state.register),
-            Format::JalrType { rd, rs1, imm } 
-                => i::jalr::execute_i_jalr_type(*rd, *rs1, *imm, &mut cpu_state.register),
+            Format::JalrType { rd, rs1, imm }
+                => i::jalr::execute_i_jalr_type(*rd, *rs1, *imm, &mut cpu_state.register, &cpu_state.pc),
             Format::IShiftType { op, rd, rs1, shamt } 
                 => i::shift::execute_i_shift_type(op, *rd, *rs1, *shamt, &mut cpu_state.register),
             Format::SystemType { op }
-                => i::system::execute_i_system_type(op)
+                => i::system::execute_i_system_type(op),
+            Format::CsrType { op, rd, rs1_or_uimm, csr }
+                => i::csr::execute_i_csr_type(op, *rd, *rs1_or_uimm, *csr, &mut cpu_state.register, &mut cpu_state.csr)
         }
     }
 }

@@ -10,11 +10,12 @@ use definitions::cpu_definition;
 use decoder::decode_word_to_instruction;
 use fetcher::InstructionWord;
 use utility::bit_operations::store_in_mem;
-use programs::basic_addition;
+use programs::helpers::basic_addition;
 use fetcher::fetch_word_from_memory;
 use crate::definitions::codes::ExecutionSignal;
 use crate::instructions::pc::advance_pc;
 use core::step;
+
 fn main() {
     println!("Hello, welcome to my emulation!");
     let mut cpu = cpu_definition::build_cpu_state();

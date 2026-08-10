@@ -1,4 +1,5 @@
 use crate::definitions::cpu_definition::RegisterFile;
+use crate::definitions::cpu_definition::PCState;
 use crate::fetcher::InstructionWord;
 use crate::instructions::Format;
 use crate::definitions::codes::ExecutionSignal;
@@ -22,6 +23,48 @@ pub fn parse_jalr_inst(raw_word: InstructionWord) -> Result<Format, String> {
     })
 }
 
-pub fn execute_i_jalr_type(rd: usize, rs1: usize, imm: i32, register: &mut RegisterFile) -> Result<ExecutionSignal, String> {
+pub fn execute_i_jalr_type(rd: usize, rs1: usize, imm: i32, register: &mut RegisterFile, pc: &PCState) -> Result<ExecutionSignal, String> {
+    register.write(rd, (pc.read().wrapping_add(4)) as u32);
     Ok(ExecutionSignal::Continue)
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::cpu_definition::build_pc_state;
+    use crate::cpu_definition::build_register_file;
+    use crate::cpu_definition::build_memory_state;
+
+    #[test]
+    fn test_parse_jalr_inst() {
+        // jalr x1, x2, 8 -- opcode = 1100111 (JALR), rd = 1, rs1 = 2, imm = 8
+        let raw_word = InstructionWord(0x008100E7);
+        let result = parse_jalr_inst(raw_word);
+        assert_eq!(result, Ok(Format::JalrType { rd: 1, rs1: 2, imm: 8 }));
+    }
+
+    #[test]
+    fn test_inst_i_jalr() {
+        let rd = 1;
+        let mut pc = build_pc_state();
+        let rs1 = 2;
+        let imm = 3;
+        let mut reg_file = build_register_file();
+        pc.write(3);
+        execute_i_jalr_type(rd, rs1, imm, &mut reg_file, &pc);
+        assert_eq!(reg_file.read(1), 7);
+    }
+
+    #[test]
+    fn test_execute_i_jalr_type_wraps_at_u32_max() {
+        let rd = 1;
+        let mut pc = build_pc_state();
+        let rs1 = 2;
+        let imm = 3;
+        let mut reg_file = build_register_file();
+        pc.write(u32::MAX as usize);
+        execute_i_jalr_type(rd, rs1, imm, &mut reg_file, &pc);
+        assert_eq!(reg_file.read(1), 3);
+    }
 }

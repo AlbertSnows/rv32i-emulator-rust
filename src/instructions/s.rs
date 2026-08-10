@@ -11,6 +11,7 @@
 use crate::instructions::Format;
 use crate::fetcher::InstructionWord;
 use crate::definitions::cpu_definition::RegisterFile;
+use crate::definitions::cpu_definition::MemoryState;
 use crate::definitions::codes::ExecutionSignal;
 use crate::utility::bit_operations::mask_and_shift;
 use crate::definitions::masks;
@@ -51,6 +52,129 @@ pub fn parse_s_inst(raw_word: InstructionWord) -> Result<Format, String> {
     })
 }
 
-pub fn execute_s_type(op: &SOp, imm: i32, rs1: usize, rs2: usize, register: &mut RegisterFile) -> Result<ExecutionSignal, String> {
+pub fn execute_s_type(op: &SOp, imm: i32, rs1: usize, rs2: usize, register: &RegisterFile, mem: &mut MemoryState) -> Result<ExecutionSignal, String> {
+    match op {
+        SOp::Sb => inst_s_sb(rs1, rs2, imm, mem, register)?,
+        SOp::Sh => inst_s_sh(rs1, rs2, imm, mem, register)?,
+        SOp::Sw => inst_s_sw(rs1, rs2, imm, mem, register)?,
+    }
     Ok(ExecutionSignal::Continue)
+}
+
+pub fn inst_s_sb(rs1: usize, rs2: usize, imm: i32, mem: &mut MemoryState, reg_file: &RegisterFile) -> Result<(), String> {
+    // m8(rs1+imm_s) ← rs2[7:0]
+    let val = reg_file.read(rs1);
+    let mem_address = val.wrapping_add(imm as u32);
+    mem.write_bytes(mem_address as usize, &(rs2 as u8).to_le_bytes())
+}
+
+pub fn inst_s_sh(rs1: usize, rs2: usize, imm: i32, mem: &mut MemoryState, reg_file: &RegisterFile) -> Result<(), String> {
+    // m16(rs1+imm_s) <- rs2[15:0]
+    let val = reg_file.read(rs1);
+    let mem_address = val.wrapping_add(imm as u32);
+    mem.write_bytes(mem_address as usize, &(rs2 as u16).to_le_bytes())
+}
+
+pub fn inst_s_sw(rs1: usize, rs2: usize, imm: i32, mem: &mut MemoryState, reg_file: &RegisterFile) -> Result<(), String> {
+    // m32(rs1+imm_s) <- rs2[31:0]
+    let val = reg_file.read(rs1);
+    let mem_address = val.wrapping_add(imm as u32);
+    mem.write_bytes(mem_address as usize, &(rs2 as u32).to_le_bytes())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::cpu_definition::build_register_file;
+    use crate::cpu_definition::build_pc_state;
+    use crate::cpu_definition::build_memory_state;
+
+    #[test]
+    fn test_parse_s_inst() {
+        // sw x2, 4(x1)
+        // opcode = 0100011 (S), funct3 = 010 (sw), rs1 = 1, rs2 = 2, imm = 4
+        let raw_word = InstructionWord(0x0020A223);
+        let result = parse_s_inst(raw_word);
+        assert_eq!(result, Ok(Format::SType { op: SOp::Sw, imm: 4, rs1: 1, rs2: 2 }));
+    }
+
+    #[test]
+    fn test_inst_s_sb() {
+        let mut mem = build_memory_state();
+        let mut reg_file = build_register_file();
+        let rs1 = 1;
+        reg_file.write(1, 3);
+        let rs2 = 0b0101_1010_0101_1010;
+        let imm = 7;
+        inst_s_sb(rs1, rs2, imm, &mut mem, &reg_file).unwrap();
+        assert_eq!(mem.storage[3 + 7], 0b0101_1010);
+    }
+
+    #[test]
+    fn test_inst_s_sh() {
+        let mut mem = build_memory_state();
+        let mut reg_file = build_register_file();
+        let rs1 = 1;
+        reg_file.write(1, 3);
+        let rs2 = 0b1111_0000_1010_0101;
+        let imm = 7;
+        inst_s_sh(rs1, rs2, imm, &mut mem, &reg_file).unwrap();
+        assert_eq!(mem.storage[3 + 7], 0b1010_0101);
+        assert_eq!(mem.storage[3 + 7 + 1], 0b1111_0000);
+   }
+
+    #[test]
+    fn test_inst_s_sw() {
+        let mut mem = build_memory_state();
+        let mut reg_file = build_register_file();
+        let rs1 = 1;
+        reg_file.write(1, 3);
+        // 12, 34, 56, 78
+        // 18, 52, 86, 120
+        let rs2 = 0x12345678;
+        let imm = 7;
+        inst_s_sw(rs1, rs2, imm, &mut mem, &reg_file).unwrap();
+        assert_eq!(mem.storage[10], 0x78);
+        assert_eq!(mem.storage[11], 0x56);
+        assert_eq!(mem.storage[12], 0x34);
+        assert_eq!(mem.storage[13], 0x12);
+    }
+
+    // --- boundary tests ---
+
+    #[test]
+    fn test_inst_s_sb_wraps_and_out_of_bounds_returns_err() {
+        let mut mem = build_memory_state();
+        let mut reg_file = build_register_file();
+        reg_file.write(1, u32::MAX);
+        let rs1 = 1;
+        let rs2 = 0xAA; // 0b1010_1010
+        let imm = mem.storage.len() as i32 + 1;
+        let outcome = inst_s_sb(rs1, rs2, imm, &mut mem, &reg_file);
+        assert!(outcome.is_err());
+    }
+
+    #[test]
+    fn test_inst_s_sh_wraps_and_out_of_bounds_returns_err() {
+        let mut mem = build_memory_state();
+        let mut reg_file = build_register_file();
+        reg_file.write(1, u32::MAX);
+        let rs1 = 1;
+        let rs2 = 0xAABB; // 0b1010_1010_1011_1011
+        let imm = mem.storage.len() as i32 + 1;
+        let outcome = inst_s_sh(rs1, rs2, imm, &mut mem, &reg_file);
+        assert!(outcome.is_err());
+    }
+
+    #[test]
+    fn test_inst_s_sw_wraps_and_out_of_bounds_returns_err() {
+        let mut mem = build_memory_state();
+        let mut reg_file = build_register_file();
+        reg_file.write(1, u32::MAX);
+        let rs1 = 1;
+        let rs2 = 0x12345678; // 0b0001_0010_0011_0100_0101_0110_0111_1000
+        let imm = mem.storage.len() as i32 + 1;
+        let outcome = inst_s_sw(rs1, rs2, imm, &mut mem, &reg_file);
+        assert!(outcome.is_err());
+    }
 }
