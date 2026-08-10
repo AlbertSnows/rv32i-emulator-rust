@@ -57,7 +57,7 @@ pub fn inst_u_lui(rd: usize, imm_upper: i32, register: &mut RegisterFile) {
 
 pub fn inst_u_auipc(rd: usize, imm_upper: i32, pc: &PCState, register: &mut RegisterFile) {
     // rd <- pc + imm_upper
-    register.write(rd, (pc.read() + imm_upper as usize) as u32);
+    register.write(rd, (pc.read() as u32).wrapping_add(imm_upper as u32));
 }
 
 #[cfg(test)]

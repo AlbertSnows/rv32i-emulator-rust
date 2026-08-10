@@ -50,7 +50,7 @@ pub fn parse_j_inst(raw_word: InstructionWord) -> Result<Format, String> {
 }
 
 pub fn execute_j_type(op: &JOp, rd: usize, imm: i32, register: &mut RegisterFile, pc: &PCState) -> Result<ExecutionSignal, String> {
-    let write_value = (pc.read() + 4) as u32;
+    let write_value = (pc.read() as u32).wrapping_add(4);
     register.write(rd, write_value);
     Ok(ExecutionSignal::Continue)
 }

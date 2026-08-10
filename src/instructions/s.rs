@@ -54,32 +54,32 @@ pub fn parse_s_inst(raw_word: InstructionWord) -> Result<Format, String> {
 
 pub fn execute_s_type(op: &SOp, imm: i32, rs1: usize, rs2: usize, register: &RegisterFile, mem: &mut MemoryState) -> Result<ExecutionSignal, String> {
     match op {
-        SOp::Sb => inst_s_sb(rs1, rs2, imm, mem, register),
-        SOp::Sh => inst_s_sh(rs1, rs2, imm, mem, register),
-        SOp::Sw => inst_s_sw(rs1, rs2, imm, mem, register),
+        SOp::Sb => inst_s_sb(rs1, rs2, imm, mem, register)?,
+        SOp::Sh => inst_s_sh(rs1, rs2, imm, mem, register)?,
+        SOp::Sw => inst_s_sw(rs1, rs2, imm, mem, register)?,
     }
     Ok(ExecutionSignal::Continue)
 }
 
-pub fn inst_s_sb(rs1: usize, rs2: usize, imm: i32, mem: &mut MemoryState, reg_file: &RegisterFile) {
+pub fn inst_s_sb(rs1: usize, rs2: usize, imm: i32, mem: &mut MemoryState, reg_file: &RegisterFile) -> Result<(), String> {
     // m8(rs1+imm_s) ← rs2[7:0]
     let val = reg_file.read(rs1);
     let mem_address = val.wrapping_add(imm as u32);
-    mem.write_bytes(mem_address as usize, &(rs2 as u8).to_le_bytes());
+    mem.write_bytes(mem_address as usize, &(rs2 as u8).to_le_bytes())
 }
 
-pub fn inst_s_sh(rs1: usize, rs2: usize, imm: i32, mem: &mut MemoryState, reg_file: &RegisterFile) {
+pub fn inst_s_sh(rs1: usize, rs2: usize, imm: i32, mem: &mut MemoryState, reg_file: &RegisterFile) -> Result<(), String> {
     // m16(rs1+imm_s) <- rs2[15:0]
     let val = reg_file.read(rs1);
-    let mem_address = val + imm as u32;
-    mem.write_bytes(mem_address as usize, &(rs2 as u16).to_le_bytes());
+    let mem_address = val.wrapping_add(imm as u32);
+    mem.write_bytes(mem_address as usize, &(rs2 as u16).to_le_bytes())
 }
 
-pub fn inst_s_sw(rs1: usize, rs2: usize, imm: i32, mem: &mut MemoryState, reg_file: &RegisterFile) {
+pub fn inst_s_sw(rs1: usize, rs2: usize, imm: i32, mem: &mut MemoryState, reg_file: &RegisterFile) -> Result<(), String> {
     // m32(rs1+imm_s) <- rs2[31:0]
     let val = reg_file.read(rs1);
-    let mem_address = val + imm as u32;
-    mem.write_bytes(mem_address as usize, &(rs2 as u32).to_le_bytes());
+    let mem_address = val.wrapping_add(imm as u32);
+    mem.write_bytes(mem_address as usize, &(rs2 as u32).to_le_bytes())
 }
 
 #[cfg(test)]
@@ -106,7 +106,7 @@ mod tests {
         reg_file.write(1, 3);
         let rs2 = 0b0101_1010_0101_1010;
         let imm = 7;
-        inst_s_sb(rs1, rs2, imm, &mut mem, &reg_file);
+        inst_s_sb(rs1, rs2, imm, &mut mem, &reg_file).unwrap();
         assert_eq!(mem.storage[3 + 7], 0b0101_1010);
     }
 
@@ -118,7 +118,7 @@ mod tests {
         reg_file.write(1, 3);
         let rs2 = 0b1111_0000_1010_0101;
         let imm = 7;
-        inst_s_sh(rs1, rs2, imm, &mut mem, &reg_file);
+        inst_s_sh(rs1, rs2, imm, &mut mem, &reg_file).unwrap();
         assert_eq!(mem.storage[3 + 7], 0b1010_0101);
         assert_eq!(mem.storage[3 + 7 + 1], 0b1111_0000);
    }
@@ -133,7 +133,7 @@ mod tests {
         // 18, 52, 86, 120
         let rs2 = 0x12345678;
         let imm = 7;
-        inst_s_sw(rs1, rs2, imm, &mut mem, &reg_file);
+        inst_s_sw(rs1, rs2, imm, &mut mem, &reg_file).unwrap();
         assert_eq!(mem.storage[10], 0x78);
         assert_eq!(mem.storage[11], 0x56);
         assert_eq!(mem.storage[12], 0x34);

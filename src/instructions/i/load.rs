@@ -43,59 +43,63 @@ pub fn parse_load_inst(raw_word: InstructionWord) -> Result<Format, String> {
 
 pub fn execute_i_load_type(op: &LoadOp, rd: usize, rs1: usize, imm: i32, register: &mut RegisterFile, mem: &MemoryState) -> Result<ExecutionSignal, String> {
     match op {
-        LoadOp::Lb => inst_i_lb(rd, rs1, imm, mem, register),
-        LoadOp::Lh => inst_i_lh(rd, rs1, imm, mem, register),
-        LoadOp::Lw => inst_i_lw(rd, rs1, imm, mem, register),
-        LoadOp::Lbu => inst_i_lbu(rd, rs1, imm, mem, register),
-        LoadOp::Lhu => inst_i_lhu(rd, rs1, imm, mem, register),
+        LoadOp::Lb => inst_i_lb(rd, rs1, imm, mem, register)?,
+        LoadOp::Lh => inst_i_lh(rd, rs1, imm, mem, register)?,
+        LoadOp::Lw => inst_i_lw(rd, rs1, imm, mem, register)?,
+        LoadOp::Lbu => inst_i_lbu(rd, rs1, imm, mem, register)?,
+        LoadOp::Lhu => inst_i_lhu(rd, rs1, imm, mem, register)?,
     }
     Ok(ExecutionSignal::Continue)
 }
 
-pub fn inst_i_lb(rd: usize, rs1: usize, imm_i: i32, mem: &MemoryState, reg_file: &mut RegisterFile) {
+pub fn inst_i_lb(rd: usize, rs1: usize, imm_i: i32, mem: &MemoryState, reg_file: &mut RegisterFile) -> Result<(), String> {
     // sext = sign extended
     // rd <- sext(m8(rs1 + imm_i))
     let val = reg_file.read(rs1);
-    let address = ((val as i32) + imm_i) as usize;
-    let num = mem.storage[address];
-    let sext_num = shake_to_signed(num.into(), 8);
+    let address = val.wrapping_add(imm_i as u32) as usize;
+    let num = mem.read_bytes(address, 1)?;
+    let sext_num = shake_to_signed(num, 8);
     reg_file.write(rd, sext_num as u32);
+    Ok(())
 }
 
-pub fn inst_i_lh(rd: usize, rs1: usize, imm_i: i32, mem: &MemoryState, reg_file: &mut RegisterFile) {
+pub fn inst_i_lh(rd: usize, rs1: usize, imm_i: i32, mem: &MemoryState, reg_file: &mut RegisterFile) -> Result<(), String> {
     // rd <- sext(m16(rs1 + imm_i))
     let val = reg_file.read(rs1);
-    let address = ((val as i32) + imm_i) as usize;
-    let num = mem.read_bytes(address, 2);
+    let address = val.wrapping_add(imm_i as u32) as usize;
+    let num = mem.read_bytes(address, 2)?;
     let sext_num = shake_to_signed(num, 16);
     reg_file.write(rd, sext_num as u32);
+    Ok(())
 }
 
-pub fn inst_i_lw(rd: usize, rs1: usize, imm_i: i32, mem: &MemoryState, reg_file: &mut RegisterFile) {
+pub fn inst_i_lw(rd: usize, rs1: usize, imm_i: i32, mem: &MemoryState, reg_file: &mut RegisterFile) -> Result<(), String> {
     // rd <- sext(m32(rs1 + imm_i))
     let val = reg_file.read(rs1);
-    let address = ((val as i32) + imm_i) as usize;
-    let num = mem.read_bytes(address, 4);
+    let address = val.wrapping_add(imm_i as u32) as usize;
+    let num = mem.read_bytes(address, 4)?;
     let sext_num = shake_to_signed(num, 32);
     reg_file.write(rd, sext_num as u32);
+    Ok(())
 }
 
-pub fn inst_i_lbu(rd: usize, rs1: usize, imm_i: i32, mem: &MemoryState, reg_file: &mut RegisterFile) {
+pub fn inst_i_lbu(rd: usize, rs1: usize, imm_i: i32, mem: &MemoryState, reg_file: &mut RegisterFile) -> Result<(), String> {
     // zero = zero extended
     // rd <- zext(m8(rs1 + imm_i))
     let val = reg_file.read(rs1);
-    let address = ((val as i32) + imm_i) as usize;
-    let num = mem.storage[address];
-    let zext_num = num as u32;
-    reg_file.write(rd, zext_num);
+    let address = val.wrapping_add(imm_i as u32) as usize;
+    let num = mem.read_bytes(address, 1)?;
+    reg_file.write(rd, num);
+    Ok(())
 }
 
-pub fn inst_i_lhu(rd: usize, rs1: usize, imm_i: i32, mem: &MemoryState, reg_file: &mut RegisterFile) {
+pub fn inst_i_lhu(rd: usize, rs1: usize, imm_i: i32, mem: &MemoryState, reg_file: &mut RegisterFile) -> Result<(), String> {
     // rd <- zext(m16(rs1 + imm_i))
     let val = reg_file.read(rs1);
-    let address = ((val as i32) + imm_i) as usize;
-    let num = mem.read_bytes(address, 2);
+    let address = val.wrapping_add(imm_i as u32) as usize;
+    let num = mem.read_bytes(address, 2)?;
     reg_file.write(rd, num);
+    Ok(())
 }
 
 #[cfg(test)]
@@ -121,7 +125,7 @@ mod tests {
         reg_file.write(3, 4);
         let mut mem = build_memory_state();
         mem.storage[10] = 0b1000_0001;
-        inst_i_lb(rd, rs1, imm_i, &mem, &mut reg_file); 
+        inst_i_lb(rd, rs1, imm_i, &mem, &mut reg_file).unwrap();
         assert_eq!(reg_file.read(1) as i32, -127);
     }
 
@@ -135,7 +139,7 @@ mod tests {
         let mut mem = build_memory_state();
         mem.storage[10] = 0b0000_0001;
         mem.storage[11] = 0b1000_0000;
-        inst_i_lh(rd, rs1, imm_i, &mem, &mut reg_file);
+        inst_i_lh(rd, rs1, imm_i, &mem, &mut reg_file).unwrap();
         assert_eq!(reg_file.read(1) as i32, -32767);
     }
 
@@ -151,7 +155,7 @@ mod tests {
         mem.storage[11] = 0b0000_0000;
         mem.storage[12] = 0b0000_0000;
         mem.storage[13] = 0b1000_0000;
-        inst_i_lw(rd, rs1, imm_i, &mem, &mut reg_file);
+        inst_i_lw(rd, rs1, imm_i, &mem, &mut reg_file).unwrap();
         assert_eq!(reg_file.read(1) as i32, -2147483647);
     }
 
@@ -164,7 +168,7 @@ mod tests {
         reg_file.write(3, 4);
         let mut mem = build_memory_state();
         mem.storage[10] = 0b1000_0001;
-        inst_i_lbu(rd, rs1, imm_i, &mem, &mut reg_file); 
+        inst_i_lbu(rd, rs1, imm_i, &mem, &mut reg_file).unwrap();
         assert_eq!(reg_file.read(1), 129);
     }
 
@@ -178,7 +182,7 @@ mod tests {
         let mut mem = build_memory_state();
         mem.storage[10] = 0b0000_0001;
         mem.storage[11] = 0b1000_0000;
-        inst_i_lhu(rd, rs1, imm_i, &mem, &mut reg_file);
+        inst_i_lhu(rd, rs1, imm_i, &mem, &mut reg_file).unwrap();
         assert_eq!(reg_file.read(1), 32769);
     }
 }

@@ -24,12 +24,10 @@ pub fn parse_jalr_inst(raw_word: InstructionWord) -> Result<Format, String> {
 }
 
 pub fn execute_i_jalr_type(rd: usize, rs1: usize, imm: i32, register: &mut RegisterFile, pc: &PCState) -> Result<ExecutionSignal, String> {
-    register.write(rd, (pc.read() + 4) as u32);
+    register.write(rd, (pc.read().wrapping_add(4)) as u32);
     Ok(ExecutionSignal::Continue)
 }
 
-pub fn inst_i_jalr(rd: usize, pc: PCState, reg_file: RegisterFile) {
-}
 
 #[cfg(test)]
 mod tests {
