@@ -13,20 +13,24 @@ pub fn execute_i_shift_type(op: &IShOp, rd: usize, rs1: usize, shamt: usize, reg
 
 pub fn inst_i_slli() {
     // rd <- rs1 << shamt
-    let shamted_rs1 = rs1 << shamt;
-    register.write(rd, shamted_rs1);
+    let val = reg_file.read(rs1);
+    let shamted_val = val << shamt;
+    reg_file.write(rd, shamted_val);
 }
 
 pub fn inst_i_srli() {
     // rd <- rs1 >>u shamt
-    let rs1_shamt = rs1 >> shamt;
-    register.write(rd, rs1_shamt);
+    let val = reg_file.read(rs1);
+    let shamted_val = val >> shamt;
+    reg_file.write(rd, shamted_val);
+
 }
 
 pub fn inst_i_srai() {
     // rd <- rs1 >>s shamt
-    let rs1_shamt = rs1 >> shamt;
-    register.write(rd, rs1_shamt);
+    let val = reg_file.read(rs1) as i32;
+    let shamted_val = val >> shamt;
+    reg_file.write(rd, shamted_val);
 }
 
 #[cfg(test)]
@@ -35,31 +39,34 @@ mod tests {
 
     #[test]
     fn test_inst_i_slli() {
+        let mut reg_file = build_register_file();
         let rd = 1;
-        let rs1 = 0b0101;
-        let shamt = 0b1010;
-        let reg_file = build_register_file();
-        execute_i_jalr_type(); 
-        assert_eq!(reg_file.read(1), 0b0101_1010);
+        let rs1 = 2;
+        let shamt = 0b0010;
+        reg_file.write(2, 0b0101);
+        inst_i_slli(rd, rs1, shamt, reg_file); 
+        assert_eq!(reg_file.read(1), 0b0001_0100);
     }
 
     #[test]
     fn test_inst_i_srli() {
+        let mut reg_file = build_register_file();
         let rd = 1;
-        let rs1 = 0b0101;
-        let shamt = 0b1010;
-        let reg_file = build_register_file();
-        execute_i_jalr_type(); 
-        assert_eq!(reg_file.read(1), 0b0101_1010);
+        let rs1 = 2;
+        reg_file.write(2, 0b0101);
+        let shamt = 0b11;
+        inst_i_srli(rd, rs1, shamt, reg_file); 
+        assert_eq!(reg_file.read(1), 0b0000_1010);
     }
 
     #[test]
     fn test_inst_i_srai() {
+        let mut reg_file = build_register_file();
         let rd = 1;
-        let rs1 = 0b0101;
-        let shamt = 0b1010;
-        let reg_file = build_register_file();
-        execute_i_jalr_type(); 
-        assert_eq!(reg_file.read(1), 0b0101_1010);
+        let rs1 = 2;
+        reg_file.write(2, -8);
+        let shamt = 1;
+        inst_i_srai(rd, rs1, shamt, reg_file); 
+        assert_eq!(reg_file.read(1), -4);
     }
 }

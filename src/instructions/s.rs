@@ -63,24 +63,20 @@ pub fn execute_s_type(op: &SOp, imm: i32, rs1: usize, rs2: usize, register: &mut
 
 pub fn inst_s_sb(rs1, rs2, imm, mem) {
     // m8(rs1+imm_s) ← rs2[7:0]
-    // m8 = one byte
-    // m8(x) = the single byte of memory at address X
-    let rs2_byte = rs2 & 0b1111_1111
     let mem_address = rs1 + imm;
-    mem[mem_address] = rs2_byte;
+    mem.write_bytes(mem_address, &(rs2 as u8).to_le_bytes());
 }
 
-pub fn inst_s_sh() {
+pub fn inst_s_sh(rs1, rs2, imm, mem) {
     // m16(rs1+imm_s) <- rs2[15:0]
-    let rs2_bytes = rs2 & 0b1111_1111_1111_1111
     let mem_address = rs1 + imm;
-    mem[mem_address] = rs2_bytes;
+    mem.write_bytes(mem_address, &(rs2 as u16).to_le_bytes());
 }
 
-pub fn inst_s_sw() {
+pub fn inst_s_sw(rs1, rs2, imm, mem) {
     // m32(rs1+imm_s) <- rs2[31:0]
     let mem_address = rs1 + imm;
-    mem[mem_address] = rs2;
+    mem.write_bytes(mem_address, &(rs2 as u32).to_le_bytes());
 }
 
 #[cfg(test)]
@@ -98,31 +94,35 @@ mod tests {
 
     #[test]
     fn test_inst_s_sb() {
-        let mut mem = build_mem();
+        let mut mem = build_memory_state();
         let rs1 = 1;
-        let rs2 = 2;
+        let rs2 = 0b0101_1010_0101_1010;
         let imm = 7;
         inst_s_sb(rs1, rs2, imm, mem);
-        assert_eq!(mem.read(rs1 + imm), rs2 & 0b1111_1111)
+        assert_eq!(mem.storage[rs1 + imm], 0b0101_1010);
     }
 
     #[test]
     fn test_inst_s_sh() {
-        let mut mem = build_mem();
+        let mut mem = build_memory_state();
         let rs1 = 1;
-        let rs2 = 2;
+        let rs2 = 0b1111_0000_1010_0101;
         let imm = 7;
-        inst_s_sb(rs1, rs2, imm, mem);
-        assert_eq!(mem.read(rs1 + imm), rs2 & 0b1111_1111_1111_1111)
+        inst_s_sh(rs1, rs2, imm, mem);
+        assert_eq!(mem.storage[rs1 + imm], 0b1010_0101);
+        assert_eq!(mem.storage[rs1 + imm + 1], 0b1111_0000);
    }
 
     #[test]
     fn test_inst_s_sw() {
-        let mut mem = build_mem();
+        let mut mem = build_memory_state();
         let rs1 = 1;
-        let rs2 = 2;
+        let rs2 = 0x12345678;
         let imm = 7;
-        inst_s_sb(rs1, rs2, imm, mem);
-        assert_eq!(mem.read(rs1 + imm), rs2)
+        inst_s_sw(rs1, rs2, imm, mem);
+        assert_eq!(mem.storage[8], 0x78);
+        assert_eq!(mem.storage[9], 0x56);
+        assert_eq!(mem.storage[10], 0x34);
+        assert_eq!(mem.storage[11], 0x12);
     }
 }

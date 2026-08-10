@@ -52,41 +52,50 @@ pub fn execute_i_load_type(op: &LoadOp, rd: usize, rs1: usize, imm: i32, registe
     Ok(ExecutionSignal::Continue)
 }
 
-pub fn inst_i_lb() {
+pub fn inst_i_lb(rd, rs1, imm_i, mem, reg_file) {
     // sext = sign extended
     // rd <- sext(m8(rs1 + imm_i))
-    let num = rs1 + imm_i;
-    let sext_num = sext(num);
-    register.write(rd, sext_num);
+    let val = reg_file.read(rs1);
+    let address = val + imm_i;
+    let num = mem.storage[address];
+    let sext_num = shake_to_signed(num, 8);
+    reg_file.write(rd, sext_num);
 }
 
-pub fn inst_i_lh() {
+pub fn inst_i_lh(rd, rs1, imm_i, mem, reg_file) {
     // rd <- sext(m16(rs1 + imm_i))
-    let num = rs1 + imm_i;
-    let sext_num = sext(num);
-    register.write(rd, sext_num);
+    let val = reg_file.read(rs1);
+    let address = val + imm_i;
+    let num = mem.read_bytes(address, 2);
+    let sext_num = shake_to_signed(num, 16);
+    reg_file.write(rd, sext_num);
 }
 
-pub fn inst_i_lw() {
+pub fn inst_i_lw(rd, rs1, imm_i, mem, reg_file) {
     // rd <- sext(m32(rs1 + imm_i))
-    let num = rs1 + imm_i;
-    let sext_num = sext(num);
-    register.write(rd, sext_num);
+    let val = reg_file.read(rs1);
+    let address = val + imm_i;
+    let num = mem.read_bytes(address, 4);
+    let sext_num = shake_to_signed(num, 32);
+    reg_file.write(rd, sext_num);
 }
 
-pub fn inst_i_lbu() {
+pub fn inst_i_lbu(rd, rs1, imm_i, mem, reg_file) {
     // zero = zero extended
     // rd <- zext(m8(rs1 + imm_i))
-    let num = rs1 + imm_i;
-    let zext_num = zext(num);
-    register.write(rd, zext_num);
+    let val = reg_file.read(rs1);
+    let address = val + imm_i;
+    let num = mem.storage[address];
+    let zext_num = num as u32;
+    reg_file.write(rd, zext_num);
 }
 
-pub fn inst_i_lhu() {
+pub fn inst_i_lhu(rd, rs1, imm_i, mem, reg_file) {
     // rd <- zext(m16(rs1 + imm_i))
-    let num = rs1 + imm_i;
-    let zext_num = zext(num);
-    register.write(rd, zext_num);
+    let val = reg_file.read(rs1);
+    let address = val + imm_i;
+    let num = mem.read_bytes(address, 2);
+    reg_file.write(rd, num);
 }
 
 #[cfg(test)]
@@ -106,9 +115,12 @@ mod tests {
         let rd = 1;
         let rs1 = 3;
         let imm_i = 6;
-        let reg_file = build_register_file();
-        execute_i_jalr_type(); // sext(0b1001) = ?
-        assert_eq!(reg_file.read(1), ?);
+        let mut reg_file = build_register_file();
+        reg_file.write(3, 4);
+        let mut mem = build_memory_state();
+        mem.storage[10] = 0b1000_0001;
+        inst_i_lb(rd, rs1, imm_i, mem, reg_file); 
+        assert_eq!(reg_file.read(1), -127);
     }
 
     #[test]
@@ -116,9 +128,13 @@ mod tests {
         let rd = 1;
         let rs1 = 3;
         let imm_i = 6;
-        let reg_file = build_register_file();
-        execute_i_jalr_type(); // sext(0b1001) = ?
-        assert_eq!(reg_file.read(1), ?);
+        let mut reg_file = build_register_file();
+        reg_file.write(3, 4);
+        let mut mem = build_memory_state();
+        mem.storage[10] = 0b0000_0001;
+        mem.storage[11] = 0b1000_0000;
+        inst_i_lh(rd, rs1, imm_i, mem, reg_file);
+        assert_eq!(reg_file.read(1), -32767);
     }
 
     #[test]
@@ -126,9 +142,15 @@ mod tests {
         let rd = 1;
         let rs1 = 3;
         let imm_i = 6;
-        let reg_file = build_register_file();
-        execute_i_jalr_type(); // sext(0b1001) = ?
-        assert_eq!(reg_file.read(1), ?);
+        let mut reg_file = build_register_file();
+        reg_file.write(3, 4);
+        let mut mem = build_memory_state();
+        mem.storage[10] = 0b0000_0001;
+        mem.storage[11] = 0b0000_0000;
+        mem.storage[12] = 0b0000_0000;
+        mem.storage[13] = 0b1000_0000;
+        inst_i_lw(rd, rs1, imm_i, mem, reg_file);
+        assert_eq!(reg_file.read(1), -2147483647);
     }
 
     #[test]
@@ -136,9 +158,12 @@ mod tests {
         let rd = 1;
         let rs1 = 3;
         let imm_i = 6;
-        let reg_file = build_register_file();
-        execute_i_jalr_type(); // zext(0b1001) = ?
-        assert_eq!(reg_file.read(1), ?);
+        let mut reg_file = build_register_file();
+        reg_file.write(3, 4);
+        let mut mem = build_memory_state();
+        mem.storage[10] = 0b1000_0001;
+        inst_i_lbu(rd, rs1, imm_i, mem, reg_file); 
+        assert_eq!(reg_file.read(1), 129);
     }
 
     #[test]
@@ -146,8 +171,12 @@ mod tests {
         let rd = 1;
         let rs1 = 3;
         let imm_i = 6;
-        let reg_file = build_register_file();
-        execute_i_jalr_type(); // zext(0b1001) = ?
-        assert_eq!(reg_file.read(1), ?);
+        let mut reg_file = build_register_file();
+        reg_file.write(3, 4);
+        let mut mem = build_memory_state();
+        mem.storage[10] = 0b0000_0001;
+        mem.storage[11] = 0b1000_0000;
+        inst_i_lhu(rd, rs1, imm_i, mem, reg_file);
+        assert_eq!(reg_file.read(1), 32769);
     }
 }

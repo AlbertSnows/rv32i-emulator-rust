@@ -82,17 +82,16 @@ pub fn inst_r_sub() {
     // rd <- rs1 - rs2
     let left = reg_file.read(rs1);
     let right = reg_file.read(rs2);
-    // todo: wraping subtract?
-    let outcome = left.wrapping_subtract(right);
-    reg_file.write(rd, sum);
+    let outcome = left.wrapping_sub(right);
+    reg_file.write(rd, outcome);
 }
 
 pub fn inst_r_sll() {
     // rd <- rs1 << rs2[4:0]
     let left = reg_file.read(rs1);
     let right = reg_file.read(rs2);
-    let rs2_nibble = rs2 & 0b1_1111;
-    let outcome = rs1 << rs2_nibble;
+    let right_nibble = right & 0b1_1111;
+    let outcome = left << right_nibble;
     reg_file.write(rd, outcome);
 }
 
@@ -100,7 +99,7 @@ pub fn inst_r_slt() {
     // rd <- (rs1 <s rs2) ? 1 : 0
     let left = reg_file.read(rs1) as i32;
     let right = reg_file.read(rs2) as i32;
-    let comparison = rs1 < rs2;
+    let comparison = left < right;
     let bit = if comparison { 1 } else { 0 };
     reg_file.write(rd, bit);
 }
@@ -109,7 +108,7 @@ pub fn inst_r_sltu() {
     // rd <- (rs1 <u rs2) ? 1 : 0
     let left = reg_file.read(rs1);
     let right = reg_file.read(rs2);
-    let comparison = rs1 < rs2;
+    let comparison = left < right;
     let bit = if comparison { 1 } else { 0 };
     reg_file.write(rd, bit);
 }
@@ -118,33 +117,34 @@ pub fn inst_r_xor() {
     // rd <- rs1 ^ rs2
     let left = reg_file.read(rs1) as i32;
     let right = reg_file.read(rs2) as i32;
-    let exponential_outcome = rs1 ^ rs2;
+    let exponential_outcome = left ^ right;
     reg_file.write(rd, exponential_outcome);
 }
 
 pub fn inst_r_srl() {
     // rd <- rs1 >>u rs2[4:0]
-    let left = reg_file.read(rs1) as i32;
-    let right = reg_file.read(rs2) as i32;
-    let rs2_nibble = rs2 & 0b1_1111;
-    let shifted_rs1 = rs1 >>u rs2_nibble;
-    reg_file.write(rd, shifted_rs1);
+    let left = reg_file.read(rs1) as u32;
+    let right = reg_file.read(rs2) as u32;
+    let right_nibble = right & 0b1_1111;
+    let shifted_left = left >> right_nibble;
+    reg_file.write(rd, shifted_left);
 }
 
 pub fn inst_r_sra() {
     // rd <- rs1 >>s rs2[4:0]
+    // shift by the first 5 bits of rs2
     let left = reg_file.read(rs1) as i32;
     let right = reg_file.read(rs2) as i32;
-    let rs2_nibble = rs2 & 0b1_1111;
-    let shifted_rs1 = rs1 >>s rs2_nibble;
-    reg_file.write(rd, shifted_rs1);
+    let right_nibble = right & 0b1_1111;
+    let shifted_left = left >> right_nibble;
+    reg_file.write(rd, shifted_left);
 }
 
 pub fn inst_r_or() {
     // rd <- rs1 | rs2
     let left = reg_file.read(rs1) as i32;
     let right = reg_file.read(rs2) as i32;
-    let rs_or = rs1 | rs2;
+    let rs_or = left | right;
     reg_file.write(rd, rs_or);
 }
 
@@ -152,7 +152,7 @@ pub fn inst_r_and() {
     // rd <- rs1 & rs2
     let left = reg_file.read(rs1) as i32;
     let right = reg_file.read(rs2) as i32;
-    let rs_and = rs1 & rs2;
+    let rs_and = left & right;
     reg_file.write(rd, rs_and);
 }
 
@@ -217,145 +217,123 @@ mod tests {
 
     #[test]
     fn test_inst_r_sub() {
-        let example_type = Format::RType {
-            op: AluOp::Sub, 
-            rd: 4, 
-            rs1: 1,
-            rs2: 2,
-        };
         let mut reg = build_register_file();
-        reg.write(1, 3);
-        reg.write(2, 8);
-        inst_r_sub();
-        assert_eq!(reg.read(4), 5);
+        reg.write(2, 3);
+        reg.write(3, 8);
+        let rs1 = 2;
+        let rs2 = 3;
+        let rd = 5;
+        inst_r_sub(rs1, rs2, rd, reg);
+        assert_eq!(reg.read(5), -5);
     }
 
     #[test]
     fn test_inst_r_sll() {
-        let example_type = Format::RType {
-            op: AluOp::Sll, 
-            rd: 5, 
-            rs1: 1,
-            rs2: 2,
-        };
         let mut reg = build_register_file();
-        reg.write(1, 0b10_0000);
-        reg.write(2, 0b11_0010);
-        inst_r_sll();
-        assert_eq!(reg.read(5), 0b11_0010);
+        reg.write(2, 5); // 101
+        reg.write(3, 0b0_0011);
+        let rs1 = 2;
+        let rs2 = 3;
+        let rd = 5;
+        inst_r_sll(rs1, rs2, rd, reg);
+        assert_eq!(reg.read(5), 0b10_1000);
     }
 
     #[test]
     fn test_inst_r_slt() {
-        let example_type = Format::RType {
-            op: AluOp::Slt, 
-            rd: 5, 
-            rs1: 1,
-            rs2: 2,
-        };
         let mut reg = build_register_file();
-        reg.write(1, -22);
+        reg.write(2, -22);
+        reg.write(3, 33);
+        let rs1 = 2;
+        let rs2 = 3;
+        let rd = 5;
+        inst_r_slt(rs1, rs2, rd, reg);
+        assert_eq!(reg.read(5), 1);
         reg.write(2, 33);
-        inst_r_sub();
-        assert_eq!(reg.read(5), 22);
-        reg.write(1, -33);
-        reg.write(2, 22);
-        inst_r_sub();
-        assert_eq!(reg.read(5), 33);
+        reg.write(3, -22);
+        inst_r_slt(rs1, rs2, rd, reg);
+        assert_eq!(reg.read(5), 0);
 
     }
 
     #[test]
     fn test_inst_r_sltu() {
-        let example_type = Format::RType {
-            op: AluOp::Sltu, 
-            rd: 5, 
-            rs1: 1,
-            rs2: 2,
-        };
         let mut reg = build_register_file();
-        reg.write(1, 33);
-        reg.write(2, 18);
-        inst_r_sub();
-        assert_eq!(reg.read(5), 33);
-        reg.write(1, 18);
         reg.write(2, 33);
-        inst_r_sub();
-        assert_eq!(reg.read(5), 18);
+        reg.write(3, 18);
+        let rs1 = 2;
+        let rs2 = 3;
+        let rd = 5;
+        inst_r_sltu(rs1, rs2, rd, reg);
+        assert_eq!(reg.read(5), 0);
+        reg.write(2, 18);
+        reg.write(3, 33);
+        inst_r_sltu(rs1, rs2, rd, reg);
+        assert_eq!(reg.read(5), 1);
     }
 
     #[test]
     fn test_inst_r_xor() {
-        let example_type = Format::RType {
-            op: AluOp::Xor, 
-            rd: 5, 
-            rs1: 1,
-            rs2: 2,
-        };
         let mut reg = build_register_file();
-        reg.write(1, 3);
-        reg.write(2, 4);
-        inst_r_sub();
-        assert_eq!(reg.read(5), 81);
+        reg.write(2, 3); // 011
+        reg.write(3, 5); // 101
+        // 011 xor 101 = 110
+        let rs1 = 2;
+        let rs2 = 3;
+        let rd = 5;
+        inst_r_xor(rs1, rs2, rd, reg);
+        assert_eq!(reg.read(5), 6);
     }
 
     #[test]
     fn test_inst_r_srl() {
-        let example_type = Format::RType {
-            op: AluOp::Srl, 
-            rd: 5, 
-            rs1: 1,
-            rs2: 2,
-        };
         let mut reg = build_register_file();
-        reg.write(1, 3);
-        reg.write(2, 62); // 11_1110
-        inst_r_sub();
-        assert_eq!(reg.read(5), 30) 
+        reg.write(2, 31); // 1_1111
+        reg.write(3, 2); // 00_0010
+        let rs1 = 2;
+        let rs2 = 3;
+        let rd = 5;
+        inst_r_srl(rs1, rs2, rd, reg);
+        assert_eq!(reg.read(5), 7) 
     }
 
     #[test]
     fn test_inst_r_sra() {
-        let example_type = Format::RType {
-            op: AluOp::Sra, 
-            rd: 5, 
-            rs1: 1,
-            rs2: 2,
-        };
         let mut reg = build_register_file();
-        reg.write(1, 3);
-        reg.write(2, -30);
-        inst_r_sub();
-        assert_eq!(reg.read(5), ?); // todo
+        reg.write(2, 12);
+        // 30 = 0001_1110
+        // -30 = 30 -> flip = 1110_0001 + 1 = 1110_0010
+        // take 5 -> 0_0010 -> shift amount is 2
+        // rs1 = 12 = 0b1100 -> shift = 11 = 3 
+        reg.write(3, -30);
+        let rs1 = 2;
+        let rs2 = 3;
+        let rd = 5;
+        inst_r_sra(rs1, rs2, rd, reg);
+        assert_eq!(reg.read(5), 3);
     }
 
     #[test]
     fn test_inst_r_or() {
-        let example_type = Format::RType {
-            op: AluOp::Or, 
-            rd: 5, 
-            rs1: 1,
-            rs2: 2,
-        };
         let mut reg = build_register_file();
-        reg.write(1, 3); // 11
-        reg.write(2, 8); // 1000
-        inst_r_sub();
+        reg.write(2, 3); // 11
+        reg.write(3, 8); // 1000
+        let rs1 = 2;
+        let rs2 = 3;
+        let rd = 5;
+        inst_r_or(rs1, rs2, rd, reg);
         assert_eq!(reg.read(5), 11); // 1011
     }
 
     #[test]
     fn test_inst_r_and() {
-        let example_type = Format::RType {
-            op: AluOp::And, 
-            rd: 5, 
-            rs1: 1,
-            rs2: 2,
-        };
         let mut reg = build_register_file();
-        reg.write(1, 3); // 0011
-        reg.write(2, 9); // 1001
-        inst_r_sub();
+        reg.write(2, 3); // 0011
+        reg.write(3, 9); // 1001
+        let rs1 = 2;
+        let rs2 = 3;
+        let rd = 5;
+        inst_r_and(rs1, rs2, rd, reg);
         assert_eq!(reg.read(5), 1);
     }
 }

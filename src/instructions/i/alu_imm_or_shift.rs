@@ -103,19 +103,19 @@ pub fn inst_i_sltiu() {
 
 pub fn inst_i_xori() {
     // rd <- rs1 ^ imm_i
-    let outcome = rs1 ^ imm_1;
+    let outcome = rs1 ^ imm_i;
     reg_file.write(rd, outcome);
 }
 
 pub fn inst_i_ori() {
     // rd <- rs1 | imm_i
-    let outcome = rs1 | imm_1;
+    let outcome = rs1 | imm_i;
     reg_file.write(rd, outcome);
 }
 
 pub fn inst_i_andi() {
     // rd <- rs1 & imm_i
-    let outcome = rs1 & imm_1;
+    let outcome = rs1 & imm_i;
     reg_file.write(rd, outcome);
 }
 
@@ -175,7 +175,7 @@ mod tests {
         let rd = 1;
         let rs1 = 3;
         let imm_i = 4;
-        inst_i_sltiu();
+        inst_i_xori();
         assert_eq!(reg.read(rd), 81);
     }
 
@@ -185,7 +185,7 @@ mod tests {
         let rd = 1;
         let rs1 = 0b1010;
         let imm_i = 0b0101;
-        inst_i_sltiu();
+        inst_i_ori();
         assert_eq!(reg.read(rd), 0b1111);
     }
 
@@ -195,7 +195,7 @@ mod tests {
         let rd = 1;
         let rs1 = 0b1010;
         let imm_i = 0b0101;
-        inst_i_sltiu();
+        inst_i_andi();
         assert_eq!(reg.read(rd), 0b0000);
     }
 }

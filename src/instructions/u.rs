@@ -57,7 +57,7 @@ pub fn inst_u_lui() {
 
 pub fn inst_u_auipc() {
     // rd <- pc + imm_upper
-    register.write(rd, pc + imm_upper);
+    register.write(rd, pc.read() + imm_upper);
 }
 
 #[cfg(test)]
@@ -84,18 +84,22 @@ mod tests {
     fn test_inst_u_lui() {
         let mut reg = build_register_file();
         let rd = 1;
-        let upper = 0b1111_0000;
+        // 5 << 12 = 5 x 2^12 = 5 x 4096 = 20480 = 0x5000
+        // 5 = 0b101
+        // becomes 101_0000_0000_0000 
+        let upper = 5 << 12;
         inst_u_lui(rd, upper, reg);
-        assert_eq!(reg.read(1), 0b1111_0000); 
+        assert_eq!(reg.read(1), 5 << 12); 
     }
 
     #[test]
     fn test_inst_u_auipc() {
         let mut reg = build_register_file();
-        let mut pc = build_pc();
+        let mut pc = build_pc_state();
+        pc.write(1);
         let rd = 1;
-        let upper = 0b1111_0000;
-        inst_u_lui(rd, upper, pc, reg);
-        assert_eq!(reg.read(1), 0b1111_0000); 
+        let upper = 5 << 12;
+        inst_u_auipc(rd, upper, pc, reg);
+        assert_eq!(reg.read(1), (5 << 12) + 1); 
     }
 }
