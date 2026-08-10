@@ -55,9 +55,9 @@ mod tests {
         let rd = 1;
         let rs1 = 2;
         reg_file.write(2, 0b0101);
-        let shamt = 0b11;
+        let shamt = 0b10;
         inst_i_srli(rd, rs1, shamt, &mut reg_file); 
-        assert_eq!(reg_file.read(1), 0b0000_1010);
+        assert_eq!(reg_file.read(1), 1);
     }
 
     #[test]

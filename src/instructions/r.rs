@@ -222,7 +222,7 @@ mod tests {
         let rs1 = 2;
         let rs2 = 3;
         let rd = 5;
-        inst_r_sub(rs1, rs2, rd, &mut reg);
+        inst_r_sub(rd, rs1, rs2, &mut reg);
         assert_eq!(reg.read(5) as i32, -5);
     }
 
@@ -234,7 +234,7 @@ mod tests {
         let rs1 = 2;
         let rs2 = 3;
         let rd = 5;
-        inst_r_sll(rs1, rs2, rd, &mut reg);
+        inst_r_sll(rd, rs1, rs2, &mut reg);
         assert_eq!(reg.read(5), 0b10_1000);
     }
 
@@ -246,11 +246,11 @@ mod tests {
         let rs1 = 2;
         let rs2 = 3;
         let rd = 5;
-        inst_r_slt(rs1, rs2, rd, &mut reg);
+        inst_r_slt(rd, rs1, rs2, &mut reg);
         assert_eq!(reg.read(5), 1);
         reg.write(2, 33);
         reg.write(3, (-22i32) as u32);
-        inst_r_slt(rs1, rs2, rd, &mut reg);
+        inst_r_slt(rd, rs1, rs2, &mut reg);
         assert_eq!(reg.read(5), 0);
 
     }
@@ -263,11 +263,11 @@ mod tests {
         let rs1 = 2;
         let rs2 = 3;
         let rd = 5;
-        inst_r_sltu(rs1, rs2, rd, &mut reg);
+        inst_r_sltu(rd, rs1, rs2, &mut reg);
         assert_eq!(reg.read(5), 0);
         reg.write(2, 18);
         reg.write(3, 33);
-        inst_r_sltu(rs1, rs2, rd, &mut reg);
+        inst_r_sltu(rd, rs1, rs2, &mut reg);
         assert_eq!(reg.read(5), 1);
     }
 
@@ -280,7 +280,7 @@ mod tests {
         let rs1 = 2;
         let rs2 = 3;
         let rd = 5;
-        inst_r_xor(rs1, rs2, rd, &mut reg);
+        inst_r_xor(rd, rs1, rs2, &mut reg);
         assert_eq!(reg.read(5), 6);
     }
 
@@ -292,7 +292,7 @@ mod tests {
         let rs1 = 2;
         let rs2 = 3;
         let rd = 5;
-        inst_r_srl(rs1, rs2, rd, &mut reg);
+        inst_r_srl(rd, rs1, rs2, &mut reg);
         assert_eq!(reg.read(5), 7) 
     }
 
@@ -308,7 +308,7 @@ mod tests {
         let rs1 = 2;
         let rs2 = 3;
         let rd = 5;
-        inst_r_sra(rs1, rs2, rd, &mut reg);
+        inst_r_sra(rd, rs1, rs2, &mut reg);
         assert_eq!(reg.read(5), 3);
     }
 
@@ -320,19 +320,19 @@ mod tests {
         let rs1 = 2;
         let rs2 = 3;
         let rd = 5;
-        inst_r_or(rs1, rs2, rd, &mut reg);
+        inst_r_or(rd, rs1, rs2, &mut reg);
         assert_eq!(reg.read(5), 11); // 1011
     }
 
     #[test]
     fn test_inst_r_and() {
         let mut reg = build_register_file();
-        reg.write(2, 3); // 0011
-        reg.write(3, 9); // 1001
         let rs1 = 2;
         let rs2 = 3;
+        reg.write(2, 3); // 0011
+        reg.write(3, 9); // 1001
         let rd = 5;
-        inst_r_and(rs1, rs2, rd, &mut reg);
+        inst_r_and(rd, rs1, rs2, &mut reg);
         assert_eq!(reg.read(5), 1);
     }
 }

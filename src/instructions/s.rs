@@ -64,7 +64,7 @@ pub fn execute_s_type(op: &SOp, imm: i32, rs1: usize, rs2: usize, register: &Reg
 pub fn inst_s_sb(rs1: usize, rs2: usize, imm: i32, mem: &mut MemoryState, reg_file: &RegisterFile) {
     // m8(rs1+imm_s) ← rs2[7:0]
     let val = reg_file.read(rs1);
-    let mem_address = val + imm as u32;
+    let mem_address = val.wrapping_add(imm as u32);
     mem.write_bytes(mem_address as usize, &(rs2 as u8).to_le_bytes());
 }
 
@@ -101,38 +101,42 @@ mod tests {
     #[test]
     fn test_inst_s_sb() {
         let mut mem = build_memory_state();
-        let reg_file = build_register_file();
+        let mut reg_file = build_register_file();
         let rs1 = 1;
+        reg_file.write(1, 3);
         let rs2 = 0b0101_1010_0101_1010;
         let imm = 7;
         inst_s_sb(rs1, rs2, imm, &mut mem, &reg_file);
-        assert_eq!(mem.storage[1 + 7], 0b0101_1010);
+        assert_eq!(mem.storage[3 + 7], 0b0101_1010);
     }
 
     #[test]
     fn test_inst_s_sh() {
         let mut mem = build_memory_state();
-        let reg_file = build_register_file();
+        let mut reg_file = build_register_file();
         let rs1 = 1;
+        reg_file.write(1, 3);
         let rs2 = 0b1111_0000_1010_0101;
         let imm = 7;
         inst_s_sh(rs1, rs2, imm, &mut mem, &reg_file);
-        assert_eq!(mem.storage[1 + 7], 0b1010_0101);
-        assert_eq!(mem.storage[1 + 7 + 1], 0b1111_0000);
+        assert_eq!(mem.storage[3 + 7], 0b1010_0101);
+        assert_eq!(mem.storage[3 + 7 + 1], 0b1111_0000);
    }
 
     #[test]
     fn test_inst_s_sw() {
         let mut mem = build_memory_state();
-        let reg_file = build_register_file();
+        let mut reg_file = build_register_file();
         let rs1 = 1;
+        reg_file.write(1, 3);
+        // 12, 34, 56, 78
+        // 18, 52, 86, 120
         let rs2 = 0x12345678;
         let imm = 7;
-        let reg_file = build_register_file();
         inst_s_sw(rs1, rs2, imm, &mut mem, &reg_file);
-        assert_eq!(mem.storage[8], 0x78);
-        assert_eq!(mem.storage[9], 0x56);
-        assert_eq!(mem.storage[10], 0x34);
-        assert_eq!(mem.storage[11], 0x12);
+        assert_eq!(mem.storage[10], 0x78);
+        assert_eq!(mem.storage[11], 0x56);
+        assert_eq!(mem.storage[12], 0x34);
+        assert_eq!(mem.storage[13], 0x12);
     }
 }
