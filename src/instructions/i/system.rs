@@ -4,6 +4,7 @@ use crate::instructions::Format;
 use crate::utility::bit_operations::mask_and_shift;
 use crate::definitions::masks;
 use crate::definitions::codes::ExecutionSignal;
+use crate::instructions::i::csr;
 
 #[derive(Debug, PartialEq)]
 pub enum SystemOp {
@@ -11,18 +12,14 @@ pub enum SystemOp {
     EBreak
 }
 
-#[derive(Debug, PartialEq)]
-pub enum CsrType {
-    Csrrw,
-    Csrrs,
-    Csrrc,
-    Csrrwi,
-    Csrrsi,
-    Csrrci
-}
-
 pub fn parse_system_inst(raw_word: InstructionWord) -> Result<Format, String> {
     let content = raw_word.0;
+    // ecall/ebreak are funct3 = 000; every other funct3 under the SYSTEM
+    // opcode is one of the six CSR instructions, handled in their own file.
+    let funct_three = mask_and_shift(content, masks::FUNCT_THREE);
+    if funct_three != 0 {
+        return csr::parse_csr_inst(raw_word);
+    }
     let distinguishing_bit = mask_and_shift(content, masks::BIT_TWENTY);
     let instruction_name = match distinguishing_bit {
         0 => SystemOp::ECall,

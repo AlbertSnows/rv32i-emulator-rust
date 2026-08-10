@@ -14,6 +14,7 @@ pub mod alu_imm_or_shift;
 pub mod shift;
 pub mod system;
 pub mod jalr;
+pub mod csr;
 
 use crate::fetcher::InstructionWord;
 use crate::instructions::Format;

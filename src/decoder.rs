@@ -85,6 +85,15 @@ mod tests {
     }
 
     #[test]
+    fn test_decode_routes_csr_to_parse_csr_inst() {
+        // csrrw x1, 0x300, x2 -- same SYSTEM opcode as ecall/ebreak, but a
+        // nonzero funct3 routes it to CSR parsing instead
+        let raw_word = InstructionWord(0x300110F3);
+        let result = decode_word_to_instruction(raw_word);
+        assert!(matches!(result, Ok(Format::CsrType { .. })));
+    }
+
+    #[test]
     fn test_decode_routes_jalr_to_parse_jalr_inst() {
         // jalr x1, x2, 8
         let raw_word = InstructionWord(0x008100E7);

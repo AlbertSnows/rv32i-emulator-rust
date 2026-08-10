@@ -2,14 +2,16 @@
 pub struct CPUState {
     pub register: RegisterFile,
     pub pc: PCState,
-    pub mem: MemoryState
+    pub mem: MemoryState,
+    pub csr: CsrState
 }
 
 pub fn build_cpu_state() -> CPUState {
     CPUState {
         register: build_register_file(),
         pc: build_pc_state(),
-        mem: build_memory_state()
+        mem: build_memory_state(),
+        csr: build_csr_state()
     }
 }
 
@@ -92,6 +94,28 @@ impl RegisterFile {
     pub fn read(&self, index: usize) -> u32 {
         self.storage[index]
     }
+}
+
+// CSR (Control and Status Register) address space is 12 bits wide (0..4096), per the Zicsr extension 
+// separate storage from the general-purpose, not reg  file
+[derive(Debug)]
+pub struct CsrState {
+    storage: [u32; 4096]
+}
+
+impl CsrState {
+    pub fn write(&mut self, address: usize, value: u32) -> u32 {
+        self.storage[address] = value;
+        self.storage[address]
+    }
+
+    pub fn read(&self, address: usize) -> u32 {
+        self.storage[address]
+    }
+}
+
+pub fn build_csr_state() -> CsrState {
+    CsrState { storage: [0; 4096] }
 }
 
 #[cfg(test)]

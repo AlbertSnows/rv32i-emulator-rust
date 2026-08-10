@@ -63,7 +63,7 @@ pub fn parse_r_inst(raw_word: InstructionWord) -> Result<Format, String> {
 pub fn execute_r_type(op: &AluOp, rd: usize, rs1: usize, rs2: usize, reg_file: &mut RegisterFile) -> Result<ExecutionSignal, String> {
     match op {
         AluOp::Add => {
-            inst_r_add(rs1, rs2, rd, reg_file);
+            inst_r_add(rd, rs1, rs2, reg_file);
         },
         AluOp::Sub => inst_r_sub(rd, rs1, rs2, reg_file),
         AluOp::Sll => inst_r_sll(rd, rs1, rs2, reg_file),
@@ -156,7 +156,7 @@ pub fn inst_r_and(rd: usize, rs1: usize, rs2: usize, reg_file: &mut RegisterFile
     reg_file.write(rd, rs_and as u32);
 }
 
-pub fn inst_r_add(rs1: usize, rs2: usize, rd: usize, reg_file: &mut RegisterFile) {
+pub fn inst_r_add(rd: usize, rs1: usize, rs2: usize, reg_file: &mut RegisterFile) {
     let left = reg_file.read(rs1);
     let right = reg_file.read(rs2);
     // the hardware wraps by defalut
@@ -180,7 +180,7 @@ mod tests {
         let mut rf = build_register_file();
         rf.write(1, 3);
         rf.write(3, 4);
-        inst_r_add(rs1, rs2, rd, &mut rf);
+        inst_r_add(rd, rs1, rs2, &mut rf);
         assert_eq!(rf.read(rd), 7)
     }
 
@@ -343,7 +343,7 @@ mod tests {
         let mut reg = build_register_file();
         reg.write(2, u32::MAX);
         reg.write(3, 1);
-        inst_r_add(2, 3, 5, &mut reg);
+        inst_r_add(5, 2, 3, &mut reg);
         assert_eq!(reg.read(5), 0);
     }
 
