@@ -42,21 +42,6 @@ components:
           everything else, so this is a small addition once the base
           mechanism (item #3) exists, not a big new piece.
 
-    Explicitly considered and set aside (not needed for this goal):
-
-      18  Software check (Zicfilp "Landing Pad" / Zicfiss "Shadow Stack")
-          -- control-flow-integrity security extensions (RISC-V's answer to
-          Intel CET / ARM PAC+BTI). Optional hardening against JOP/ROP
-          exploits, not required for a kernel to boot or run. Skip.
-
-      19  Hardware error -- represents the CPU accessing genuinely
-          corrupted/uncorrectable hardware data (like an ECC failure). Real
-          Linux does handle this class of fault, but this emulator doesn't
-          simulate hardware corruption at all -- memory is a plain array
-          that always faithfully returns what was last written -- so there's
-          currently no mechanism that could ever produce this exception
-          without deliberately building fault injection later. Document the
-          code exists; no implementation path attached to it right now.
 
     Interrupts (the ENTIRE separate Interrupt=1 half of Table 16, not just
     individual missing codes) -- will eventually be needed, for a
@@ -68,27 +53,16 @@ components:
     signaling) can stay deferred indefinitely -- this project is single-hart
     and multi-hart seems out of scope even for "rudimentary."
 
-[ ] 3. No trap/exception handling exists -- this is the bigger missing piece.
-    On real hardware, things like an illegal instruction, a misaligned
-    memory access, or an `ecall` don't just fail quietly -- they "trap":
-    execution jumps to a handler address, and some state gets recorded so
-    the handler (and potentially the trapped-from code, afterward) knows
-    what happened. Three CSRs are central to this on real RISC-V:
-      - mtvec ("machine trap vector"): holds the address the CPU jumps to
-        when a trap occurs -- like an interrupt/exception handler address.
-      - mepc ("machine exception program counter"): saves the PC at the
-        moment of the trap, so execution can potentially resume afterward.
-      - mcause ("machine cause"): a code saying *why* the trap happened
-        (illegal instruction, misaligned access, ecall, etc).
-    None of this exists here. Right now, every failure in this codebase
-    (bad memory access, unrecognized opcode, and soon illegal CSR writes)
-    just returns Err(String) -> bubbles up through core::step -> gets
-    printed and the whole emulator halts (see main.rs). That's a reasonable
-    simplification for a toy emulator, but it's not how real trap handling
-    works, and it means mtvec/mepc/mcause would just be more generic,
-    inert storage slots even once item #2 exists -- there's no mechanism
-    that would actually populate them or redirect execution to mtvec's
-    address.
+    xIE (global interrupt-enable bit, e.g. MIE for M-mode) -- lives in
+    mstatus alongside MPP, right next to it (Section 3.1.6.1, p.31-32).
+    Same trap-entry moment that sets MPP also clears xIE ("xIE is set to
+    0"); MRET/SRET restore it from xPIE the same way they restore mode from
+    xPP. Noted here because it surfaced while designing item #4's MPP/MRET
+    work, but it has zero functional effect until interrupts (above) exist
+    -- nothing in this emulator checks it yet. Don't implement the check
+    now; just don't forget it's part of the same mstatus register once
+    interrupts land.
+
 
 [ ] 4. Privilege levels (M/S/U mode) aren't modeled at all.
     Real RISC-V defines multiple execution modes: Machine (M, most
@@ -110,31 +84,3 @@ components:
     enabled and actually affect CPU behavior when changed; etc. None of
     that exists here -- every CSR address behaves identically, as inert
     storage, regardless of which "real" CSR it's supposed to represent.
-
-[ ] 6. ecall is a complete no-op right now.
-    Currently, in i/system.rs: `SystemOp::ECall => Ok(ExecutionSignal::Continue)`.
-    On real RISC-V, `ecall` is how a program requests something from its
-    execution environment -- e.g. in an OS context, it's how user-space
-    code asks the kernel to do something on its behalf (a "syscall"),
-    typically by putting a syscall number and arguments in specific
-    registers before executing ecall, and having the OS's trap handler
-    read those registers and act. Here, ecall doesn't trap, doesn't invoke
-    any handler, and doesn't look at any registers -- it just continues as
-    if nothing happened. This is tied to item #3 (trap handling) -- ecall
-    IS a trap, specifically an "environment call" trap, so it can't really
-    be implemented properly until traps exist.
-
-[ ] 7. FENCE instruction -- not implemented at all, not even parsed.
-    FENCE is part of the RV32I base ISA (separate opcode, 0b0001111 --
-    confirmed via grep that no such constant exists in op_codes.rs and
-    nothing in src/ references FENCE at all). It's a memory-ordering
-    instruction: it tells the CPU "make sure memory operations before this
-    point are visible before memory operations after this point proceed."
-    This matters on real hardware with out-of-order execution, multiple
-    cores, or memory-mapped I/O, where operations can otherwise be
-    reordered in ways that would break correctness. This emulator is
-    single-threaded and executes strictly in-order with no reordering at
-    all, so a correct FENCE implementation here would legitimately just be
-    a no-op that returns Continue -- same shape as EBREAK/ECALL's stubs.
-    It's not hard to add; it's just been completely absent from decoding
-    up through execution this whole time.
