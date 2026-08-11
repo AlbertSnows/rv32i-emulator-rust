@@ -6,6 +6,7 @@ use crate::definitions::codes::ExecutionSignal;
 use crate::utility::bit_operations::mask_and_shift;
 use crate::definitions::masks;
 use crate::utility::bit_operations::shake_to_signed;
+use crate::definitions::trap_cause::TrapCause;
 
 #[derive(Debug, PartialEq)]
 pub enum LoadOp {
@@ -16,7 +17,7 @@ pub enum LoadOp {
     Lhu
 }
 
-pub fn parse_load_inst(raw_word: InstructionWord) -> Result<Format, String> {
+pub fn parse_load_inst(raw_word: InstructionWord) -> Result<Format, TrapCause> {
     let content = raw_word.0;
     let reg_dest = mask_and_shift(content, masks::REG_DESTINATION);
     let imm_unsigned = mask_and_shift(content, masks::I_TYPE_LOAD);
@@ -29,7 +30,7 @@ pub fn parse_load_inst(raw_word: InstructionWord) -> Result<Format, String> {
         0b010 => Ok(LoadOp::Lw),
         0b100 => Ok(LoadOp::Lbu),
         0b101 => Ok(LoadOp::Lhu),
-        _ => Err(format!("undefined alu imm type detected"))
+        _ => Err(TrapCause::IllegalInstruction { instruction: Some(content) })
     }?;
     
     Ok(Format::LoadType {
@@ -41,7 +42,7 @@ pub fn parse_load_inst(raw_word: InstructionWord) -> Result<Format, String> {
 }
 
 
-pub fn execute_i_load_type(op: &LoadOp, rd: usize, rs1: usize, imm: i32, register: &mut RegisterFile, mem: &MemoryState) -> Result<ExecutionSignal, String> {
+pub fn execute_i_load_type(op: &LoadOp, rd: usize, rs1: usize, imm: i32, register: &mut RegisterFile, mem: &MemoryState) -> Result<ExecutionSignal, TrapCause> {
     match op {
         LoadOp::Lb => inst_i_lb(rd, rs1, imm, mem, register)?,
         LoadOp::Lh => inst_i_lh(rd, rs1, imm, mem, register)?,
@@ -52,7 +53,7 @@ pub fn execute_i_load_type(op: &LoadOp, rd: usize, rs1: usize, imm: i32, registe
     Ok(ExecutionSignal::Continue)
 }
 
-pub fn inst_i_lb(rd: usize, rs1: usize, imm_i: i32, mem: &MemoryState, reg_file: &mut RegisterFile) -> Result<(), String> {
+pub fn inst_i_lb(rd: usize, rs1: usize, imm_i: i32, mem: &MemoryState, reg_file: &mut RegisterFile) -> Result<(), TrapCause> {
     // sext = sign extended
     // rd <- sext(m8(rs1 + imm_i))
     let val = reg_file.read(rs1);
@@ -63,27 +64,35 @@ pub fn inst_i_lb(rd: usize, rs1: usize, imm_i: i32, mem: &MemoryState, reg_file:
     Ok(())
 }
 
-pub fn inst_i_lh(rd: usize, rs1: usize, imm_i: i32, mem: &MemoryState, reg_file: &mut RegisterFile) -> Result<(), String> {
+pub fn inst_i_lh(rd: usize, rs1: usize, imm_i: i32, mem: &MemoryState, reg_file: &mut RegisterFile) -> Result<(), TrapCause> {
     // rd <- sext(m16(rs1 + imm_i))
     let val = reg_file.read(rs1);
     let address = val.wrapping_add(imm_i as u32) as usize;
+    let is_valid_address = address % 2 == 0;
+    if !is_valid_address {
+        return Err(TrapCause::LoadAddressMisaligned { address: address });
+    }
     let num = mem.read_bytes(address, 2)?;
     let sext_num = shake_to_signed(num, 16);
     reg_file.write(rd, sext_num as u32);
     Ok(())
 }
 
-pub fn inst_i_lw(rd: usize, rs1: usize, imm_i: i32, mem: &MemoryState, reg_file: &mut RegisterFile) -> Result<(), String> {
+pub fn inst_i_lw(rd: usize, rs1: usize, imm_i: i32, mem: &MemoryState, reg_file: &mut RegisterFile) -> Result<(), TrapCause> {
     // rd <- sext(m32(rs1 + imm_i))
     let val = reg_file.read(rs1);
     let address = val.wrapping_add(imm_i as u32) as usize;
+    let is_valid_address = address % 4 == 0;
+    if !is_valid_address {
+        return Err(TrapCause::LoadAddressMisaligned { address: address });
+    }
     let num = mem.read_bytes(address, 4)?;
     let sext_num = shake_to_signed(num, 32);
     reg_file.write(rd, sext_num as u32);
     Ok(())
 }
 
-pub fn inst_i_lbu(rd: usize, rs1: usize, imm_i: i32, mem: &MemoryState, reg_file: &mut RegisterFile) -> Result<(), String> {
+pub fn inst_i_lbu(rd: usize, rs1: usize, imm_i: i32, mem: &MemoryState, reg_file: &mut RegisterFile) -> Result<(), TrapCause> {
     // zero = zero extended
     // rd <- zext(m8(rs1 + imm_i))
     let val = reg_file.read(rs1);
@@ -93,10 +102,14 @@ pub fn inst_i_lbu(rd: usize, rs1: usize, imm_i: i32, mem: &MemoryState, reg_file
     Ok(())
 }
 
-pub fn inst_i_lhu(rd: usize, rs1: usize, imm_i: i32, mem: &MemoryState, reg_file: &mut RegisterFile) -> Result<(), String> {
+pub fn inst_i_lhu(rd: usize, rs1: usize, imm_i: i32, mem: &MemoryState, reg_file: &mut RegisterFile) -> Result<(), TrapCause> {
     // rd <- zext(m16(rs1 + imm_i))
     let val = reg_file.read(rs1);
     let address = val.wrapping_add(imm_i as u32) as usize;
+    let is_valid_address = address % 2 == 0;
+    if !is_valid_address {
+        return Err(TrapCause::LoadAddressMisaligned { address: address });
+    }
     let num = mem.read_bytes(address, 2)?;
     reg_file.write(rd, num);
     Ok(())

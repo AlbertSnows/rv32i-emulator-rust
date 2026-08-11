@@ -1,8 +1,9 @@
 use crate::definitions::cpu_definition::RegisterFile;
 use crate::definitions::codes::ExecutionSignal;
 use crate::instructions::i::alu_imm_or_shift::IShOp;
+use crate::definitions::trap_cause::TrapCause;
 
-pub fn execute_i_shift_type(op: &IShOp, rd: usize, rs1: usize, shamt: usize, register: &mut RegisterFile) -> Result<ExecutionSignal, String> {
+pub fn execute_i_shift_type(op: &IShOp, rd: usize, rs1: usize, shamt: usize, register: &mut RegisterFile) -> Result<ExecutionSignal, TrapCause> {
     match op {
         IShOp::Slli => inst_i_slli(rd, rs1, shamt, register),
         IShOp::Srli => inst_i_srli(rd, rs1, shamt, register),

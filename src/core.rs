@@ -3,15 +3,19 @@ use crate::definitions::codes::ExecutionSignal;
 use crate::fetcher::fetch_word_from_memory;
 use crate::decoder::decode_word_to_instruction;
 use crate::instructions::pc::advance_pc;
+use crate::definitions::trap_cause::TrapCause;
 
-pub fn step(cpu: &mut CPUState) -> Result<ExecutionSignal, String> {
+pub fn step(cpu: &mut CPUState) -> Result<ExecutionSignal, TrapCause> {
     // mut allows cpu to change in the local scope
     let raw_word = fetch_word_from_memory(&cpu.pc, &cpu.mem)?; // 51 = 0x33 = 0011 0011
     let instruction = decode_word_to_instruction(raw_word)?;
     // &mut cpu passes a mutable reference to cpu
     // &mut cpu = this reference has "mutable" permission to cpu
-    let execution_outcome = instruction.execute(cpu)?;
-    advance_pc(&mut cpu.pc, &instruction, &cpu.register);
+    let execution_outcome = instruction.execute(cpu).map_err(|err| match err {
+        TrapCause::IllegalInstruction { instruction: None } => TrapCause::IllegalInstruction { instruction: Some(raw_word.0) },
+        other => other,
+    })?;
+    let step_outcome = advance_pc(&mut cpu.pc, &instruction, &cpu.register)?;
     Ok(execution_outcome)
 }
 

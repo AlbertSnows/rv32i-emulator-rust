@@ -17,6 +17,7 @@ use crate::utility::bit_operations::mask_and_shift;
 use crate::definitions::masks;
 use crate::utility::bit_operations::merge_bits;
 use crate::utility::bit_operations::shake_to_signed;
+use crate::definitions::trap_cause::TrapCause;
 
 #[derive(Debug, PartialEq)]
 pub enum SOp {
@@ -25,7 +26,7 @@ pub enum SOp {
     Sw
 }
 
-pub fn parse_s_inst(raw_word: InstructionWord) -> Result<Format, String> {
+pub fn parse_s_inst(raw_word: InstructionWord) -> Result<Format, TrapCause> {
     let content = raw_word.0;
     let funct_three = mask_and_shift(content, masks::FUNCT_THREE);
     let reg_source_one = mask_and_shift(content, masks::REG_SOURCE_ONE);
@@ -41,7 +42,7 @@ pub fn parse_s_inst(raw_word: InstructionWord) -> Result<Format, String> {
         0b000 => Ok(SOp::Sb),
         0b001 => Ok(SOp::Sh),
         0b010 => Ok(SOp::Sw),
-        _ => Err(format!("undefined S type"))
+        _ => Err(TrapCause::IllegalInstruction { instruction: Some(content) })
     }?;
 
     Ok(Format::SType { 
@@ -52,7 +53,7 @@ pub fn parse_s_inst(raw_word: InstructionWord) -> Result<Format, String> {
     })
 }
 
-pub fn execute_s_type(op: &SOp, imm: i32, rs1: usize, rs2: usize, register: &RegisterFile, mem: &mut MemoryState) -> Result<ExecutionSignal, String> {
+pub fn execute_s_type(op: &SOp, imm: i32, rs1: usize, rs2: usize, register: &RegisterFile, mem: &mut MemoryState) -> Result<ExecutionSignal, TrapCause> {
     match op {
         SOp::Sb => inst_s_sb(rs1, rs2, imm, mem, register)?,
         SOp::Sh => inst_s_sh(rs1, rs2, imm, mem, register)?,
@@ -61,21 +62,21 @@ pub fn execute_s_type(op: &SOp, imm: i32, rs1: usize, rs2: usize, register: &Reg
     Ok(ExecutionSignal::Continue)
 }
 
-pub fn inst_s_sb(rs1: usize, rs2: usize, imm: i32, mem: &mut MemoryState, reg_file: &RegisterFile) -> Result<(), String> {
+pub fn inst_s_sb(rs1: usize, rs2: usize, imm: i32, mem: &mut MemoryState, reg_file: &RegisterFile) -> Result<(), TrapCause> {
     // m8(rs1+imm_s) ← rs2[7:0]
     let val = reg_file.read(rs1);
     let mem_address = val.wrapping_add(imm as u32);
     mem.write_bytes(mem_address as usize, &(rs2 as u8).to_le_bytes())
 }
 
-pub fn inst_s_sh(rs1: usize, rs2: usize, imm: i32, mem: &mut MemoryState, reg_file: &RegisterFile) -> Result<(), String> {
+pub fn inst_s_sh(rs1: usize, rs2: usize, imm: i32, mem: &mut MemoryState, reg_file: &RegisterFile) -> Result<(), TrapCause> {
     // m16(rs1+imm_s) <- rs2[15:0]
     let val = reg_file.read(rs1);
     let mem_address = val.wrapping_add(imm as u32);
     mem.write_bytes(mem_address as usize, &(rs2 as u16).to_le_bytes())
 }
 
-pub fn inst_s_sw(rs1: usize, rs2: usize, imm: i32, mem: &mut MemoryState, reg_file: &RegisterFile) -> Result<(), String> {
+pub fn inst_s_sw(rs1: usize, rs2: usize, imm: i32, mem: &mut MemoryState, reg_file: &RegisterFile) -> Result<(), TrapCause> {
     // m32(rs1+imm_s) <- rs2[31:0]
     let val = reg_file.read(rs1);
     let mem_address = val.wrapping_add(imm as u32);

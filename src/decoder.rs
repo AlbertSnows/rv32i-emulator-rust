@@ -16,11 +16,13 @@ use crate::instructions::j::parse_j_inst;
 use crate::instructions::b::parse_b_inst;
 use crate::utility::bit_operations::mask;
 use crate::fetcher::InstructionWord;
+use crate::definitions::trap_cause::TrapCause;
 
-pub fn decode_word_to_instruction(raw_word: InstructionWord) -> Result<Format, String> {
+pub fn decode_word_to_instruction(raw_word: InstructionWord) -> Result<Format, TrapCause> {
     // op code is 7 bits wide.
     // the mask will keep the first 7 bits, toss the rest.
     let opcode = mask(raw_word.0, masks::OP_CODE);
+    let instruction_bits = raw_word.0;
     match opcode {
         op_codes::LOAD => parse_load_inst(raw_word), // todo: implement i type closure that takes op code type as first param?
         op_codes::ALU_IMM => parse_alu_imm_or_shift_inst(raw_word),
@@ -32,8 +34,7 @@ pub fn decode_word_to_instruction(raw_word: InstructionWord) -> Result<Format, S
         op_codes::LUI => parse_u_inst(raw_word, op_codes::LUI),
         op_codes::AUIPC => parse_u_inst(raw_word, op_codes::AUIPC),
         op_codes::J => parse_j_inst(raw_word),
-        // b = binary format, # = signify binary format, 09 = output 9 total characters w/ 0 as padding
-        _ => Err(format!("undefined opcode: {:#09b}", opcode))
+        _ => Err(TrapCause::IllegalInstruction { instruction: Some(instruction_bits) })
     }
 }
 

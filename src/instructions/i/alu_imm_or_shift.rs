@@ -5,6 +5,7 @@ use crate::definitions::codes::ExecutionSignal;
 use crate::utility::bit_operations::mask_and_shift;
 use crate::definitions::masks;
 use crate::utility::bit_operations::shake_to_signed;
+use crate::definitions::trap_cause::TrapCause;
 
 #[derive(Debug, PartialEq)]
 pub enum AluImmOp {
@@ -23,7 +24,7 @@ pub enum IShOp {
     Srai
 }
 
-pub fn parse_alu_imm_or_shift_inst(raw_word: InstructionWord) -> Result<Format, String> {
+pub fn parse_alu_imm_or_shift_inst(raw_word: InstructionWord) -> Result<Format, TrapCause> {
     let content = raw_word.0;
     let funct_three = mask_and_shift(content, masks::FUNCT_THREE);
     let reg_dest = mask_and_shift(content, masks::REG_DESTINATION);
@@ -31,18 +32,18 @@ pub fn parse_alu_imm_or_shift_inst(raw_word: InstructionWord) -> Result<Format, 
     match funct_three {
         (0b000 | 0b010 | 0b011 | 0b100 | 0b110 | 0b111) => parse_i_alu_imm(&content, &funct_three, reg_dest, reg_source_one),
         (0b001 | 0b101) => parse_i_shift(&content, &funct_three, reg_dest, reg_source_one),
-        _ => Err(format!("Unrecognized funct three format"))
+        _ => Err(TrapCause::IllegalInstruction { instruction: Some(content) })
     }
 }
 
-pub fn parse_i_shift(content: &u32, funct_three: &u32, reg_dest: u32, reg_source_one: u32) -> Result<Format, String> {
+pub fn parse_i_shift(content: &u32, funct_three: &u32, reg_dest: u32, reg_source_one: u32) -> Result<Format, TrapCause> {
     let shamt = mask_and_shift(*content, masks::I_TYPE_SHAMT);
     let funct_seven = mask_and_shift(*content, masks::FUNCT_SEVEN);
     let instruction_name = match (funct_seven, funct_three) {
         (0b0000000, 0b001) => Ok(IShOp::Slli),
         (0b0000000, 0b101) => Ok(IShOp::Srli),
         (0b0100000, 0b101) => Ok(IShOp::Srai),
-        _ => Err(format!("undefined shift type type detected"))
+        _ => Err(TrapCause::IllegalInstruction { instruction: Some(*content) })
     }?;
     Ok(Format::IShiftType {
         op: instruction_name,
@@ -52,7 +53,7 @@ pub fn parse_i_shift(content: &u32, funct_three: &u32, reg_dest: u32, reg_source
     })
 }
 
-pub fn parse_i_alu_imm(content: &u32, funct_three: &u32, reg_dest: u32, reg_source_one: u32) -> Result<Format, String> {
+pub fn parse_i_alu_imm(content: &u32, funct_three: &u32, reg_dest: u32, reg_source_one: u32) -> Result<Format, TrapCause> {
     let imm_unsigned = mask_and_shift(*content, masks::I_TYPE_ALU_IMM);
     let imm_val = shake_to_signed(imm_unsigned, 12);
     let instruction_name = match funct_three {
@@ -62,7 +63,7 @@ pub fn parse_i_alu_imm(content: &u32, funct_three: &u32, reg_dest: u32, reg_sour
         0b100 => Ok(AluImmOp::Xori),
         0b110 => Ok(AluImmOp::Ori),
         0b111 => Ok(AluImmOp::Andi),
-        _ => Err(format!("undefined alu imm type detected"))
+        _ => Err(TrapCause::IllegalInstruction { instruction: Some(*content) })
     }?;
     Ok(Format::AluImmType {
         op: instruction_name,
@@ -72,7 +73,7 @@ pub fn parse_i_alu_imm(content: &u32, funct_three: &u32, reg_dest: u32, reg_sour
     })
 }
 
-pub fn execute_i_alu_imm_type(op: &AluImmOp, rd: usize, rs1: usize, imm: i32, register: &mut RegisterFile) -> Result<ExecutionSignal, String> {
+pub fn execute_i_alu_imm_type(op: &AluImmOp, rd: usize, rs1: usize, imm: i32, register: &mut RegisterFile) -> Result<ExecutionSignal, TrapCause> {
     match op {
         AluImmOp::Addi => inst_i_addi(rd, rs1, imm, register),
         AluImmOp::Slti => inst_i_slti(rd, rs1, imm, register),

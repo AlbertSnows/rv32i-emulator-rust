@@ -5,6 +5,7 @@ use crate::utility::bit_operations::mask_and_shift;
 use crate::definitions::masks;
 use crate::definitions::codes::ExecutionSignal;
 use crate::instructions::i::csr;
+use crate::definitions::trap_cause::TrapCause;
 
 #[derive(Debug, PartialEq)]
 pub enum SystemOp {
@@ -12,7 +13,7 @@ pub enum SystemOp {
     EBreak
 }
 
-pub fn parse_system_inst(raw_word: InstructionWord) -> Result<Format, String> {
+pub fn parse_system_inst(raw_word: InstructionWord) -> Result<Format, TrapCause> {
     let content = raw_word.0;
     // ecall/ebreak are funct3 = 000; every other funct3 under the SYSTEM
     // opcode is one of the six CSR instructions, handled in their own file.
@@ -32,7 +33,7 @@ pub fn parse_system_inst(raw_word: InstructionWord) -> Result<Format, String> {
 }
 
 
-pub fn execute_i_system_type(op: &SystemOp) -> Result<ExecutionSignal, String> {
+pub fn execute_i_system_type(op: &SystemOp) -> Result<ExecutionSignal, TrapCause> {
     match op {
         SystemOp::ECall => Ok(ExecutionSignal::Continue),
         SystemOp::EBreak => Ok(ExecutionSignal::Halt)

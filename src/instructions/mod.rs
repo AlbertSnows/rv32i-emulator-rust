@@ -17,6 +17,7 @@ use i::alu_imm_or_shift::IShOp;
 use i::system::SystemOp;
 use i::csr::CsrOp;
 use crate::definitions::codes::ExecutionSignal;
+use crate::definitions::trap_cause::TrapCause;
 
 #[derive(Debug, PartialEq)]
 pub enum Format {
@@ -34,7 +35,7 @@ pub enum Format {
 }
 
 impl Format {
-    pub fn execute(&self, cpu_state: &mut CPUState) -> Result<ExecutionSignal, String> {
+    pub fn execute(&self, cpu_state: &mut CPUState) -> Result<ExecutionSignal, TrapCause> {
         match self {
             Format::UType { op, rd, imm_upper }
                 => u::execute_u_type(op, *rd, *imm_upper, &mut cpu_state.register, &cpu_state.pc),

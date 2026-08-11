@@ -1,3 +1,5 @@
+use crate::definitions::trap_cause::TrapCause;
+
 #[derive(Debug)]
 pub struct CPUState {
     pub register: RegisterFile,
@@ -32,9 +34,9 @@ impl MemoryState {
     // same ordering fetch_word_from_memory reads back.
     // It does not worry about how many bytes to write, that's the responsibility
     // of the parent
-    pub fn write_bytes(&mut self, address: usize, bytes: &[u8]) -> Result<(), String> {
+    pub fn write_bytes(&mut self, address: usize, bytes: &[u8]) -> Result<(), TrapCause> {
         if address + bytes.len() > self.storage.len() {
-            return Err(format!("write out of bounds: address={} len={} exceeds memory size {}", address, bytes.len(), self.storage.len()));
+            return Err(TrapCause::StoreAccessFault { address });
         }
         bytes.iter().enumerate().for_each(|(i, byte)| {
             self.storage[address + i] = *byte;
@@ -45,9 +47,9 @@ impl MemoryState {
     // Reads `num_bytes` bytes starting at `address` and combines them
     // little-endian (lowest address = least-significant byte) into a u32,
     // the mirror image of write_bytes.
-    pub fn read_bytes(&self, address: usize, num_bytes: usize) -> Result<u32, String> {
+    pub fn read_bytes(&self, address: usize, num_bytes: usize) -> Result<u32, TrapCause> {
         if address + num_bytes > self.storage.len() {
-            return Err(format!("read out of bounds: address={} len={} exceeds memory size {}", address, num_bytes, self.storage.len()));
+            return Err(TrapCause::LoadAccessFault { address });
         }
         let byte_range = 0..num_bytes;
         let value = byte_range.fold(0u32, |acc, i| {
@@ -104,7 +106,7 @@ pub struct CsrState {
 }
 
 impl CsrState {
-    pub fn write(&mut self, address: usize, value: u32) -> Result<u32, String> {
+    pub fn write(&mut self, address: usize, value: u32) -> Result<u32, TrapCause> {
         // "The top two bits (csr[11:10]) indicate whether the register is read/write (00, 01, or 10) or read-only (11). 
         // The next two bits (csr[9:8]) encode the lowest privilege level that can access the CSR."
         // https://docs.riscv.org/reference/isa/_attachments/riscv-privileged.pdf
@@ -113,7 +115,7 @@ impl CsrState {
             self.storage[address] = value;
             return Ok(self.storage[address]);
         }
-        return Err("Invalid write command".to_string());        
+        return Err(TrapCause::IllegalInstruction { instruction: None });        
     }
 
     pub fn read(&self, address: usize) -> u32 {

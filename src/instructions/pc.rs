@@ -2,9 +2,11 @@ use crate::definitions::cpu_definition::PCState;
 use crate::definitions::cpu_definition::RegisterFile;
 use crate::instructions::Format;
 use crate::instructions::b::BOp;
+use crate::definitions::trap_cause::TrapCause;
 
-pub fn advance_pc(pc: &mut PCState, instruction: &Format, reg_file: &RegisterFile) -> usize {
+pub fn advance_pc(pc: &mut PCState, instruction: &Format, reg_file: &RegisterFile) -> Result<usize, TrapCause> {
     let pc_value = pc.read() as i32;
+
     let new_value = match instruction {
         Format::JType { op, rd, imm } => pc_value.wrapping_add(*imm),
         Format::JalrType { rd, rs1, imm } => {
@@ -29,8 +31,12 @@ pub fn advance_pc(pc: &mut PCState, instruction: &Format, reg_file: &RegisterFil
         },
         _ => pc_value.wrapping_add(4)
     };
+    let is_invalid_pc_state = new_value % 4 != 0;
+    if is_invalid_pc_state {
+        return Err(TrapCause::InstructionAddressMisaligned { address: new_value as usize });
+    }
     pc.write(new_value as usize);
-    pc.read()
+    Ok(pc.read())
 }
 
 #[cfg(test)]

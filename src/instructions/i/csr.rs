@@ -13,6 +13,7 @@ use crate::instructions::Format;
 use crate::definitions::codes::ExecutionSignal;
 use crate::utility::bit_operations::mask_and_shift;
 use crate::definitions::masks;
+use crate::definitions::trap_cause::TrapCause;
 
 #[derive(Debug, PartialEq)]
 pub enum CsrOp {
@@ -24,7 +25,7 @@ pub enum CsrOp {
     Csrrci
 }
 
-pub fn parse_csr_inst(raw_word: InstructionWord) -> Result<Format, String> {
+pub fn parse_csr_inst(raw_word: InstructionWord) -> Result<Format, TrapCause> {
     let content = raw_word.0;
     let reg_dest = mask_and_shift(content, masks::REG_DESTINATION);
     let rs1_or_uimm = mask_and_shift(content, masks::REG_SOURCE_ONE);
@@ -37,7 +38,7 @@ pub fn parse_csr_inst(raw_word: InstructionWord) -> Result<Format, String> {
         0b101 => Ok(CsrOp::Csrrwi),
         0b110 => Ok(CsrOp::Csrrsi),
         0b111 => Ok(CsrOp::Csrrci),
-        _ => Err(format!("undefined CSR type"))
+        _ => Err(TrapCause::IllegalInstruction { instruction: Some(content) })
     }?;
     Ok(Format::CsrType {
         op: instruction_name,
@@ -47,32 +48,33 @@ pub fn parse_csr_inst(raw_word: InstructionWord) -> Result<Format, String> {
     })
 }
 
-pub fn execute_i_csr_type(op: &CsrOp, rd: usize, rs1_or_uimm: usize, csr_address: usize, register: &mut RegisterFile, csr: &mut CsrState) -> Result<ExecutionSignal, String> {
+pub fn execute_i_csr_type(op: &CsrOp, rd: usize, rs1_or_uimm: usize, csr_address: usize, register: &mut RegisterFile, csr: &mut CsrState) -> Result<ExecutionSignal, TrapCause> {
     match op {
-        CsrOp::Csrrw => inst_i_csrrw(rd, rs1_or_uimm, csr_address, register, csr),
-        CsrOp::Csrrs => inst_i_csrrs(rd, rs1_or_uimm, csr_address, register, csr),
-        CsrOp::Csrrc => inst_i_csrrc(rd, rs1_or_uimm, csr_address, register, csr),
-        CsrOp::Csrrwi => inst_i_csrrwi(rd, rs1_or_uimm as u32, csr_address, register, csr),
-        CsrOp::Csrrsi => inst_i_csrrsi(rd, rs1_or_uimm as u32, csr_address, register, csr),
-        CsrOp::Csrrci => inst_i_csrrci(rd, rs1_or_uimm as u32, csr_address, register, csr),
+        CsrOp::Csrrw => inst_i_csrrw(rd, rs1_or_uimm, csr_address, register, csr)?,
+        CsrOp::Csrrs => inst_i_csrrs(rd, rs1_or_uimm, csr_address, register, csr)?,
+        CsrOp::Csrrc => inst_i_csrrc(rd, rs1_or_uimm, csr_address, register, csr)?,
+        CsrOp::Csrrwi => inst_i_csrrwi(rd, rs1_or_uimm as u32, csr_address, register, csr)?,
+        CsrOp::Csrrsi => inst_i_csrrsi(rd, rs1_or_uimm as u32, csr_address, register, csr)?,
+        CsrOp::Csrrci => inst_i_csrrci(rd, rs1_or_uimm as u32, csr_address, register, csr)?,
     }
     Ok(ExecutionSignal::Continue)
 }
 
-pub fn inst_i_csrrw(rd: usize, rs1: usize, csr_address: usize, register: &mut RegisterFile, csr: &mut CsrState) {
+pub fn inst_i_csrrw(rd: usize, rs1: usize, csr_address: usize, register: &mut RegisterFile, csr: &mut CsrState) -> Result<(), TrapCause> {
     // t = CSR[csr]; CSR[csr] = rs1; rd = t
     // Per the instructions:
     // "If rd=x0, then the instruction shall not read the CSR and shall not cause any of the side effects that might occur on a CSR read."
     // https://docs.riscv.org/reference/isa/v20260120/unpriv/zicsr.html
-    if rd != 0 { 
+    if rd != 0 {
         let old_val = csr.read(csr_address);
         register.write(rd, old_val);
     }
     let rs1_val = register.read(rs1);
-    csr.write(csr_address, rs1_val);
+    csr.write(csr_address, rs1_val)?;
+    Ok(())
 }
 
-pub fn inst_i_csrrs(rd: usize, rs1: usize, csr_address: usize, register: &mut RegisterFile, csr: &mut CsrState) {
+pub fn inst_i_csrrs(rd: usize, rs1: usize, csr_address: usize, register: &mut RegisterFile, csr: &mut CsrState) -> Result<(), TrapCause> {
     // t = CSR[csr]; CSR[csr] = t | rs1; rd = t
     // "Both CSRRS and CSRRC always read the addressed CSR and cause any read side effects regardless of rs1 and rd fields."
     let old_val = csr.read(csr_address);
@@ -80,11 +82,12 @@ pub fn inst_i_csrrs(rd: usize, rs1: usize, csr_address: usize, register: &mut Re
     if rs1 != 0 {
         let rs1_val = register.read(rs1);
         let masked_val = old_val | rs1_val;
-        csr.write(csr_address, masked_val);
+        csr.write(csr_address, masked_val)?;
     }
+    Ok(())
 }
 
-pub fn inst_i_csrrc(rd: usize, rs1: usize, csr_address: usize, register: &mut RegisterFile, csr: &mut CsrState) {
+pub fn inst_i_csrrc(rd: usize, rs1: usize, csr_address: usize, register: &mut RegisterFile, csr: &mut CsrState) -> Result<(), TrapCause> {
     // t = CSR[csr]; CSR[csr] = t & !rs1; rd = t
     // "Both CSRRS and CSRRC always read the addressed CSR and cause any read side effects regardless of rs1 and rd fields."
     let old_val = csr.read(csr_address);
@@ -92,39 +95,43 @@ pub fn inst_i_csrrc(rd: usize, rs1: usize, csr_address: usize, register: &mut Re
     if rs1 != 0 {
         let rs1_val = register.read(rs1);
         let masked_val = old_val & !rs1_val;
-        csr.write(csr_address, masked_val);
+        csr.write(csr_address, masked_val)?;
     }
+    Ok(())
 }
 
-pub fn inst_i_csrrwi(rd: usize, uimm: u32, csr_address: usize, register: &mut RegisterFile, csr: &mut CsrState) {
+pub fn inst_i_csrrwi(rd: usize, uimm: u32, csr_address: usize, register: &mut RegisterFile, csr: &mut CsrState) -> Result<(), TrapCause> {
     // t = CSR[csr]; CSR[csr] = uimm; rd = t
-    if rd != 0 { 
+    if rd != 0 {
         let old_val = csr.read(csr_address);
         register.write(rd, old_val);
     }
-    csr.write(csr_address, uimm);
+    csr.write(csr_address, uimm)?;
+    Ok(())
 }
 
-pub fn inst_i_csrrsi(rd: usize, uimm: u32, csr_address: usize, register: &mut RegisterFile, csr: &mut CsrState) {
+pub fn inst_i_csrrsi(rd: usize, uimm: u32, csr_address: usize, register: &mut RegisterFile, csr: &mut CsrState) -> Result<(), TrapCause> {
     // t = CSR[csr]; CSR[csr] = t | uimm; rd = t
     //  "For CSRRSI and CSRRCI, if the uimm[4:0] field is zero, then these instructions will not write to the CSR"
     let old_val = csr.read(csr_address);
     register.write(rd, old_val);
     if uimm != 0 {
         let masked_val = old_val | uimm;
-        csr.write(csr_address, masked_val);
+        csr.write(csr_address, masked_val)?;
     }
+    Ok(())
 }
 
-pub fn inst_i_csrrci(rd: usize, uimm: u32, csr_address: usize, register: &mut RegisterFile, csr: &mut CsrState) {
+pub fn inst_i_csrrci(rd: usize, uimm: u32, csr_address: usize, register: &mut RegisterFile, csr: &mut CsrState) -> Result<(), TrapCause> {
     // t = CSR[csr]; CSR[csr] = t & !uimm; rd = t
     //  "For CSRRSI and CSRRCI, if the uimm[4:0] field is zero, then these instructions will not write to the CSR"
     let old_val = csr.read(csr_address);
     register.write(rd, old_val);
     if uimm != 0 {
         let masked_val = old_val & !uimm;
-        csr.write(csr_address, masked_val);
+        csr.write(csr_address, masked_val)?;
     }
+    Ok(())
 }
 
 #[cfg(test)]
