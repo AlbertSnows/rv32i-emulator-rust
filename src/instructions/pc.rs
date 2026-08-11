@@ -60,7 +60,7 @@ mod tests {
         // adding 1 carries through every one-bit and flips the sign bit:
         // 0b0111_...1111 + 1 = 0b1000_0000_0000_0000_0000_0000_0000_0000
         // = 0x8000_0000 = i32::MIN
-        assert_eq!(result as i32, i32::MIN);
+        assert_eq!(result.unwrap() as i32, i32::MIN);
     }
 
     #[test]
@@ -72,7 +72,7 @@ mod tests {
         let instruction = Format::JalrType { rd: 1, rs1: 2, imm: 1 };
         let result = advance_pc(&mut pc, &instruction, &reg_file);
         // = i32::MIN, and & !1 leaves it unchanged since bit 0 is already 0
-        assert_eq!(result as i32, i32::MIN);
+        assert_eq!(result.unwrap() as i32, i32::MIN);
     }
 
     #[test]
@@ -84,11 +84,24 @@ mod tests {
         reg_file.write(3, 5);
         let instruction = Format::BType { op: BOp::Beq, imm: 1, rs1: 2, rs2: 3 };
         let result = advance_pc(&mut pc, &instruction, &reg_file);
-        assert_eq!(result as i32, i32::MIN);
+        assert_eq!(result.unwrap() as i32, i32::MIN);
     }
 
     #[test]
     fn test_advance_pc_btype_not_taken_wraps_at_i32_max() {
+        let mut pc = build_pc_state();
+        pc.write((i32::MAX - 3) as usize);
+        let mut reg_file = build_register_file();
+        reg_file.write(2, 5);
+        reg_file.write(3, 9); // not equal -- branch not taken, falls through to pc + 4
+        let instruction = Format::BType { op: BOp::Beq, imm: 100, rs1: 2, rs2: 3 };
+        let result = advance_pc(&mut pc, &instruction, &reg_file);
+        println!("{:?}", result);
+        assert_eq!(result.unwrap() as i32, -2147483648);
+    }
+
+        #[test]
+    fn test_advance_pc_btype_not_taken_wraps_at_i32_max_bad_addr() {
         let mut pc = build_pc_state();
         pc.write(i32::MAX as usize);
         let mut reg_file = build_register_file();
@@ -96,16 +109,16 @@ mod tests {
         reg_file.write(3, 9); // not equal -- branch not taken, falls through to pc + 4
         let instruction = Format::BType { op: BOp::Beq, imm: 100, rs1: 2, rs2: 3 };
         let result = advance_pc(&mut pc, &instruction, &reg_file);
-        assert_eq!(result as i32, -2147483645);
+        assert_eq!(result, Err(TrapCause::InstructionAddressMisaligned { address: 18446744071562067971 }));
     }
 
     #[test]
     fn test_advance_pc_default_case_wraps_at_i32_max() {
         let mut pc = build_pc_state();
-        pc.write(i32::MAX as usize);
+        pc.write((i32::MAX - 3) as usize);
         let reg_file = build_register_file();
         let instruction = Format::UType { op: UOp::Lui, rd: 1, imm_upper: 0 };
         let result = advance_pc(&mut pc, &instruction, &reg_file);
-        assert_eq!(result as i32, -2147483645);
+        assert_eq!(result.unwrap() as i32, -2147483648);
     }
 }

@@ -24,7 +24,7 @@ pub fn decode_word_to_instruction(raw_word: InstructionWord) -> Result<Format, T
     let opcode = mask(raw_word.0, masks::OP_CODE);
     let instruction_bits = raw_word.0;
     match opcode {
-        op_codes::LOAD => parse_load_inst(raw_word), // todo: implement i type closure that takes op code type as first param?
+        op_codes::LOAD => parse_load_inst(raw_word), 
         op_codes::ALU_IMM => parse_alu_imm_or_shift_inst(raw_word),
         op_codes::SYSTEM => parse_system_inst(raw_word),
         op_codes::JALR => parse_jalr_inst(raw_word),

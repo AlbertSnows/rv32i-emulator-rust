@@ -26,7 +26,7 @@ fn main() {
         execution_outcome = match step(&mut cpu) {
             Ok(signal) => signal,
             Err(m) => {
-                println!("{}", m);
+                println!("{:?}", m);
                 ExecutionSignal::Halt
             }
         }

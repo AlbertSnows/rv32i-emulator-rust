@@ -160,6 +160,22 @@ mod tests {
     fn test_inst_i_lw() {
         let rd = 1;
         let rs1 = 3;
+        let imm_i = 8;
+        let mut reg_file = build_register_file();
+        reg_file.write(3, 4);
+        let mut mem = build_memory_state();
+        mem.storage[12] = 0b0000_0001;
+        mem.storage[13] = 0b0000_0000;
+        mem.storage[14] = 0b0000_0000;
+        mem.storage[15] = 0b1000_0000;
+        let outcome = inst_i_lw(rd, rs1, imm_i, &mem, &mut reg_file).unwrap();
+        assert_eq!(reg_file.read(1) as i32, -2147483647);
+    }
+
+        #[test]
+    fn test_inst_i_lw_bad_addr() {
+        let rd = 1;
+        let rs1 = 3;
         let imm_i = 6;
         let mut reg_file = build_register_file();
         reg_file.write(3, 4);
@@ -168,8 +184,8 @@ mod tests {
         mem.storage[11] = 0b0000_0000;
         mem.storage[12] = 0b0000_0000;
         mem.storage[13] = 0b1000_0000;
-        inst_i_lw(rd, rs1, imm_i, &mem, &mut reg_file).unwrap();
-        assert_eq!(reg_file.read(1) as i32, -2147483647);
+        let outcome = inst_i_lw(rd, rs1, imm_i, &mem, &mut reg_file); //.unwrap();
+        assert_eq!(outcome, Err(TrapCause::LoadAddressMisaligned { address: 10 }));
     }
 
     #[test]
