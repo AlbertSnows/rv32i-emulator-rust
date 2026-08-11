@@ -1,4 +1,7 @@
- #[derive(Debug, PartialEq)]
+// Traps are about transferring control
+// To transfer control, you will want to overwirte the pc with an address (source?)
+
+#[derive(Debug, PartialEq)]
 pub enum TrapCause {
     InstructionAddressMisaligned  { address: usize }, 
     InstructionAccessFault  { address: usize }, 
