@@ -14,6 +14,7 @@ use crate::instructions::s::parse_s_inst;
 use crate::instructions::u::parse_u_inst;
 use crate::instructions::j::parse_j_inst;
 use crate::instructions::b::parse_b_inst;
+use crate::instructions::fence::parse_fence_inst;
 use crate::utility::bit_operations::mask;
 use crate::fetcher::InstructionWord;
 use crate::definitions::trap_cause::TrapCause;
@@ -34,6 +35,7 @@ pub fn decode_word_to_instruction(raw_word: InstructionWord) -> Result<Format, T
         op_codes::LUI => parse_u_inst(raw_word, op_codes::LUI),
         op_codes::AUIPC => parse_u_inst(raw_word, op_codes::AUIPC),
         op_codes::J => parse_j_inst(raw_word),
+        op_codes::FENCE => parse_fence_inst(raw_word),
         _ => Err(TrapCause::IllegalInstruction { instruction: Some(instruction_bits) })
     }
 }

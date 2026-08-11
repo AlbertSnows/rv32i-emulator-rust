@@ -5,6 +5,7 @@ pub mod j;
 pub mod s;
 pub mod u;
 pub mod pc;
+pub mod fence;
 use r::AluOp;
 use crate::definitions::cpu_definition::CPUState;
 use u::UOp;
@@ -31,7 +32,8 @@ pub enum Format {
     JalrType { rd: usize, rs1: usize, imm: i32 },
     IShiftType { op: IShOp, rd: usize, rs1: usize, shamt: usize },
     SystemType { op: SystemOp },
-    CsrType { op: CsrOp, rd: usize, rs1_or_uimm: usize, csr: usize }
+    CsrType { op: CsrOp, rd: usize, rs1_or_uimm: usize, csr: usize },
+    FENCEType
 }
 
 impl Format {
@@ -58,7 +60,9 @@ impl Format {
             Format::SystemType { op }
                 => i::system::execute_i_system_type(op),
             Format::CsrType { op, rd, rs1_or_uimm, csr }
-                => i::csr::execute_i_csr_type(op, *rd, *rs1_or_uimm, *csr, &mut cpu_state.register, &mut cpu_state.csr)
-        }
+                => i::csr::execute_i_csr_type(op, *rd, *rs1_or_uimm, *csr, &mut cpu_state.register, &mut cpu_state.csr),
+            Format::FENCEType => fence::execute_fence_type(),
+
+            }
     }
 }

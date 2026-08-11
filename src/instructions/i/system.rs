@@ -35,8 +35,9 @@ pub fn parse_system_inst(raw_word: InstructionWord) -> Result<Format, TrapCause>
 
 pub fn execute_i_system_type(op: &SystemOp) -> Result<ExecutionSignal, TrapCause> {
     match op {
-        SystemOp::ECall => Ok(ExecutionSignal::Continue),
-        SystemOp::EBreak => Ok(ExecutionSignal::Halt)
+        // todo: should this be err? is there a better way
+        SystemOp::ECall => Err(TrapCause::EnvironmentCallFromMMode),
+        SystemOp::EBreak => Err(TrapCause::Breakpoint)
     }
 }
 

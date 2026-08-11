@@ -91,7 +91,7 @@ fn jump_to_trap_handler(cpu: &mut CPUState) {
 // - why the trap was proc'd
 // - the address of the instruction that caused the failure
 // a failure here is a double trap
-fn handle_trap(cpu: &mut CPUState, trap_cause: TrapCause) {
+pub fn handle_trap(cpu: &mut CPUState, trap_cause: TrapCause) {
     set_mepc(cpu, cpu.pc.read()); // store pc
     set_mcause(cpu, trap_cause.mcause_code()); // store why the trap happened for guest function
     // "If mtval is written with a nonzero value when 
@@ -134,12 +134,23 @@ mod tests {
     }
 
     #[test]
-    fn test_step_returns_err_on_undefined_opcode() {
+    fn test_step_returns_ok_on_undefined_opcode() {
         let mut cpu = build_cpu_state();
-        // 0b0000000 isn't a real opcode -- decode should fail and step should
-        // propagate that Err rather than panicking or silently continuing.
+        // 0b0000000 isn't a real opcode -- decode should fail
         store_in_mem(&NO_OP.to_le_bytes(), &mut cpu.mem, 0);
         let outcome = step(&mut cpu);
-        assert!(outcome.is_err());
+        assert_eq!(outcome, Ok(ExecutionSignal::Continue));
+    }
+
+    #[test] 
+    fn test_handle_trap_changes_correct_values() {
+        let mut cpu = build_cpu_state();
+        cpu.pc.write(7);
+        cpu.csr.write(MTVEC, 4);
+        let outcome = handle_trap(&mut cpu, TrapCause::IllegalInstruction { instruction: Some(33)});
+        assert_eq!(cpu.pc.read(), 4); // check MTVEC
+        assert_eq!(cpu.csr.read(MEPC), 7); // mepc
+        assert_eq!(cpu.csr.read(MCAUSE), 2); // mcause
+        assert_eq!(cpu.csr.read(MTVAL), 33); // mtval
     }
 }
