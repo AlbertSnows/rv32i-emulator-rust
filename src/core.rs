@@ -25,20 +25,17 @@ fn perform_step(cpu: &mut CPUState) -> Result<ExecutionSignal, TrapCause> {
 // "When a trap is taken into M-mode, mepc is written with the virtual
 // address of the instruction that was interrupted or that encountered
 // the exception."
-// docs/research/riscv_privleged.pdf, 3.1.14 "Machine Exception Program
-// Counter (mepc) Register", p.48.
 fn set_mepc(cpu: &mut CPUState, pc_value: usize) -> Result<(), TrapCause> {
-    todo!()
+    cpu.csr.write(MEPC, pc_value as u32)?;
+    Ok(())
 }
 
 // mcause ("Machine Cause") -- MRW, address 0x342.
 // "When a trap is taken into M-mode, mcause is written with a code
-// indicating the event that caused the trap." The code itself is
-// TrapCause::mcause_code() -- see Table 16 for the full list.
-// docs/research/riscv_privleged.pdf, 3.1.15 "Machine Cause (mcause)
-// Register", p.48.
+// indicating the event that caused the trap."
 fn set_mcause(cpu: &mut CPUState, cause_code: u32) -> Result<(), TrapCause> {
-    todo!()
+    cpu.csr.write(MCAUSE, cause_code)?;
+    Ok(())
 }
 
 // mtval ("Machine Trap Value") -- MRW, address 0x343.
@@ -47,10 +44,19 @@ fn set_mcause(cpu: &mut CPUState, cause_code: u32) -> Result<(), TrapCause> {
 // handling the trap." For address-related exceptions, that's the
 // faulting virtual address; for IllegalInstruction, optionally the
 // faulting instruction bits; otherwise zero.
-// docs/research/riscv_privleged.pdf, 3.1.16 "Machine Trap Value (mtval)
-// Register", p.52.
 fn set_mtval(cpu: &mut CPUState, trap_cause: &TrapCause) -> Result<(), TrapCause> {
-    todo!()
+    let trap_val = match trap_cause {
+        TrapCause::InstructionAddressMisaligned { address } |   
+        TrapCause::InstructionAccessFault { address } |   
+        TrapCause::LoadAddressMisaligned { address } |  
+        TrapCause::LoadAccessFault { address } |
+        TrapCause::StoreAddressMisaligned { address } |  
+        TrapCause::StoreAccessFault { address } => *address as u32,
+        TrapCause::IllegalInstruction { instruction } => instruction.unwrap_or(0), 
+        TrapCause::Breakpoint | TrapCause::EnvironmentCallFromMMode => 0
+    };
+    cpu.csr.write(MTVAL, trap_val)?;
+    Ok(())
 }
 
 // mtvec ("Machine Trap-Vector Base-Address") -- MRW, address 0x305.
@@ -62,8 +68,7 @@ fn set_mtval(cpu: &mut CPUState, trap_cause: &TrapCause) -> Result<(), TrapCause
 // docs/research/riscv_privleged.pdf, 3.1.7 "Machine Trap-Vector
 // Base-Address (mtvec) Register", p.41.
 fn jump_to_trap_handler(cpu: &mut CPUState) {
-    // cpu.pc.write(?);
-
+    cpu.pc.write(cpu.csr.read(MTVEC) as usize);
 }
 
 // Here we want to transfer control.
@@ -85,7 +90,6 @@ fn jump_to_trap_handler(cpu: &mut CPUState) {
 // - where to go
 // - why the trap was proc'd
 // - the address of the instruction that caused the failure
-
 // a failure here is a double trap
 fn handle_trap(cpu: &mut CPUState, trap_cause: TrapCause) {
     set_mepc(cpu, cpu.pc.read()); // store pc
