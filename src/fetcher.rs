@@ -1,8 +1,5 @@
 
-use crate::cpu_definition::PCState;
-use crate::cpu_definition::MemoryState;
-use crate::cpu_definition::build_memory_state;
-use crate::cpu_definition::build_pc_state;
+use crate::definitions::cpu_definition::{PCState, MemoryState, build_memory_state, build_pc_state};
 use crate::definitions::trap_cause::TrapCause;
 // word in this context refers to the fixed-sized chunk of data to interface with
 // words for us are 32bits of data that we'll have to decode later, for now it's just raw bits

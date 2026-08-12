@@ -1,5 +1,4 @@
-use crate::definitions::cpu_definition::PCState;
-use crate::definitions::cpu_definition::RegisterFile;
+use crate::definitions::cpu_definition::{PCState, RegisterFile};
 use crate::instructions::Format;
 use crate::instructions::b::BOp;
 use crate::definitions::trap_cause::TrapCause;

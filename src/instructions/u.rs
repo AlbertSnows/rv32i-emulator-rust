@@ -12,13 +12,11 @@
 // e.g. lui, auipc
 use crate::instructions::Format;
 use crate::fetcher::InstructionWord;
-use crate::definitions::cpu_definition::RegisterFile;
-use crate::definitions::cpu_definition::PCState;
+use crate::definitions::cpu_definition::{RegisterFile, PCState};
 use crate::instructions::i::system::SystemOp;
 use crate::definitions::codes::ExecutionSignal;
 use crate::utility::bit_operations::mask_and_shift;
-use crate::definitions::masks;
-use crate::definitions::op_codes;
+use crate::definitions::{masks, op_codes};
 use crate::definitions::trap_cause::TrapCause;
 
 #[derive(Debug, PartialEq)]
@@ -64,8 +62,7 @@ pub fn inst_u_auipc(rd: usize, imm_upper: i32, pc: &PCState, register: &mut Regi
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::cpu_definition::build_pc_state;
-    use crate::cpu_definition::build_register_file;
+    use crate::definitions::cpu_definition::{build_pc_state, build_register_file};
 
     #[test]
     fn test_parse_u_inst_lui() {

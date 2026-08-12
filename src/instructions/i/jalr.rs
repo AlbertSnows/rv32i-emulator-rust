@@ -1,11 +1,9 @@
-use crate::definitions::cpu_definition::RegisterFile;
-use crate::definitions::cpu_definition::PCState;
+use crate::definitions::cpu_definition::{RegisterFile, PCState};
 use crate::fetcher::InstructionWord;
 use crate::instructions::Format;
 use crate::definitions::codes::ExecutionSignal;
-use crate::utility::bit_operations::mask_and_shift;
+use crate::utility::bit_operations::{mask_and_shift, shake_to_signed};
 use crate::definitions::masks;
-use crate::utility::bit_operations::shake_to_signed;
 use crate::definitions::trap_cause::TrapCause;
 
 // jalr -- the only instruction under its opcode, so no op enum needed
@@ -33,9 +31,7 @@ pub fn execute_i_jalr_type(rd: usize, rs1: usize, imm: i32, register: &mut Regis
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::cpu_definition::build_pc_state;
-    use crate::cpu_definition::build_register_file;
-    use crate::cpu_definition::build_memory_state;
+    use crate::definitions::cpu_definition::{build_pc_state, build_register_file, build_memory_state};
 
     #[test]
     fn test_parse_jalr_inst() {

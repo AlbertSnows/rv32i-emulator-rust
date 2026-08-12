@@ -1,10 +1,8 @@
 // In RISC, the first two bits are reserved to discern 16bit from 32bit.
 // We use 32 bit, so the first two should always be 11
 
-use crate::definitions::op_codes;
-use crate::definitions::masks;
-use crate::instructions::r::inst_r_add;
-use crate::instructions::r::parse_r_inst;
+use crate::definitions::{op_codes, masks};
+use crate::instructions::r::{inst_r_add, parse_r_inst};
 use crate::instructions::Format;
 use crate::instructions::i::load::parse_load_inst;
 use crate::instructions::i::alu_imm_or_shift::parse_alu_imm_or_shift_inst;

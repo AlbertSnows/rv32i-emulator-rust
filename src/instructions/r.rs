@@ -9,10 +9,8 @@
 // e.g. add, sub, and, or, xor, sll, srl, sra, slt, sltu
 // rs is an index
 
-use crate::definitions::cpu_definition::build_register_file;
-use crate::definitions::cpu_definition::RegisterFile;
-use crate::definitions::op_codes;
-use crate::definitions::masks;
+use crate::definitions::cpu_definition::{build_register_file, RegisterFile};
+use crate::definitions::{op_codes, masks};
 use crate::fetcher::InstructionWord;
 use crate::instructions::Format;
 use crate::utility::bit_operations::mask_and_shift;

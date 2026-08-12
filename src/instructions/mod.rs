@@ -7,21 +7,17 @@ pub mod u;
 pub mod pc;
 pub mod fence;
 use r::AluOp;
-use crate::definitions::cpu_definition::CPUState;
 use u::UOp;
 use j::JOp;
 use b::BOp;
 use s::SOp;
 use i::load::LoadOp;
-use i::alu_imm_or_shift::AluImmOp;
-use i::alu_imm_or_shift::IShOp;
+use i::alu_imm_or_shift::{AluImmOp, IShOp};
 use i::system::SystemOp;
 use i::csr::CsrOp;
+use crate::definitions::cpu_definition::{CPUState, PCState, CPUMode, CsrState};
 use crate::definitions::codes::ExecutionSignal;
 use crate::definitions::trap_cause::TrapCause;
-use crate::cpu_definition::CPUMode;
-use crate::definitions::cpu_definition::PCState;
-use crate::cpu_definition::CsrState;
 
 #[derive(Debug, PartialEq)]
 pub enum Format {

@@ -1,4 +1,4 @@
-use crate::definitions::cpu_definition::RegisterFile;
+use crate::definitions::cpu_definition::{RegisterFile, CPUState, PCState, CPUMode, CsrState};
 use crate::fetcher::InstructionWord;
 use crate::instructions::Format;
 use crate::utility::bit_operations::mask_and_shift;
@@ -6,10 +6,6 @@ use crate::definitions::masks;
 use crate::definitions::codes::ExecutionSignal;
 use crate::instructions::i::csr;
 use crate::definitions::trap_cause::TrapCause;
-use crate::definitions::cpu_definition::CPUState;
-use crate::cpu_definition::CPUMode;
-use crate::definitions::cpu_definition::PCState;
-use crate::cpu_definition::CsrState;
 
 #[derive(Debug, PartialEq)]
 pub enum SystemOp {

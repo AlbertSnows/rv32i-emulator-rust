@@ -11,13 +11,10 @@
 // e.g. jal
 use crate::instructions::Format;
 use crate::fetcher::InstructionWord;
-use crate::definitions::cpu_definition::RegisterFile;
-use crate::definitions::cpu_definition::PCState;
+use crate::definitions::cpu_definition::{RegisterFile, PCState};
 use crate::definitions::codes::ExecutionSignal;
-use crate::utility::bit_operations::mask_and_shift;
+use crate::utility::bit_operations::{mask_and_shift, merge_bits, shake_to_signed};
 use crate::definitions::masks;
-use crate::utility::bit_operations::merge_bits;
-use crate::utility::bit_operations::shake_to_signed;
 use crate::definitions::trap_cause::TrapCause;
 
 #[derive(Debug, PartialEq)]

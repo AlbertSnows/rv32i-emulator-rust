@@ -1,11 +1,9 @@
-use crate::definitions::cpu_definition::CPUState;
-use crate::definitions::codes::ExecutionSignal;
-use crate::definitions::codes::{MTVEC, MEPC, MCAUSE, MTVAL};
+use crate::definitions::cpu_definition::{CPUState, CPUMode};
+use crate::definitions::codes::{ExecutionSignal, MTVEC, MEPC, MCAUSE, MTVAL};
 use crate::fetcher::fetch_word_from_memory;
 use crate::decoder::decode_word_to_instruction;
 use crate::instructions::pc::advance_pc;
 use crate::definitions::trap_cause::TrapCause;
-use crate::definitions::cpu_definition::CPUMode;
 
 fn perform_step(cpu: &mut CPUState) -> Result<ExecutionSignal, TrapCause> {
     // mut allows cpu to change in the local scope
