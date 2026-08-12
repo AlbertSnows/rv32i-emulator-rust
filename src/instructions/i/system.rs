@@ -9,9 +9,9 @@ use crate::definitions::trap_cause::TrapCause;
 
 #[derive(Debug, PartialEq)]
 pub enum SystemOp {
-    ECall,
-    EBreak,
-    MRet
+    ECall, // 0000000 00000 = 0x000
+    EBreak, // 0000000 00001 = 0x001
+    MRet // 0011000 00010 = 0x302
 }
 
 pub fn parse_system_inst(raw_word: InstructionWord) -> Result<Format, TrapCause> {
@@ -22,12 +22,13 @@ pub fn parse_system_inst(raw_word: InstructionWord) -> Result<Format, TrapCause>
     if funct_three != 0 {
         return csr::parse_csr_inst(raw_word);
     }
-    let distinguishing_bit = mask_and_shift(content, masks::BIT_TWENTY);
-    let instruction_name = match distinguishing_bit {
-        0 => SystemOp::ECall,
-        1 => SystemOp::EBreak,
-        _ => SystemOp::EBreak
-    };
+    let distinguishing_bits = mask_and_shift(content, masks::CSR_ADDRESS);
+    let instruction_name = match distinguishing_bits {
+        0b000000000000 => Ok(SystemOp::ECall),
+        0b000000000001 => Ok(SystemOp::EBreak),
+        0b001100000010 => Ok(SystemOp::MRet),
+        _ => Err(TrapCause::IllegalInstruction { instruction: Some(raw_word.0) })
+    }?;
     Ok(Format::SystemType {
         op: instruction_name
     })

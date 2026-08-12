@@ -1,5 +1,13 @@
 use crate::definitions::cpu_definition::MemoryState;
 
+pub fn set_bit_range(original_bits: u32, new_bits: u32, width: usize, shift: usize) -> u32 {
+    let bits_to_update = ((1u32 << width) -1 ) << shift; 
+    let bits_to_preserve = original_bits & !bits_to_update;
+    let positioned_new_bits = (new_bits << shift) & bits_to_update;
+    bits_to_preserve | positioned_new_bits
+}
+
+
 // The width will be 31 - position + 1
 pub fn shake_to_signed(unsigned_bits: u32, width: u32) -> i32 {
     let shift_distance = 32 - width;
@@ -89,6 +97,17 @@ mod tests {
     #[test]
     fn test_merge_bits_empty_is_zero() {
         assert_eq!(merge_bits(&[]), 0);
+    }
+
+    #[test]
+    fn test_set_bit_range() {
+        // Worked by hand: mask = 0b011100; be & !mask = 0b00001;
+        // (nb << 2) & mask = 0b00100; 0b00001 | 0b00100 = 0b00101.
+        let be = 0b10001;
+        let nb = 0b001;
+        let width = 3;
+        let shift = 2;
+        assert_eq!(set_bit_range(be, nb, width, shift), 0b00101);
     }
 
     #[test]

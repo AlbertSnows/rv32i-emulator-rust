@@ -1,9 +1,10 @@
 use crate::definitions::cpu_definition::{CPUState, CPUMode};
-use crate::definitions::codes::{ExecutionSignal, MTVEC, MEPC, MCAUSE, MTVAL};
+use crate::definitions::codes::{ExecutionSignal, MTVEC, MEPC, MCAUSE, MTVAL, MSTATUS};
 use crate::fetcher::fetch_word_from_memory;
 use crate::decoder::decode_word_to_instruction;
 use crate::instructions::pc::advance_pc;
 use crate::definitions::trap_cause::TrapCause;
+use crate::utility::bit_operations::set_bit_range;
 
 fn perform_step(cpu: &mut CPUState) -> Result<ExecutionSignal, TrapCause> {
     // mut allows cpu to change in the local scope
@@ -23,7 +24,8 @@ fn perform_step(cpu: &mut CPUState) -> Result<ExecutionSignal, TrapCause> {
 // "When a trap is taken into M-mode, mepc is written with the virtual
 // address of the instruction that was interrupted or that encountered
 // the exception."
-fn set_mepc(cpu: &mut CPUState, pc_value: usize) -> Result<(), TrapCause> {
+fn set_mepc(cpu: &mut CPUState) -> Result<(), TrapCause> {
+    let pc_value = cpu.pc.read();
     cpu.csr.write(MEPC, pc_value as u32, CPUMode::M)?;
     Ok(())
 }
@@ -70,6 +72,15 @@ fn jump_to_trap_handler(cpu: &mut CPUState) {
     cpu.pc.write(cpu.csr.read(MTVEC) as usize);
 }
 
+fn set_mpp(cpu: &mut CPUState) -> Result<(), TrapCause> {
+    let mstatus_addr = MSTATUS;
+    let mstatus_state = cpu.csr.read(MSTATUS);
+    let privilege_level = cpu.mode.as_privilege_level();
+    let updated_mstatus = set_bit_range(mstatus_state, privilege_level, 2, 11);
+    cpu.csr.write(MSTATUS, updated_mstatus, cpu.mode);
+    Ok(())
+}
+
 // Here we want to transfer control.
 // Where do we store our address
 // exceprt:
@@ -91,15 +102,16 @@ fn jump_to_trap_handler(cpu: &mut CPUState) {
 // - the address of the instruction that caused the failure
 // a failure here is a double trap
 pub fn handle_trap(cpu: &mut CPUState, trap_cause: TrapCause) {
-    set_mepc(cpu, cpu.pc.read()); // store pc
-    // set_mpp(); // 
+    set_mepc(cpu); // store pc
+    set_mpp(cpu); 
+    cpu.mode = CPUMode::M;
     // save_mode();
     set_mcause(cpu, trap_cause.mcause_code()); // store why the trap happened for guest function
     // "If mtval is written with a nonzero value when 
     // a breakpoint, address-misaligned, access-fault, page-fault, or hardware-error exception occurs 
     // on an instruction fetch, load, or store, 
     // then mtval will contain the faulting virtual address.
-    set_mtval(cpu, &trap_cause); // 
+    set_mtval(cpu, &trap_cause);
     jump_to_trap_handler(cpu); // write the trap handler address to pc to go there
 }
 

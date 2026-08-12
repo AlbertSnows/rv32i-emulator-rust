@@ -17,7 +17,7 @@ pub enum CPUMode {
 }
 
 impl CPUMode {
-    pub fn as_mcause_code(&self) -> u32 {
+    pub fn as_privilege_level(&self) -> u32 {
         match self {
             CPUMode::U => 0,
             CPUMode::S => 1,
@@ -133,7 +133,7 @@ impl CsrState {
         // https://docs.riscv.org/reference/isa/_attachments/riscv-privileged.pdf
         let valid_write_access = (address >> 10) & 0b11 != 0b11;
         let required_permissions_to_write = (address >> 8) & 0b11;
-        let has_valid_permissions = required_permissions_to_write <= current_mode.as_mcause_code() as usize;
+        let has_valid_permissions = required_permissions_to_write <= current_mode.as_privilege_level() as usize;
         if !has_valid_permissions | !valid_write_access {
             // todo: encode more info about the specific trap failure?
             return Err(TrapCause::IllegalInstruction { instruction: None });
