@@ -24,6 +24,14 @@ impl CPUMode {
             CPUMode::M => 3
         }
     }
+    pub fn from_privilege_level(lvl: u32) -> Result<CPUMode, TrapCause> {
+        match lvl {
+            0 => Ok(CPUMode::U),
+            1 => Ok(CPUMode::S),
+            3 => Ok(CPUMode::M),
+            _ => Err(TrapCause::IllegalInstruction { instruction: None })
+        }
+    }
 }
 
 pub fn build_cpu_state() -> CPUState {
