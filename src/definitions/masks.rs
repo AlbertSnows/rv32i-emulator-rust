@@ -39,4 +39,4 @@ pub const BIT_TWENTY: u32 = 0b1_0000_0000_0000_0000_0000;
 pub const CSR_ADDRESS: u32 = TWENTY_TO_THIRTY_ONE;
 pub const MPP: u32 = TWELVE_AND_ELEVEN;
 pub const MPIE: u32 = 0b1000_0000;
-pub const MIE: u32 = 0b100;
+pub const MIE: u32 = 0b1000;

@@ -164,6 +164,21 @@ mod tests {
     use super::*;
 
     #[test]
+    fn test_csr_write_denies_insufficient_privilege() {
+        // mepc (0x341) requires M -- writing from S should be rejected.
+        let mut csr = build_csr_state();
+        let outcome = csr.write(0x341, 42, CPUMode::S);
+        assert!(outcome.is_err());
+    }
+
+    #[test]
+    fn test_csr_write_allows_sufficient_privilege() {
+        let mut csr = build_csr_state();
+        let outcome = csr.write(0x341, 42, CPUMode::M);
+        assert!(outcome.is_ok());
+    }
+
+    #[test]
     fn test_write_to_x0_is_ignored() {
         let mut rf = build_register_file();
         let returned = rf.write(0, 42);

@@ -77,7 +77,7 @@ fn set_mpp(cpu: &mut CPUState) -> Result<(), TrapCause> {
     let mstatus_state = cpu.csr.read(MSTATUS);
     let privilege_level = cpu.mode.as_privilege_level();
     let updated_mstatus = set_bit_range(mstatus_state, privilege_level, 2, 11);
-    cpu.csr.write(MSTATUS, updated_mstatus, cpu.mode);
+    cpu.csr.write(MSTATUS, updated_mstatus, CPUMode::M);
     Ok(())
 }
 
@@ -128,9 +128,10 @@ pub fn step(cpu: &mut CPUState) -> Result<ExecutionSignal, TrapCause> {
 mod tests {
     use super::*;
     use crate::definitions::cpu_definition::build_cpu_state;
-    use crate::utility::bit_operations::store_in_mem;
+    use crate::utility::bit_operations::{store_in_mem, mask_and_shift};
     use crate::programs::instructions::ADD_X3_X1_X2;
     use crate::programs::instructions::NO_OP;
+    use crate::definitions::masks;
 
     #[test]
     fn test_step_executes_add_and_advances_pc() {
@@ -154,7 +155,20 @@ mod tests {
         assert_eq!(outcome, Ok(ExecutionSignal::Continue));
     }
 
-    #[test] 
+    #[test]
+    fn test_handle_trap_saves_mode_into_mpp_from_non_m_mode() {
+        // this test ensures that csr write has M access in handle trap jumper
+        let mut cpu = build_cpu_state();
+        cpu.mode = CPUMode::S;
+        cpu.pc.write(7);
+        cpu.csr.write(MTVEC, 4, CPUMode::M);
+        handle_trap(&mut cpu, TrapCause::IllegalInstruction { instruction: Some(33) });
+        let mpp = mask_and_shift(cpu.csr.read(MSTATUS), masks::MPP);
+        assert_eq!(mpp, CPUMode::S.as_privilege_level());
+        assert_eq!(cpu.mode, CPUMode::M);
+    }
+
+    #[test]
     fn test_handle_trap_changes_correct_values() {
         let mut cpu = build_cpu_state();
         cpu.pc.write(7);
