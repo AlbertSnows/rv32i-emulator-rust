@@ -36,19 +36,31 @@ pub fn parse_system_inst(raw_word: InstructionWord) -> Result<Format, TrapCause>
 
 
 pub fn execute_i_system_type(op: &SystemOp, mode: &mut CPUMode, pc: &mut PCState, csr: &CsrState) -> Result<ExecutionSignal, TrapCause> {
-    // let mode = cpu.mode;
-    // do something based on mode? 
-    // match mode {
-    //     TrapCause::EnvironmentCallFromMMode => todo!(),
-    //     TrapCause::EnvironmentCallFromSMode => todo!(),
-    //     TrapCause::EnvironmentCallFromUMode => todo!(),
-    // }
     match op {
         // todo: should this be err? is there a better way
         SystemOp::ECall => Err(TrapCause::EnvironmentCallFromMMode),
         SystemOp::EBreak => Err(TrapCause::Breakpoint),
-        SystemOp::MRet => todo!()
+        SystemOp::MRet => inst_i_mret(&mode, &mut pc, &csr)
     }
+}
+
+pub fn inst_i_mret(mode: &CPUMode, pc: &mut PCState, csr: &CsrState) {
+    // check privilege, should it really just be if not M, illegal inst?
+    let mstatus = csr.read(MSTATUS);
+    let mpp = mask_and_shift(mstatus, masks::MPP);
+    let cpu_mode = CpuMode::from_privilege_level(mpp);
+    // mpp is where the previous mode was stored. saved in 12:11, 
+    // 
+    // restore pc
+    pc.write(csr.read(MEPC) as usize); // what's mepc?
+    // we didn't import cpu mode, how do we update it? 
+    mode = cpu_mode;
+    // reset mpp to least privileged mode afterwards
+    let mstatus_after_mpp = set_bit_range(mstatus, 00, 2, 11);
+    // update mie/mpie
+    // let mie = mask_and_shift(mstatus, masks::MIE);
+    let mstatus_after_mie = set_bit_range(mstatus_after_mpp, 0, 1, 3);
+    let mstatus_after_mpie = set_bit_range(mstatus_after_mie, 0, 1, 7);
 }
 
 #[cfg(test)]
