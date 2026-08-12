@@ -71,6 +71,7 @@ pub fn inst_i_mret(mode: &mut CPUMode, pc: &mut PCState, csr: &mut CsrState) -> 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::definitions::cpu_definition::{build_pc_state, build_csr_state};
 
     #[test]
     fn test_parse_system_inst_ecall() {
@@ -87,4 +88,43 @@ mod tests {
         let result = parse_system_inst(raw_word);
         assert_eq!(result, Ok(Format::SystemType { op: SystemOp::EBreak }));
     }
+
+    #[test]
+    fn test_parse_system_inst_mret() {
+        // mret -- funct12 = 0x302 (0011_0000_0010), rs1/rd/funct3 all zero
+        let raw_word = InstructionWord(0x30200073);
+        let result = parse_system_inst(raw_word);
+        assert_eq!(result, Ok(Format::SystemType { op: SystemOp::MRet }));
+    }
+
+    #[test]
+    fn test_inst_i_mret_illegal_when_not_m() {
+        let mut mode = CPUMode::S;
+        let mut pc = build_pc_state();
+        let mut csr = build_csr_state();
+        let outcome = inst_i_mret(&mut mode, &mut pc, &mut csr);
+        assert_eq!(outcome, Err(TrapCause::IllegalInstruction { instruction: None }));
+        // nothing should have changed on the illegal path
+        assert_eq!(mode, CPUMode::S);
+        assert_eq!(pc.read(), 0);
+    }
+
+    #[test]
+    fn test_inst_i_mret_restores_pc_and_mode() {
+        let mut mode = CPUMode::M;
+        let mut pc = build_pc_state();
+        let mut csr = build_csr_state();
+        csr.write(MEPC, 100, CPUMode::M);
+        // MPP = S (level 1) at bits 11-12
+        csr.write(MSTATUS, 1 << 11, CPUMode::M);
+
+        let outcome = inst_i_mret(&mut mode, &mut pc, &mut csr);
+
+        assert_eq!(outcome, Ok(ExecutionSignal::Continue));
+        assert_eq!(pc.read(), 100);
+        assert_eq!(mode, CPUMode::S);
+        // MPP should be reset to 0 (U) afterward
+        assert_eq!(mask_and_shift(csr.read(MSTATUS), masks::MPP), 0);
+    }
+
 }
