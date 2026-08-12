@@ -103,9 +103,8 @@ fn set_mpp(cpu: &mut CPUState) -> Result<(), TrapCause> {
 // a failure here is a double trap
 pub fn handle_trap(cpu: &mut CPUState, trap_cause: TrapCause) {
     set_mepc(cpu); // store pc
-    set_mpp(cpu); 
+    set_mpp(cpu); // save the mode to mstatus
     cpu.mode = CPUMode::M;
-    // save_mode();
     set_mcause(cpu, trap_cause.mcause_code()); // store why the trap happened for guest function
     // "If mtval is written with a nonzero value when 
     // a breakpoint, address-misaligned, access-fault, page-fault, or hardware-error exception occurs 

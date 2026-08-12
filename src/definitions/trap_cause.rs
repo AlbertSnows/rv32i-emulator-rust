@@ -29,8 +29,8 @@ impl TrapCause {
             TrapCause::StoreAddressMisaligned { .. } => 6,
             TrapCause::StoreAccessFault { .. } => 7,
             TrapCause::EnvironmentCallFromMMode => 11,
-            TrapCause::EnvironmentCallFromSMode => 8,
-            TrapCause::EnvironmentCallFromUMode => 9,
+            TrapCause::EnvironmentCallFromSMode => 9,
+            TrapCause::EnvironmentCallFromUMode => 8,
         }
     }
 }

@@ -38,7 +38,11 @@ pub fn parse_system_inst(raw_word: InstructionWord) -> Result<Format, TrapCause>
 pub fn execute_i_system_type(op: &SystemOp, mode: &mut CPUMode, pc: &mut PCState, csr: &mut CsrState) -> Result<ExecutionSignal, TrapCause> {
     match op {
         // todo: should this be err? is there a better way
-        SystemOp::ECall => Err(TrapCause::EnvironmentCallFromMMode),
+        SystemOp::ECall => match mode {
+            CPUMode::M => Err(TrapCause::EnvironmentCallFromMMode),
+            CPUMode::S => Err(TrapCause::EnvironmentCallFromSMode),
+            CPUMode::U => Err(TrapCause::EnvironmentCallFromUMode),
+        },
         SystemOp::EBreak => Err(TrapCause::Breakpoint),
         SystemOp::MRet => inst_i_mret(mode, pc, csr)
     }
