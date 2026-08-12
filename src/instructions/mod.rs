@@ -19,6 +19,9 @@ use i::system::SystemOp;
 use i::csr::CsrOp;
 use crate::definitions::codes::ExecutionSignal;
 use crate::definitions::trap_cause::TrapCause;
+use crate::cpu_definition::CPUMode;
+use crate::definitions::cpu_definition::PCState;
+use crate::cpu_definition::CsrState;
 
 #[derive(Debug, PartialEq)]
 pub enum Format {
@@ -32,7 +35,7 @@ pub enum Format {
     JalrType { rd: usize, rs1: usize, imm: i32 },
     IShiftType { op: IShOp, rd: usize, rs1: usize, shamt: usize },
     SystemType { op: SystemOp },
-    CsrType { op: CsrOp, rd: usize, rs1_or_uimm: usize, csr: usize },
+    CsrType { op: CsrOp, rd: usize, rs1_or_uimm: usize, csr: usize, cpu_mode: CPUMode },
     FENCEType
 }
 
@@ -58,9 +61,9 @@ impl Format {
             Format::IShiftType { op, rd, rs1, shamt } 
                 => i::shift::execute_i_shift_type(op, *rd, *rs1, *shamt, &mut cpu_state.register),
             Format::SystemType { op }
-                => i::system::execute_i_system_type(op),
-            Format::CsrType { op, rd, rs1_or_uimm, csr }
-                => i::csr::execute_i_csr_type(op, *rd, *rs1_or_uimm, *csr, &mut cpu_state.register, &mut cpu_state.csr),
+                => i::system::execute_i_system_type(op, &mut cpu_state.mode, &mut cpu_state.pc, &cpu_state.csr),
+            Format::CsrType { op, rd, rs1_or_uimm, csr, cpu_mode }
+                => i::csr::execute_i_csr_type(op, *rd, *rs1_or_uimm, *csr, &mut cpu_state.register, &mut cpu_state.csr, cpu_mode),
             Format::FENCEType => fence::execute_fence_type(),
 
             }

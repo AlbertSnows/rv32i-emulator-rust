@@ -1,11 +1,29 @@
 use crate::definitions::trap_cause::TrapCause;
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Copy, Clone)]
 pub struct CPUState {
     pub register: RegisterFile,
     pub pc: PCState,
     pub mem: MemoryState,
-    pub csr: CsrState
+    pub csr: CsrState,
+    pub mode: CPUMode
+}
+
+#[derive(Debug, Copy, Clone, PartialEq)]
+pub enum CPUMode {
+    S,
+    M,
+    U
+}
+
+impl CPUMode {
+    pub fn as_mcause_code(&self) -> u32 {
+        match self {
+            CPUMode::U => 0,
+            CPUMode::S => 1,
+            CPUMode::M => 3
+        }
+    }
 }
 
 pub fn build_cpu_state() -> CPUState {
@@ -13,11 +31,12 @@ pub fn build_cpu_state() -> CPUState {
         register: build_register_file(),
         pc: build_pc_state(),
         mem: build_memory_state(),
-        csr: build_csr_state()
+        csr: build_csr_state(),
+        mode: CPUMode::M
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Copy, PartialEq, Clone)]
 pub struct MemoryState {
     pub storage: [u8; TEST_MEM_SIZE]
 }
@@ -61,7 +80,7 @@ impl MemoryState {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Copy, PartialEq, Clone)]
 pub struct PCState {
     value: usize
 }
@@ -80,7 +99,7 @@ pub fn build_pc_state() -> PCState {
     PCState { value: 0 }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Copy, PartialEq, Clone)]
 pub struct RegisterFile {
     storage: [u32; 32]
 }
@@ -100,22 +119,27 @@ impl RegisterFile {
 
 // CSR (Control and Status Register) address space is 12 bits wide (0..4096), per the Zicsr extension 
 // separate storage from the general-purpose, not reg  file
-#[derive(Debug)]
+#[derive(Debug, Copy, PartialEq, Clone)]
 pub struct CsrState {
     storage: [u32; 4096]
 }
 
 impl CsrState {
-    pub fn write(&mut self, address: usize, value: u32) -> Result<u32, TrapCause> {
+    pub fn write(&mut self, address: usize, value: u32, current_mode: CPUMode) -> Result<u32, TrapCause> {
         // "The top two bits (csr[11:10]) indicate whether the register is read/write (00, 01, or 10) or read-only (11). 
         // The next two bits (csr[9:8]) encode the lowest privilege level that can access the CSR."
+        // NOTE: 9:8 means, "In order to write to the CSR, you must have at least this much access"
+        
         // https://docs.riscv.org/reference/isa/_attachments/riscv-privileged.pdf
-        let valid_write = (address >> 10) & 0b11 != 0b11;
-        if valid_write {
-            self.storage[address] = value;
-            return Ok(self.storage[address]);
+        let valid_write_access = (address >> 10) & 0b11 != 0b11;
+        let required_permissions_to_write = (address >> 8) & 0b11;
+        let has_valid_permissions = required_permissions_to_write <= current_mode.as_mcause_code() as usize;
+        if !has_valid_permissions | !valid_write_access {
+            // todo: encode more info about the specific trap failure?
+            return Err(TrapCause::IllegalInstruction { instruction: None });
         }
-        return Err(TrapCause::IllegalInstruction { instruction: None });        
+        self.storage[address] = value;
+        return Ok(self.storage[address]);
     }
 
     pub fn read(&self, address: usize) -> u32 {

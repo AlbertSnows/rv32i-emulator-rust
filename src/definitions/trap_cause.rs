@@ -11,7 +11,10 @@ pub enum TrapCause {
     StoreAccessFault { address: usize }, 
     IllegalInstruction { instruction: Option<u32> }, 
     Breakpoint, 
-    EnvironmentCallFromMMode 
+    EnvironmentCallFromMMode,
+    EnvironmentCallFromUMode,
+    EnvironmentCallFromSMode,
+    
 }
 
 impl TrapCause {
@@ -26,6 +29,8 @@ impl TrapCause {
             TrapCause::StoreAddressMisaligned { .. } => 6,
             TrapCause::StoreAccessFault { .. } => 7,
             TrapCause::EnvironmentCallFromMMode => 11,
+            TrapCause::EnvironmentCallFromSMode => 8,
+            TrapCause::EnvironmentCallFromUMode => 9,
         }
     }
 }

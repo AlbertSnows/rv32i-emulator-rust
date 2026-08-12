@@ -5,7 +5,7 @@ use crate::fetcher::fetch_word_from_memory;
 use crate::decoder::decode_word_to_instruction;
 use crate::instructions::pc::advance_pc;
 use crate::definitions::trap_cause::TrapCause;
-
+use crate::definitions::cpu_definition::CPUMode;
 
 fn perform_step(cpu: &mut CPUState) -> Result<ExecutionSignal, TrapCause> {
     // mut allows cpu to change in the local scope
@@ -26,7 +26,7 @@ fn perform_step(cpu: &mut CPUState) -> Result<ExecutionSignal, TrapCause> {
 // address of the instruction that was interrupted or that encountered
 // the exception."
 fn set_mepc(cpu: &mut CPUState, pc_value: usize) -> Result<(), TrapCause> {
-    cpu.csr.write(MEPC, pc_value as u32)?;
+    cpu.csr.write(MEPC, pc_value as u32, CPUMode::M)?;
     Ok(())
 }
 
@@ -34,7 +34,7 @@ fn set_mepc(cpu: &mut CPUState, pc_value: usize) -> Result<(), TrapCause> {
 // "When a trap is taken into M-mode, mcause is written with a code
 // indicating the event that caused the trap."
 fn set_mcause(cpu: &mut CPUState, cause_code: u32) -> Result<(), TrapCause> {
-    cpu.csr.write(MCAUSE, cause_code)?;
+    cpu.csr.write(MCAUSE, cause_code, CPUMode::M)?;
     Ok(())
 }
 
@@ -53,9 +53,10 @@ fn set_mtval(cpu: &mut CPUState, trap_cause: &TrapCause) -> Result<(), TrapCause
         TrapCause::StoreAddressMisaligned { address } |  
         TrapCause::StoreAccessFault { address } => *address as u32,
         TrapCause::IllegalInstruction { instruction } => instruction.unwrap_or(0), 
-        TrapCause::Breakpoint | TrapCause::EnvironmentCallFromMMode => 0
+        TrapCause::Breakpoint | TrapCause::EnvironmentCallFromMMode | TrapCause::EnvironmentCallFromSMode | TrapCause::EnvironmentCallFromUMode 
+            => 0
     };
-    cpu.csr.write(MTVAL, trap_val)?;
+    cpu.csr.write(MTVAL, trap_val, CPUMode::M)?;
     Ok(())
 }
 
@@ -93,6 +94,8 @@ fn jump_to_trap_handler(cpu: &mut CPUState) {
 // a failure here is a double trap
 pub fn handle_trap(cpu: &mut CPUState, trap_cause: TrapCause) {
     set_mepc(cpu, cpu.pc.read()); // store pc
+    // set_mpp(); // 
+    // save_mode();
     set_mcause(cpu, trap_cause.mcause_code()); // store why the trap happened for guest function
     // "If mtval is written with a nonzero value when 
     // a breakpoint, address-misaligned, access-fault, page-fault, or hardware-error exception occurs 
@@ -146,7 +149,7 @@ mod tests {
     fn test_handle_trap_changes_correct_values() {
         let mut cpu = build_cpu_state();
         cpu.pc.write(7);
-        cpu.csr.write(MTVEC, 4);
+        cpu.csr.write(MTVEC, 4, CPUMode::M);
         let outcome = handle_trap(&mut cpu, TrapCause::IllegalInstruction { instruction: Some(33)});
         assert_eq!(cpu.pc.read(), 4); // check MTVEC
         assert_eq!(cpu.csr.read(MEPC), 7); // mepc

@@ -6,11 +6,16 @@ use crate::definitions::masks;
 use crate::definitions::codes::ExecutionSignal;
 use crate::instructions::i::csr;
 use crate::definitions::trap_cause::TrapCause;
+use crate::definitions::cpu_definition::CPUState;
+use crate::cpu_definition::CPUMode;
+use crate::definitions::cpu_definition::PCState;
+use crate::cpu_definition::CsrState;
 
 #[derive(Debug, PartialEq)]
 pub enum SystemOp {
     ECall,
-    EBreak
+    EBreak,
+    MRet
 }
 
 pub fn parse_system_inst(raw_word: InstructionWord) -> Result<Format, TrapCause> {
@@ -33,11 +38,19 @@ pub fn parse_system_inst(raw_word: InstructionWord) -> Result<Format, TrapCause>
 }
 
 
-pub fn execute_i_system_type(op: &SystemOp) -> Result<ExecutionSignal, TrapCause> {
+pub fn execute_i_system_type(op: &SystemOp, mode: &mut CPUMode, pc: &mut PCState, csr: &CsrState) -> Result<ExecutionSignal, TrapCause> {
+    // let mode = cpu.mode;
+    // do something based on mode? 
+    // match mode {
+    //     TrapCause::EnvironmentCallFromMMode => todo!(),
+    //     TrapCause::EnvironmentCallFromSMode => todo!(),
+    //     TrapCause::EnvironmentCallFromUMode => todo!(),
+    // }
     match op {
         // todo: should this be err? is there a better way
         SystemOp::ECall => Err(TrapCause::EnvironmentCallFromMMode),
-        SystemOp::EBreak => Err(TrapCause::Breakpoint)
+        SystemOp::EBreak => Err(TrapCause::Breakpoint),
+        SystemOp::MRet => todo!()
     }
 }
 
