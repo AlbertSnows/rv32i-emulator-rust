@@ -1,13 +1,24 @@
 use crate::definitions::trap_cause::TrapCause;
+use crate::definitions::codes::{ PRIV_M, PRIV_S, PRIV_U };
+use crate::definitions::addresses::{ CYCLE, TIME, INSTRET };
+use crate::definitions::csr::{CSRState, build_csr_state};
 
 #[derive(Debug, PartialEq, Copy, Clone)]
 pub struct CPUState {
     pub register: RegisterFile,
     pub pc: PCState,
     pub mem: MemoryState,
-    pub csr: CsrState,
+    pub csr: CSRState,
     pub mode: CPUMode
 }
+
+#[derive(Debug, Copy, Clone, PartialEq)]
+pub enum CPUCycles {
+    Cycle,
+    Instret,
+    Time
+}
+
 
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub enum CPUMode {
@@ -19,16 +30,16 @@ pub enum CPUMode {
 impl CPUMode {
     pub fn as_privilege_level(&self) -> u32 {
         match self {
-            CPUMode::U => 0,
-            CPUMode::S => 1,
-            CPUMode::M => 3
+            CPUMode::U => PRIV_U,
+            CPUMode::S => PRIV_S,
+            CPUMode::M => PRIV_M
         }
     }
     pub fn from_privilege_level(lvl: u32) -> Result<CPUMode, TrapCause> {
         match lvl {
-            0 => Ok(CPUMode::U),
-            1 => Ok(CPUMode::S),
-            3 => Ok(CPUMode::M),
+            PRIV_U => Ok(CPUMode::U),
+            PRIV_S => Ok(CPUMode::S),
+            PRIV_M => Ok(CPUMode::M),
             _ => Err(TrapCause::IllegalInstruction { instruction: None })
         }
     }
@@ -56,6 +67,7 @@ pub fn build_memory_state() -> MemoryState {
 }
 
 impl MemoryState {
+    
     // Writes the low `num_bytes` bytes of `value` to memory starting at
     // `address`, little-endian (least-significant byte at the lowest address)
     // same ordering fetch_word_from_memory reads back.
@@ -125,43 +137,28 @@ impl RegisterFile {
     }
 }
 
-// CSR (Control and Status Register) address space is 12 bits wide (0..4096), per the Zicsr extension 
-// separate storage from the general-purpose, not reg  file
-#[derive(Debug, Copy, PartialEq, Clone)]
-pub struct CsrState {
-    storage: [u32; 4096]
-}
-
-impl CsrState {
-    pub fn write(&mut self, address: usize, value: u32, current_mode: CPUMode) -> Result<u32, TrapCause> {
-        // "The top two bits (csr[11:10]) indicate whether the register is read/write (00, 01, or 10) or read-only (11). 
-        // The next two bits (csr[9:8]) encode the lowest privilege level that can access the CSR."
-        // NOTE: 9:8 means, "In order to write to the CSR, you must have at least this much access"
-        
-        // https://docs.riscv.org/reference/isa/_attachments/riscv-privileged.pdf
-        let valid_write_access = (address >> 10) & 0b11 != 0b11;
-        let required_permissions_to_write = (address >> 8) & 0b11;
-        let has_valid_permissions = required_permissions_to_write <= current_mode.as_privilege_level() as usize;
-        if !has_valid_permissions | !valid_write_access {
-            // todo: encode more info about the specific trap failure?
-            return Err(TrapCause::IllegalInstruction { instruction: None });
-        }
-        self.storage[address] = value;
-        return Ok(self.storage[address]);
-    }
-
-    pub fn read(&self, address: usize) -> u32 {
-        self.storage[address]
-    }
-}
-
-pub fn build_csr_state() -> CsrState {
-    CsrState { storage: [0; 4096] }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_update_cycle_increments_cycle_and_time_together() {
+        let mut csr = build_csr_state();
+        csr.update_cycle(CPUCycles::Cycle);
+        assert_eq!(csr.read(CYCLE).unwrap(), 1);
+        assert_eq!(csr.read(TIME).unwrap(), 1);
+    }
+
+    #[test]
+    fn test_update_cycle_instret_tracks_its_own_count_not_cycles() {
+        // cycle advances twice, then one instruction retires -- instret
+        // should read 1 (its own first increment), not 3 (cycle's value).
+        let mut csr = build_csr_state();
+        csr.update_cycle(CPUCycles::Cycle);
+        csr.update_cycle(CPUCycles::Cycle);
+        csr.update_cycle(CPUCycles::Instret);
+        assert_eq!(csr.read(INSTRET).unwrap(), 1);
+    }
 
     #[test]
     fn test_csr_write_denies_insufficient_privilege() {

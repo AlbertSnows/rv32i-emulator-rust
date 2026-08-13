@@ -1,4 +1,4 @@
-
+// Masks are sequences of bits used to separate bits from one another. 
 
 const SEVEN_TO_ELEVEN: u32 = 0b1111_1000_0000;
 

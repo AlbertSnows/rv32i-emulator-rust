@@ -1,11 +1,13 @@
-use crate::definitions::cpu_definition::{RegisterFile, CPUState, PCState, CPUMode, CsrState};
+use crate::definitions::cpu_definition::{RegisterFile, CPUState, PCState, CPUMode};
 use crate::fetcher::InstructionWord;
 use crate::instructions::Format;
 use crate::utility::bit_operations::{ mask_and_shift, set_bit_range };
 use crate::definitions::masks;
 use crate::instructions::i::csr;
 use crate::definitions::trap_cause::TrapCause;
-use crate::definitions::codes::{ ExecutionSignal, MSTATUS, MEPC };
+use crate::definitions::codes::{ ExecutionSignal };
+use crate::definitions::addresses::{ MSTATUS, MEPC };
+use crate::definitions::csr::CSRState;
 
 #[derive(Debug, PartialEq)]
 pub enum SystemOp {
@@ -35,7 +37,7 @@ pub fn parse_system_inst(raw_word: InstructionWord) -> Result<Format, TrapCause>
 }
 
 
-pub fn execute_i_system_type(op: &SystemOp, mode: &mut CPUMode, pc: &mut PCState, csr: &mut CsrState) -> Result<ExecutionSignal, TrapCause> {
+pub fn execute_i_system_type(op: &SystemOp, mode: &mut CPUMode, pc: &mut PCState, csr: &mut CSRState) -> Result<ExecutionSignal, TrapCause> {
     match op {
         // todo: should this be err? is there a better way
         SystemOp::ECall => match mode {
@@ -48,15 +50,15 @@ pub fn execute_i_system_type(op: &SystemOp, mode: &mut CPUMode, pc: &mut PCState
     }
 }
 
-pub fn inst_i_mret(mode: &mut CPUMode, pc: &mut PCState, csr: &mut CsrState) -> Result<ExecutionSignal, TrapCause> {
+pub fn inst_i_mret(mode: &mut CPUMode, pc: &mut PCState, csr: &mut CSRState) -> Result<ExecutionSignal, TrapCause> {
     // "Attempting to execute an xRET instruction in a mode less privileged than x will raise an illegal-instruction exception."
     if *mode != CPUMode::M {
         return Err(TrapCause::IllegalInstruction { instruction: None });
     }
     // "xRET sets the pc to the value stored in the xepc register."
-    pc.write(csr.read(MEPC) as usize); //
+    pc.write(csr.read(MEPC)? as usize); //
 
-    let mstatus = csr.read(MSTATUS);
+    let mstatus = csr.read(MSTATUS)?;
     // mpp is where the previous mode was stored. saved at (12:11), 
     let mpp = mask_and_shift(mstatus, masks::MPP);
     let mode_before_trap = CPUMode::from_privilege_level(mpp)?;
@@ -75,7 +77,8 @@ pub fn inst_i_mret(mode: &mut CPUMode, pc: &mut PCState, csr: &mut CsrState) -> 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::definitions::cpu_definition::{build_pc_state, build_csr_state};
+    use crate::definitions::cpu_definition::build_pc_state;
+    use crate::definitions::csr::build_csr_state;
 
     #[test]
     fn test_parse_system_inst_ecall() {
@@ -128,7 +131,7 @@ mod tests {
         assert_eq!(pc.read(), 100);
         assert_eq!(mode, CPUMode::S);
         // MPP should be reset to 0 (U) afterward
-        assert_eq!(mask_and_shift(csr.read(MSTATUS), masks::MPP), 0);
+        assert_eq!(mask_and_shift(csr.read(MSTATUS).unwrap(), masks::MPP), 0);
     }
 
 }

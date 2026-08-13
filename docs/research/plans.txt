@@ -64,19 +64,8 @@ components:
     interrupts land.
 
 
-[ ] 4. Privilege levels (M/S/U mode) aren't modeled at all.
-    Real RISC-V defines multiple execution modes: Machine (M, most
-    privileged, always present), Supervisor (S, typically an OS kernel),
-    and User (U, application code). Per item #2's spec quote, each CSR has
-    a *minimum* privilege level required to access it, encoded in the
-    address itself (csr[9:8]). This emulator has no concept of "what mode
-    is the CPU currently in" -- there's no mode-switching, no state
-    tracking which mode is active -- so even if we wanted to enforce this
-    second layer of CSR access control, there's currently nothing to check
-    it against.
-
 [ ] 5. CSRs are all generic, meaningless storage right now.
-    CsrState is a flat [u32; 4096] -- reading or writing any address just
+    CSRState is a flat [u32; 4096] -- reading or writing any address just
     touches a plain array slot, nothing more. On real hardware, specific
     addresses have predefined meaning and behavior: reading the `cycle`
     CSR returns a live, continuously-updating counter (not a static stored

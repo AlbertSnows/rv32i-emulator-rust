@@ -1,10 +1,12 @@
 use crate::definitions::cpu_definition::{CPUState, CPUMode};
-use crate::definitions::codes::{ExecutionSignal, MTVEC, MEPC, MCAUSE, MTVAL, MSTATUS};
+use crate::definitions::codes::ExecutionSignal;
+use crate::definitions::addresses::{MTVEC, MEPC, MCAUSE, MTVAL, MSTATUS};
 use crate::fetcher::fetch_word_from_memory;
 use crate::decoder::decode_word_to_instruction;
 use crate::instructions::pc::advance_pc;
 use crate::definitions::trap_cause::TrapCause;
 use crate::utility::bit_operations::set_bit_range;
+use crate::definitions::cpu_definition::CPUCycles;
 
 fn perform_step(cpu: &mut CPUState) -> Result<ExecutionSignal, TrapCause> {
     // mut allows cpu to change in the local scope
@@ -69,12 +71,13 @@ fn set_mtval(cpu: &mut CPUState, trap_cause: &TrapCause) -> Result<(), TrapCause
 // docs/research/riscv_privleged.pdf, 3.1.7 "Machine Trap-Vector
 // Base-Address (mtvec) Register", p.41.
 fn jump_to_trap_handler(cpu: &mut CPUState) {
-    cpu.pc.write(cpu.csr.read(MTVEC) as usize);
+    // MTVEC is a real, always-implemented address -- this read cannot fail.
+    cpu.pc.write(cpu.csr.read(MTVEC)? as usize);
 }
 
 fn set_mpp(cpu: &mut CPUState) -> Result<(), TrapCause> {
     let mstatus_addr = MSTATUS;
-    let mstatus_state = cpu.csr.read(MSTATUS);
+    let mstatus_state = cpu.csr.read(MSTATUS)?;
     let privilege_level = cpu.mode.as_privilege_level();
     let updated_mstatus = set_bit_range(mstatus_state, privilege_level, 2, 11);
     cpu.csr.write(MSTATUS, updated_mstatus, CPUMode::M);
@@ -115,8 +118,12 @@ pub fn handle_trap(cpu: &mut CPUState, trap_cause: TrapCause) {
 }
 
 pub fn step(cpu: &mut CPUState) -> Result<ExecutionSignal, TrapCause> {
+    cpu.csr.update_cycle(CPUCycles::Cycle); 
     match perform_step(cpu) {
-        Ok(signal) => Ok(signal),
+        Ok(signal) => {
+            cpu.csr.update_cycle(CPUCycles::Instret); 
+            Ok(signal)
+        },
         Err(trap_cause) => {
             handle_trap(cpu, trap_cause);
             Ok(ExecutionSignal::Continue)
@@ -132,6 +139,7 @@ mod tests {
     use crate::programs::instructions::ADD_X3_X1_X2;
     use crate::programs::instructions::NO_OP;
     use crate::definitions::masks;
+    use crate::definitions::addresses::{CYCLE, INSTRET};
 
     #[test]
     fn test_step_executes_add_and_advances_pc() {
@@ -144,6 +152,27 @@ mod tests {
         assert_eq!(outcome, Ok(ExecutionSignal::Continue));
         assert_eq!(cpu.register.read(3), 17);
         assert_eq!(cpu.pc.read(), 4);
+    }
+
+    #[test]
+    fn test_step_increments_instret_on_successful_retire() {
+        let mut cpu = build_cpu_state();
+        store_in_mem(&ADD_X3_X1_X2.to_le_bytes(), &mut cpu.mem, 0);
+        step(&mut cpu);
+        assert_eq!(cpu.csr.read(CYCLE).unwrap(), 1);
+        assert_eq!(cpu.csr.read(INSTRET).unwrap(), 1);
+    }
+
+    #[test]
+    fn test_step_does_not_increment_instret_on_trap() {
+        // an undefined opcode traps -- cycle still "costs" a cycle, but the
+        // instruction never retires, so instret must not increment.
+        // in other words, instret counts successful steps, and thus should be 0 here
+        let mut cpu = build_cpu_state();
+        store_in_mem(&NO_OP.to_le_bytes(), &mut cpu.mem, 0);
+        step(&mut cpu);
+        assert_eq!(cpu.csr.read(CYCLE).unwrap(), 1);
+        assert_eq!(cpu.csr.read(INSTRET).unwrap(), 0);
     }
 
     #[test]
@@ -163,7 +192,7 @@ mod tests {
         cpu.pc.write(7);
         cpu.csr.write(MTVEC, 4, CPUMode::M);
         handle_trap(&mut cpu, TrapCause::IllegalInstruction { instruction: Some(33) });
-        let mpp = mask_and_shift(cpu.csr.read(MSTATUS), masks::MPP);
+        let mpp = mask_and_shift(cpu.csr.read(MSTATUS).unwrap(), masks::MPP);
         assert_eq!(mpp, CPUMode::S.as_privilege_level());
         assert_eq!(cpu.mode, CPUMode::M);
     }
@@ -175,8 +204,8 @@ mod tests {
         cpu.csr.write(MTVEC, 4, CPUMode::M);
         let outcome = handle_trap(&mut cpu, TrapCause::IllegalInstruction { instruction: Some(33)});
         assert_eq!(cpu.pc.read(), 4); // check MTVEC
-        assert_eq!(cpu.csr.read(MEPC), 7); // mepc
-        assert_eq!(cpu.csr.read(MCAUSE), 2); // mcause
-        assert_eq!(cpu.csr.read(MTVAL), 33); // mtval
+        assert_eq!(cpu.csr.read(MEPC).unwrap(), 7); // mepc
+        assert_eq!(cpu.csr.read(MCAUSE).unwrap(), 2); // mcause
+        assert_eq!(cpu.csr.read(MTVAL).unwrap(), 33); // mtval
     }
 }
