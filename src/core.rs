@@ -26,18 +26,18 @@ fn perform_step(cpu: &mut CPUState) -> Result<ExecutionSignal, TrapCause> {
 // "When a trap is taken into M-mode, mepc is written with the virtual
 // address of the instruction that was interrupted or that encountered
 // the exception."
-fn set_mepc(cpu: &mut CPUState) -> Result<(), TrapCause> {
+fn set_mepc(cpu: &mut CPUState) {
     let pc_value = cpu.pc.read();
-    cpu.csr.write(MEPC, pc_value as u32, CPUMode::M)?;
-    Ok(())
+    cpu.csr.write(MEPC, pc_value as u32, CPUMode::M)
+        .expect("MEPC is 0b00_11, mode is M, MEPC is matched");
 }
 
 // mcause ("Machine Cause") -- MRW, address 0x342.
 // "When a trap is taken into M-mode, mcause is written with a code
 // indicating the event that caused the trap."
-fn set_mcause(cpu: &mut CPUState, cause_code: u32) -> Result<(), TrapCause> {
-    cpu.csr.write(MCAUSE, cause_code, CPUMode::M)?;
-    Ok(())
+fn set_mcause(cpu: &mut CPUState, cause_code: u32) {
+    cpu.csr.write(MCAUSE, cause_code, CPUMode::M)
+        .expect("MCAUSE is 0b00_11, mode is M, MCAUSE is matched");
 }
 
 // mtval ("Machine Trap Value") -- MRW, address 0x343.
@@ -46,7 +46,7 @@ fn set_mcause(cpu: &mut CPUState, cause_code: u32) -> Result<(), TrapCause> {
 // handling the trap." For address-related exceptions, that's the
 // faulting virtual address; for IllegalInstruction, optionally the
 // faulting instruction bits; otherwise zero.
-fn set_mtval(cpu: &mut CPUState, trap_cause: &TrapCause) -> Result<(), TrapCause> {
+fn set_mtval(cpu: &mut CPUState, trap_cause: &TrapCause) {
     let trap_val = match trap_cause {
         TrapCause::InstructionAddressMisaligned { address } |   
         TrapCause::InstructionAccessFault { address } |   
@@ -58,8 +58,8 @@ fn set_mtval(cpu: &mut CPUState, trap_cause: &TrapCause) -> Result<(), TrapCause
         TrapCause::Breakpoint | TrapCause::EnvironmentCallFromMMode | TrapCause::EnvironmentCallFromSMode | TrapCause::EnvironmentCallFromUMode 
             => 0
     };
-    cpu.csr.write(MTVAL, trap_val, CPUMode::M)?;
-    Ok(())
+    cpu.csr.write(MTVAL, trap_val, CPUMode::M)
+        .expect("MTVAL is 0b00_11, mode is M, MTVAL is matched");
 }
 
 // mtvec ("Machine Trap-Vector Base-Address") -- MRW, address 0x305.
@@ -70,19 +70,18 @@ fn set_mtval(cpu: &mut CPUState, trap_cause: &TrapCause) -> Result<(), TrapCause
 // Vectored mode's per-cause offsets have nothing to apply to).
 // docs/research/riscv_privleged.pdf, 3.1.7 "Machine Trap-Vector
 // Base-Address (mtvec) Register", p.41.
-fn jump_to_trap_handler(cpu: &mut CPUState) -> Result<(), TrapCause> {
+fn jump_to_trap_handler(cpu: &mut CPUState) {
     // MTVEC is a real, always-implemented address -- this read cannot fail.
-    cpu.pc.write(cpu.csr.read(MTVEC)? as usize);
-    Ok(())
+    cpu.pc.write(cpu.csr.read(MTVEC).expect("MTVEC is matched") as usize);
 }
 
-fn set_mpp(cpu: &mut CPUState) -> Result<(), TrapCause> {
-    let mstatus_addr = MSTATUS;
-    let mstatus_state = cpu.csr.read(MSTATUS)?;
+fn set_mpp(cpu: &mut CPUState) {
+    let mstatus_state = cpu.csr.read(MSTATUS).expect("MSTATUS is matched");
     let privilege_level = cpu.mode.as_privilege_level();
     let updated_mstatus = set_bit_range(mstatus_state, privilege_level, 2, 11);
-    cpu.csr.write(MSTATUS, updated_mstatus, CPUMode::M);
-    Ok(())
+    cpu.csr.write(MSTATUS, updated_mstatus, CPUMode::M)
+        .expect("MSTATUS is 0b00_11, mode is M, MSTATUS is matched");
+
 }
 
 // Here we want to transfer control.
@@ -104,8 +103,11 @@ fn set_mpp(cpu: &mut CPUState) -> Result<(), TrapCause> {
 // - where to go
 // - why the trap was proc'd
 // - the address of the instruction that caused the failure
-// a failure here is a double trap
-pub fn handle_trap(cpu: &mut CPUState, trap_cause: TrapCause) {
+pub fn handle_trap(cpu: &mut CPUState, trap_cause: TrapCause) -> ExecutionSignal {
+    if cpu.flags.in_trap {
+        return ExecutionSignal::Halt;
+    }
+    cpu.flags.in_trap = true;
     set_mepc(cpu); // store pc
     set_mpp(cpu); // save the mode to mstatus
     cpu.mode = CPUMode::M;
@@ -116,6 +118,7 @@ pub fn handle_trap(cpu: &mut CPUState, trap_cause: TrapCause) {
     // then mtval will contain the faulting virtual address.
     set_mtval(cpu, &trap_cause);
     jump_to_trap_handler(cpu); // write the trap handler address to pc to go there
+    ExecutionSignal::Continue
 }
 
 pub fn step(cpu: &mut CPUState) -> Result<ExecutionSignal, TrapCause> {
@@ -125,10 +128,7 @@ pub fn step(cpu: &mut CPUState) -> Result<ExecutionSignal, TrapCause> {
             cpu.csr.update_cycle(CPUCycles::Instret); 
             Ok(signal)
         },
-        Err(trap_cause) => {
-            handle_trap(cpu, trap_cause);
-            Ok(ExecutionSignal::Continue)
-        }
+        Err(trap_cause) => Ok(handle_trap(cpu, trap_cause))
     }
 }
 
@@ -208,5 +208,26 @@ mod tests {
         assert_eq!(cpu.csr.read(MEPC).unwrap(), 7); // mepc
         assert_eq!(cpu.csr.read(MCAUSE).unwrap(), 2); // mcause
         assert_eq!(cpu.csr.read(MTVAL).unwrap(), 33); // mtval
+    }
+
+    #[test]
+    fn test_handle_trap_sets_in_trap_flag() {
+        let mut cpu = build_cpu_state();
+        cpu.csr.write(MTVEC, 4, CPUMode::M);
+        assert_eq!(cpu.flags.in_trap, false);
+        handle_trap(&mut cpu, TrapCause::IllegalInstruction { instruction: Some(33) });
+        assert_eq!(cpu.flags.in_trap, true);
+    }
+
+    #[test]
+    fn test_handle_trap_returns_halt_on_double_trap() {
+        let mut cpu = build_cpu_state();
+        cpu.csr.write(MTVEC, 4, CPUMode::M);
+        // first trap enters the handler normally
+        let first = handle_trap(&mut cpu, TrapCause::IllegalInstruction { instruction: Some(1) });
+        assert_eq!(first, ExecutionSignal::Continue);
+        // a second trap, before MRET clears in_trap, is a double trap
+        let second = handle_trap(&mut cpu, TrapCause::IllegalInstruction { instruction: Some(2) });
+        assert_eq!(second, ExecutionSignal::Halt);
     }
 }

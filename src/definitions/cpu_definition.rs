@@ -2,6 +2,7 @@ use crate::definitions::trap_cause::TrapCause;
 use crate::definitions::codes::{ PRIV_M, PRIV_S, PRIV_U };
 use crate::definitions::addresses::{ CYCLE, TIME, INSTRET };
 use crate::definitions::csr::{CSRState, build_csr_state};
+use crate::definitions::flags::CPUFlags;
 
 #[derive(Debug, PartialEq, Copy, Clone)]
 pub struct CPUState {
@@ -9,7 +10,8 @@ pub struct CPUState {
     pub pc: PCState,
     pub mem: MemoryState,
     pub csr: CSRState,
-    pub mode: CPUMode
+    pub mode: CPUMode,
+    pub flags: CPUFlags
 }
 
 #[derive(Debug, Copy, Clone, PartialEq)]
@@ -51,7 +53,10 @@ pub fn build_cpu_state() -> CPUState {
         pc: build_pc_state(),
         mem: build_memory_state(),
         csr: build_csr_state(),
-        mode: CPUMode::M
+        mode: CPUMode::M,
+        flags: CPUFlags {
+            in_trap: false
+        }
     }
 }
 

@@ -5,3 +5,4 @@ pub mod codes;
 pub mod trap_cause;
 pub mod addresses;
 pub mod csr;
+pub mod flags;

@@ -13,7 +13,8 @@ use crate::definitions::csr::CSRState;
 pub enum SystemOp {
     ECall, // 0000000 00000 = 0x000
     EBreak, // 0000000 00001 = 0x001
-    MRet // 0011000 00010 = 0x302
+    MRet, // 0011000 00010 = 0x302
+    WFI
 }
 
 pub fn parse_system_inst(raw_word: InstructionWord) -> Result<Format, TrapCause> {
@@ -29,6 +30,7 @@ pub fn parse_system_inst(raw_word: InstructionWord) -> Result<Format, TrapCause>
         0b000000000000 => Ok(SystemOp::ECall),
         0b000000000001 => Ok(SystemOp::EBreak),
         0b001100000010 => Ok(SystemOp::MRet),
+        0b000100000101 => Ok(SystemOp::WFI),
         _ => Err(TrapCause::IllegalInstruction { instruction: Some(raw_word.0) })
     }?;
     Ok(Format::SystemType {
@@ -37,20 +39,24 @@ pub fn parse_system_inst(raw_word: InstructionWord) -> Result<Format, TrapCause>
 }
 
 
-pub fn execute_i_system_type(op: &SystemOp, mode: &mut CPUMode, pc: &mut PCState, csr: &mut CSRState) -> Result<ExecutionSignal, TrapCause> {
+pub fn execute_i_system_type(op: &SystemOp, cpu: &mut CPUState) -> Result<ExecutionSignal, TrapCause> {
     match op {
         // todo: should this be err? is there a better way
-        SystemOp::ECall => match mode {
+        SystemOp::ECall => match cpu.mode {
             CPUMode::M => Err(TrapCause::EnvironmentCallFromMMode),
             CPUMode::S => Err(TrapCause::EnvironmentCallFromSMode),
             CPUMode::U => Err(TrapCause::EnvironmentCallFromUMode),
         },
         SystemOp::EBreak => Err(TrapCause::Breakpoint),
-        SystemOp::MRet => inst_i_mret(mode, pc, csr)
+        SystemOp::MRet => inst_i_mret(cpu),
+        SystemOp::WFI => Ok(ExecutionSignal::Continue)
     }
 }
 
-pub fn inst_i_mret(mode: &mut CPUMode, pc: &mut PCState, csr: &mut CSRState) -> Result<ExecutionSignal, TrapCause> {
+pub fn inst_i_mret(cpu: &mut CPUState) -> Result<ExecutionSignal, TrapCause> {
+    let mode = &mut cpu.mode;
+    let pc = &mut cpu.pc;
+    let csr = &mut cpu.csr;
     // "Attempting to execute an xRET instruction in a mode less privileged than x will raise an illegal-instruction exception."
     if *mode != CPUMode::M {
         return Err(TrapCause::IllegalInstruction { instruction: None });
@@ -71,14 +77,14 @@ pub fn inst_i_mret(mode: &mut CPUMode, pc: &mut PCState, csr: &mut CSRState) -> 
     csr.write(MSTATUS, mstatus_after_mpie, CPUMode::M)?;
     // dereference assignment
     *mode = mode_before_trap;
+    cpu.flags.in_trap = false;
     Ok(ExecutionSignal::Continue)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::definitions::cpu_definition::build_pc_state;
-    use crate::definitions::csr::build_csr_state;
+    use crate::definitions::cpu_definition::build_cpu_state;
 
     #[test]
     fn test_parse_system_inst_ecall() {
@@ -106,32 +112,38 @@ mod tests {
 
     #[test]
     fn test_inst_i_mret_illegal_when_not_m() {
-        let mut mode = CPUMode::S;
-        let mut pc = build_pc_state();
-        let mut csr = build_csr_state();
-        let outcome = inst_i_mret(&mut mode, &mut pc, &mut csr);
+        let mut cpu = build_cpu_state();
+        cpu.mode = CPUMode::S;
+        let outcome = inst_i_mret(&mut cpu);
         assert_eq!(outcome, Err(TrapCause::IllegalInstruction { instruction: None }));
         // nothing should have changed on the illegal path
-        assert_eq!(mode, CPUMode::S);
-        assert_eq!(pc.read(), 0);
+        assert_eq!(cpu.mode, CPUMode::S);
+        assert_eq!(cpu.pc.read(), 0);
     }
 
     #[test]
     fn test_inst_i_mret_restores_pc_and_mode() {
-        let mut mode = CPUMode::M;
-        let mut pc = build_pc_state();
-        let mut csr = build_csr_state();
-        csr.write(MEPC, 100, CPUMode::M);
+        let mut cpu = build_cpu_state();
+        cpu.csr.write(MEPC, 100, CPUMode::M);
         // MPP = S (level 1) at bits 11-12
-        csr.write(MSTATUS, 1 << 11, CPUMode::M);
+        cpu.csr.write(MSTATUS, 1 << 11, CPUMode::M);
 
-        let outcome = inst_i_mret(&mut mode, &mut pc, &mut csr);
+        let outcome = inst_i_mret(&mut cpu);
 
         assert_eq!(outcome, Ok(ExecutionSignal::Continue));
-        assert_eq!(pc.read(), 100);
-        assert_eq!(mode, CPUMode::S);
+        assert_eq!(cpu.pc.read(), 100);
+        assert_eq!(cpu.mode, CPUMode::S);
         // MPP should be reset to 0 (U) afterward
-        assert_eq!(mask_and_shift(csr.read(MSTATUS).unwrap(), masks::MPP), 0);
+        assert_eq!(mask_and_shift(cpu.csr.read(MSTATUS).unwrap(), masks::MPP), 0);
+    }
+
+    #[test]
+    fn test_inst_i_mret_clears_in_trap_flag() {
+        let mut cpu = build_cpu_state();
+        cpu.flags.in_trap = true;
+        let outcome = inst_i_mret(&mut cpu);
+        assert_eq!(outcome, Ok(ExecutionSignal::Continue));
+        assert_eq!(cpu.flags.in_trap, false);
     }
 
 }

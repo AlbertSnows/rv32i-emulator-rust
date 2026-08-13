@@ -28,3 +28,4 @@ pub const INSTRET: usize = 0xC02; // shadows MINSTRET
 
 pub const MCYCLE: usize = 0xB00;
 pub const MINSTRET: usize = 0xB02; 
+pub const WFI_FUNCT_TWELVE:usize = 0x105;
