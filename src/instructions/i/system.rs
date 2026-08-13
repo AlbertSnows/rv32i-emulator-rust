@@ -1,4 +1,4 @@
-use crate::definitions::cpu_definition::{RegisterFile, CPUState, PCState, CPUMode};
+use crate::definitions::cpu::cpu_definition::{RegisterFile, CPUState, PCState, CPUMode};
 use crate::fetcher::InstructionWord;
 use crate::instructions::Format;
 use crate::utility::bit_operations::{ mask_and_shift, set_bit_range };
@@ -7,7 +7,7 @@ use crate::instructions::i::csr;
 use crate::definitions::trap_cause::TrapCause;
 use crate::definitions::codes::{ ExecutionSignal };
 use crate::definitions::addresses::{ MSTATUS, MEPC };
-use crate::definitions::csr::CSRState;
+use crate::definitions::cpu::csr::CSRState;
 
 #[derive(Debug, PartialEq)]
 pub enum SystemOp {
@@ -74,7 +74,7 @@ pub fn inst_i_mret(cpu: &mut CPUState) -> Result<ExecutionSignal, TrapCause> {
     let mpie = mask_and_shift(mstatus, masks::MPIE);
     let mstatus_after_mie = set_bit_range(mstatus_after_resetting_mpp, mpie, 1, masks::MIE.trailing_zeros() as usize);
     let mstatus_after_mpie = set_bit_range(mstatus_after_mie, 1, 1, masks::MPIE.trailing_zeros() as usize);
-    csr.write(MSTATUS, mstatus_after_mpie, CPUMode::M)?;
+    csr.guest_write(MSTATUS, mstatus_after_mpie, CPUMode::M)?;
     // dereference assignment
     *mode = mode_before_trap;
     cpu.flags.in_trap = false;
@@ -84,7 +84,7 @@ pub fn inst_i_mret(cpu: &mut CPUState) -> Result<ExecutionSignal, TrapCause> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::definitions::cpu_definition::build_cpu_state;
+    use crate::definitions::cpu::cpu_definition::build_cpu_state;
 
     #[test]
     fn test_parse_system_inst_ecall() {
@@ -124,9 +124,9 @@ mod tests {
     #[test]
     fn test_inst_i_mret_restores_pc_and_mode() {
         let mut cpu = build_cpu_state();
-        cpu.csr.write(MEPC, 100, CPUMode::M);
+        cpu.csr.guest_write(MEPC, 100, CPUMode::M);
         // MPP = S (level 1) at bits 11-12
-        cpu.csr.write(MSTATUS, 1 << 11, CPUMode::M);
+        cpu.csr.guest_write(MSTATUS, 1 << 11, CPUMode::M);
 
         let outcome = inst_i_mret(&mut cpu);
 

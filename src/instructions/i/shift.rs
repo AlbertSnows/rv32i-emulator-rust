@@ -1,4 +1,4 @@
-use crate::definitions::cpu_definition::RegisterFile;
+use crate::definitions::cpu::cpu_definition::RegisterFile;
 use crate::definitions::codes::ExecutionSignal;
 use crate::instructions::i::alu_imm_or_shift::IShOp;
 use crate::definitions::trap_cause::TrapCause;
@@ -37,7 +37,7 @@ pub fn inst_i_srai(rd: usize, rs1: usize, shamt: usize, reg_file: &mut RegisterF
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::definitions::cpu_definition::build_register_file;
+    use crate::definitions::cpu::cpu_definition::build_register_file;
 
     #[test]
     fn test_inst_i_slli() {

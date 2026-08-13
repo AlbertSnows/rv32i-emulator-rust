@@ -1,4 +1,4 @@
-use crate::definitions::cpu_definition::MemoryState;
+use crate::definitions::cpu::memory::MemoryState;
 
 pub fn set_bit_range(original_bits: u32, new_bits: u32, width: usize, shift: usize) -> u32 {
     let bits_to_update = ((1u32 << width) -1 ) << shift; 
@@ -72,14 +72,14 @@ mod tests {
 
     #[test]
     fn test_store_in_mem() {
-        let mut mem = crate::definitions::cpu_definition::build_memory_state();
+        let mut mem = crate::definitions::cpu::memory::build_memory_state();
         store_in_mem(&[0xB3, 0x81, 0x20, 0x00], &mut mem, 0);
         assert_eq!(mem.storage[0..4], [0xB3, 0x81, 0x20, 0x00]);
     }
 
     #[test]
     fn test_store_in_mem_at_offset() {
-        let mut mem = crate::definitions::cpu_definition::build_memory_state();
+        let mut mem = crate::definitions::cpu::memory::build_memory_state();
         store_in_mem(&[0xAA, 0xBB], &mut mem, 10);
         assert_eq!(mem.storage[10..12], [0xAA, 0xBB]);
         // untouched neighbors stay zero

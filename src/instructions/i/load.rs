@@ -1,4 +1,5 @@
-use crate::definitions::cpu_definition::{RegisterFile, MemoryState};
+use crate::definitions::cpu::cpu_definition::RegisterFile;
+use crate::definitions::cpu::memory::MemoryState;
 use crate::fetcher::InstructionWord;
 use crate::instructions::Format;
 use crate::definitions::codes::ExecutionSignal;
@@ -116,7 +117,8 @@ pub fn inst_i_lhu(rd: usize, rs1: usize, imm_i: i32, mem: &MemoryState, reg_file
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::definitions::cpu_definition::{build_register_file, build_memory_state};
+    use crate::definitions::cpu::cpu_definition::build_register_file;
+    use crate::definitions::cpu::memory::build_memory_state;
 
     #[test]
     fn test_parse_load_inst() {

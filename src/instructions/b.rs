@@ -11,7 +11,7 @@
 // e.g. beq, bne, blt, bge, bltu, bgeu
 use crate::instructions::Format;
 use crate::fetcher::InstructionWord;
-use crate::definitions::cpu_definition::RegisterFile;
+use crate::definitions::cpu::cpu_definition::RegisterFile;
 use crate::definitions::codes::ExecutionSignal;
 use crate::utility::bit_operations::{mask_and_shift, merge_bits, shake_to_signed};
 use crate::definitions::masks;

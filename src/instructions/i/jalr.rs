@@ -1,4 +1,4 @@
-use crate::definitions::cpu_definition::{RegisterFile, PCState};
+use crate::definitions::cpu::cpu_definition::{RegisterFile, PCState};
 use crate::fetcher::InstructionWord;
 use crate::instructions::Format;
 use crate::definitions::codes::ExecutionSignal;
@@ -31,7 +31,8 @@ pub fn execute_i_jalr_type(rd: usize, rs1: usize, imm: i32, register: &mut Regis
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::definitions::cpu_definition::{build_pc_state, build_register_file, build_memory_state};
+    use crate::definitions::cpu::cpu_definition::{build_pc_state, build_register_file};
+    use crate::definitions::cpu::memory::build_memory_state;
 
     #[test]
     fn test_parse_jalr_inst() {

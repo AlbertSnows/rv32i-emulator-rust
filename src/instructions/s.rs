@@ -10,7 +10,8 @@
 // e.g. sb, sh, sw
 use crate::instructions::Format;
 use crate::fetcher::InstructionWord;
-use crate::definitions::cpu_definition::{RegisterFile, MemoryState};
+use crate::definitions::cpu::cpu_definition::RegisterFile;
+use crate::definitions::cpu::memory::MemoryState;
 use crate::definitions::codes::ExecutionSignal;
 use crate::utility::bit_operations::{mask_and_shift, merge_bits, shake_to_signed};
 use crate::definitions::masks;
@@ -89,7 +90,8 @@ pub fn inst_s_sw(rs1: usize, rs2: usize, imm: i32, mem: &mut MemoryState, reg_fi
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::definitions::cpu_definition::{build_register_file, build_pc_state, build_memory_state};
+    use crate::definitions::cpu::cpu_definition::{build_register_file, build_pc_state};
+    use crate::definitions::cpu::memory::build_memory_state;
 
     #[test]
     fn test_parse_s_inst() {

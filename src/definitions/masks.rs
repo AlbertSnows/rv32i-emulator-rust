@@ -40,3 +40,4 @@ pub const CSR_ADDRESS: u32 = TWENTY_TO_THIRTY_ONE;
 pub const MPP: u32 = TWELVE_AND_ELEVEN;
 pub const MPIE: u32 = 0b1000_0000;
 pub const MIE: u32 = 0b1000;
+pub const MTI: u32 = 0b1000_0000;

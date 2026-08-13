@@ -6,8 +6,8 @@
 // rd <- CSR[csr] (old value, always read first); CSR[csr] <- new value
 // rs1/uimm is a register index for csrrw/csrrs/csrrc, but a 5-bit
 
-use crate::definitions::cpu_definition::{RegisterFile, CPUState, CPUMode};
-use crate::definitions::csr::CSRState;
+use crate::definitions::cpu::cpu_definition::{RegisterFile, CPUState, CPUMode};
+use crate::definitions::cpu::csr::CSRState;
 use crate::fetcher::InstructionWord;
 use crate::instructions::Format;
 use crate::definitions::codes::ExecutionSignal;
@@ -71,7 +71,7 @@ pub fn inst_i_csrrw(rd: usize, rs1: usize, csr_address: usize, register: &mut Re
         register.write(rd, old_val);
     }
     let rs1_val = register.read(rs1);
-    csr.write(csr_address, rs1_val, cpu_mode)?;
+    csr.guest_write(csr_address, rs1_val, cpu_mode)?;
     Ok(())
 }
 
@@ -83,7 +83,7 @@ pub fn inst_i_csrrs(rd: usize, rs1: usize, csr_address: usize, register: &mut Re
     if rs1 != 0 {
         let rs1_val = register.read(rs1);
         let masked_val = old_val | rs1_val;
-        csr.write(csr_address, masked_val, cpu_mode)?;
+        csr.guest_write(csr_address, masked_val, cpu_mode)?;
     }
     Ok(())
 }
@@ -96,7 +96,7 @@ pub fn inst_i_csrrc(rd: usize, rs1: usize, csr_address: usize, register: &mut Re
     if rs1 != 0 {
         let rs1_val = register.read(rs1);
         let masked_val = old_val & !rs1_val;
-        csr.write(csr_address, masked_val, cpu_mode)?;
+        csr.guest_write(csr_address, masked_val, cpu_mode)?;
     }
     Ok(())
 }
@@ -107,7 +107,7 @@ pub fn inst_i_csrrwi(rd: usize, uimm: u32, csr_address: usize, register: &mut Re
         let old_val = csr.read(csr_address)?;
         register.write(rd, old_val);
     }
-    csr.write(csr_address, uimm, cpu_mode)?;
+    csr.guest_write(csr_address, uimm, cpu_mode)?;
     Ok(())
 }
 
@@ -118,7 +118,7 @@ pub fn inst_i_csrrsi(rd: usize, uimm: u32, csr_address: usize, register: &mut Re
     register.write(rd, old_val);
     if uimm != 0 {
         let masked_val = old_val | uimm;
-        csr.write(csr_address, masked_val, cpu_mode)?;
+        csr.guest_write(csr_address, masked_val, cpu_mode)?;
     }
     Ok(())
 }
@@ -130,7 +130,7 @@ pub fn inst_i_csrrci(rd: usize, uimm: u32, csr_address: usize, register: &mut Re
     register.write(rd, old_val);
     if uimm != 0 {
         let masked_val = old_val & !uimm;
-        csr.write(csr_address, masked_val, cpu_mode)?;
+        csr.guest_write(csr_address, masked_val, cpu_mode)?;
     }
     Ok(())
 }
@@ -138,8 +138,8 @@ pub fn inst_i_csrrci(rd: usize, uimm: u32, csr_address: usize, register: &mut Re
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::definitions::cpu_definition::build_register_file;
-    use crate::definitions::csr::build_csr_state;
+    use crate::definitions::cpu::cpu_definition::build_register_file;
+    use crate::definitions::cpu::csr::build_csr_state;
 
     #[test]
     fn test_parse_csr_inst_all_ops() {
@@ -182,7 +182,7 @@ mod tests {
         let mut register = build_register_file();
         let mut csr = build_csr_state();
         register.write(2, 55); // rs1's value
-        csr.write(0x300, 100, CPUMode::M); // CSR's old value
+        csr.guest_write(0x300, 100, CPUMode::M); // CSR's old value
         inst_i_csrrw(1, 2, 0x300, &mut register, &mut csr, CPUMode::M);
         assert_eq!(register.read(1), 100); // rd gets the old CSR value
         assert_eq!(csr.read(0x300).unwrap(), 55);   // CSR gets rs1's value
@@ -195,7 +195,7 @@ mod tests {
         let mut register = build_register_file();
         let mut csr = build_csr_state();
         register.write(2, 42);  // rs1's value
-        csr.write(0x300, 999, CPUMode::M);  // CSR's old value
+        csr.guest_write(0x300, 999, CPUMode::M);  // CSR's old value
         inst_i_csrrw(0, 2, 0x300, &mut register, &mut csr, CPUMode::M); // rd = 0
         assert_eq!(register.read(0), 0);   // x0 stays 0 -- write was skipped
         assert_eq!(csr.read(0x300).unwrap(), 42);   // CSR write still happens
@@ -207,7 +207,7 @@ mod tests {
         let mut register = build_register_file();
         let mut csr = build_csr_state();
         register.write(2, 0b1100); // rs1 = bits to set
-        csr.write(0x300, 0b0011, CPUMode::M);  // CSR's old value
+        csr.guest_write(0x300, 0b0011, CPUMode::M);  // CSR's old value
         inst_i_csrrs(1, 2, 0x300, &mut register, &mut csr, CPUMode::M);
         assert_eq!(register.read(1), 0b0011);       // rd gets the old CSR value
         assert_eq!(csr.read(0x300).unwrap(), 0b1111);        // 0b0011 | 0b1100
@@ -219,7 +219,7 @@ mod tests {
         let mut register = build_register_file();
         let mut csr = build_csr_state();
         register.write(2, 0b0011); // rs1 = bits to clear
-        csr.write(0x300, 0b1111, CPUMode::M);  // CSR's old value
+        csr.guest_write(0x300, 0b1111, CPUMode::M);  // CSR's old value
         inst_i_csrrc(1, 2, 0x300, &mut register, &mut csr, CPUMode::M);
         assert_eq!(register.read(1), 0b1111);       // rd gets the old CSR value
         assert_eq!(csr.read(0x300).unwrap(), 0b1100);        // 0b1111 & !0b0011
@@ -231,7 +231,7 @@ mod tests {
         // replacement value is a 5-bit immediate, not a register's contents
         let mut register = build_register_file();
         let mut csr = build_csr_state();
-        csr.write(0x300, 100, CPUMode::M); // CSR's old value
+        csr.guest_write(0x300, 100, CPUMode::M); // CSR's old value
         inst_i_csrrwi(1, 5, 0x300, &mut register, &mut csr, CPUMode::M); // uimm = 5
         assert_eq!(register.read(1), 100); // rd gets the old CSR value
         assert_eq!(csr.read(0x300).unwrap(), 5);    // CSR gets the immediate
@@ -242,7 +242,7 @@ mod tests {
         // same rd = x0 rule as csrrw
         let mut register = build_register_file();
         let mut csr = build_csr_state();
-        csr.write(0x300, 999, CPUMode::M); // CSR's old value
+        csr.guest_write(0x300, 999, CPUMode::M); // CSR's old value
         inst_i_csrrwi(0, 42, 0x300, &mut register, &mut csr, CPUMode::M); // rd = 0, uimm = 42
         assert_eq!(register.read(0), 0);   // x0 stays 0 -- write was skipped
         assert_eq!(csr.read(0x300).unwrap(), 42);   // CSR write still happens
@@ -253,7 +253,7 @@ mod tests {
         // t = CSR[csr]; CSR[csr] = t | uimm; rd = t
         let mut register = build_register_file();
         let mut csr = build_csr_state();
-        csr.write(0x300, 0b0011, CPUMode::M); // CSR's old value
+        csr.guest_write(0x300, 0b0011, CPUMode::M); // CSR's old value
         inst_i_csrrsi(1, 0b1100, 0x300, &mut register, &mut csr, CPUMode::M); // uimm = bits to set
         assert_eq!(register.read(1), 0b0011); // rd gets the old CSR value
         assert_eq!(csr.read(0x300).unwrap(), 0b1111);  // 0b0011 | 0b1100
@@ -264,7 +264,7 @@ mod tests {
         // t = CSR[csr]; CSR[csr] = t & !uimm; rd = t
         let mut register = build_register_file();
         let mut csr = build_csr_state();
-        csr.write(0x300, 0b1111,CPUMode::M); // CSR's old value
+        csr.guest_write(0x300, 0b1111,CPUMode::M); // CSR's old value
         inst_i_csrrci(1, 0b0011, 0x300, &mut register, &mut csr, CPUMode::M); // uimm = bits to clear
         assert_eq!(register.read(1), 0b1111); // rd gets the old CSR value
         assert_eq!(csr.read(0x300).unwrap(), 0b1100);  // 0b1111 & !0b0011

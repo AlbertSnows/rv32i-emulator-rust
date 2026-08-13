@@ -11,7 +11,7 @@
 // e.g. jal
 use crate::instructions::Format;
 use crate::fetcher::InstructionWord;
-use crate::definitions::cpu_definition::{RegisterFile, PCState};
+use crate::definitions::cpu::cpu_definition::{RegisterFile, PCState};
 use crate::definitions::codes::ExecutionSignal;
 use crate::utility::bit_operations::{mask_and_shift, merge_bits, shake_to_signed};
 use crate::definitions::masks;
@@ -56,8 +56,8 @@ pub fn execute_j_type(op: &JOp, rd: usize, imm: i32, register: &mut RegisterFile
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::definitions::cpu_definition::build_register_file;
-    use crate::definitions::cpu_definition::build_pc_state;
+    use crate::definitions::cpu::cpu_definition::build_register_file;
+    use crate::definitions::cpu::cpu_definition::build_pc_state;
 
     #[test]
     fn test_parse_j_inst() {

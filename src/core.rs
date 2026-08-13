@@ -1,4 +1,4 @@
-use crate::definitions::cpu_definition::{CPUState, CPUMode};
+use crate::definitions::cpu::cpu_definition::{CPUState, CPUMode};
 use crate::definitions::codes::ExecutionSignal;
 use crate::definitions::addresses::{MTVEC, MEPC, MCAUSE, MTVAL, MSTATUS};
 use crate::fetcher::fetch_word_from_memory;
@@ -6,7 +6,7 @@ use crate::decoder::decode_word_to_instruction;
 use crate::instructions::pc::advance_pc;
 use crate::definitions::trap_cause::TrapCause;
 use crate::utility::bit_operations::set_bit_range;
-use crate::definitions::cpu_definition::CPUCycles;
+use crate::definitions::cpu::cpu_definition::CPUCycles;
 
 fn perform_step(cpu: &mut CPUState) -> Result<ExecutionSignal, TrapCause> {
     // mut allows cpu to change in the local scope
@@ -28,7 +28,7 @@ fn perform_step(cpu: &mut CPUState) -> Result<ExecutionSignal, TrapCause> {
 // the exception."
 fn set_mepc(cpu: &mut CPUState) {
     let pc_value = cpu.pc.read();
-    cpu.csr.write(MEPC, pc_value as u32, CPUMode::M)
+    cpu.csr.guest_write(MEPC, pc_value as u32, CPUMode::M)
         .expect("MEPC is 0b00_11, mode is M, MEPC is matched");
 }
 
@@ -36,7 +36,7 @@ fn set_mepc(cpu: &mut CPUState) {
 // "When a trap is taken into M-mode, mcause is written with a code
 // indicating the event that caused the trap."
 fn set_mcause(cpu: &mut CPUState, cause_code: u32) {
-    cpu.csr.write(MCAUSE, cause_code, CPUMode::M)
+    cpu.csr.guest_write(MCAUSE, cause_code, CPUMode::M)
         .expect("MCAUSE is 0b00_11, mode is M, MCAUSE is matched");
 }
 
@@ -58,7 +58,7 @@ fn set_mtval(cpu: &mut CPUState, trap_cause: &TrapCause) {
         TrapCause::Breakpoint | TrapCause::EnvironmentCallFromMMode | TrapCause::EnvironmentCallFromSMode | TrapCause::EnvironmentCallFromUMode 
             => 0
     };
-    cpu.csr.write(MTVAL, trap_val, CPUMode::M)
+    cpu.csr.guest_write(MTVAL, trap_val, CPUMode::M)
         .expect("MTVAL is 0b00_11, mode is M, MTVAL is matched");
 }
 
@@ -79,7 +79,7 @@ fn set_mpp(cpu: &mut CPUState) {
     let mstatus_state = cpu.csr.read(MSTATUS).expect("MSTATUS is matched");
     let privilege_level = cpu.mode.as_privilege_level();
     let updated_mstatus = set_bit_range(mstatus_state, privilege_level, 2, 11);
-    cpu.csr.write(MSTATUS, updated_mstatus, CPUMode::M)
+    cpu.csr.guest_write(MSTATUS, updated_mstatus, CPUMode::M)
         .expect("MSTATUS is 0b00_11, mode is M, MSTATUS is matched");
 
 }
@@ -122,7 +122,8 @@ pub fn handle_trap(cpu: &mut CPUState, trap_cause: TrapCause) -> ExecutionSignal
 }
 
 pub fn step(cpu: &mut CPUState) -> Result<ExecutionSignal, TrapCause> {
-    cpu.csr.update_cycle(CPUCycles::Cycle); 
+    cpu.csr.update_cycle(CPUCycles::Cycle);
+    cpu.csr.update_mip();
     match perform_step(cpu) {
         Ok(signal) => {
             cpu.csr.update_cycle(CPUCycles::Instret); 
@@ -135,7 +136,7 @@ pub fn step(cpu: &mut CPUState) -> Result<ExecutionSignal, TrapCause> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::definitions::cpu_definition::build_cpu_state;
+    use crate::definitions::cpu::cpu_definition::build_cpu_state;
     use crate::utility::bit_operations::{store_in_mem, mask_and_shift};
     use crate::programs::instructions::ADD_X3_X1_X2;
     use crate::programs::instructions::NO_OP;
@@ -191,7 +192,7 @@ mod tests {
         let mut cpu = build_cpu_state();
         cpu.mode = CPUMode::S;
         cpu.pc.write(7);
-        cpu.csr.write(MTVEC, 4, CPUMode::M);
+        cpu.csr.guest_write(MTVEC, 4, CPUMode::M);
         handle_trap(&mut cpu, TrapCause::IllegalInstruction { instruction: Some(33) });
         let mpp = mask_and_shift(cpu.csr.read(MSTATUS).unwrap(), masks::MPP);
         assert_eq!(mpp, CPUMode::S.as_privilege_level());
@@ -202,7 +203,7 @@ mod tests {
     fn test_handle_trap_changes_correct_values() {
         let mut cpu = build_cpu_state();
         cpu.pc.write(7);
-        cpu.csr.write(MTVEC, 4, CPUMode::M);
+        cpu.csr.guest_write(MTVEC, 4, CPUMode::M);
         let outcome = handle_trap(&mut cpu, TrapCause::IllegalInstruction { instruction: Some(33)});
         assert_eq!(cpu.pc.read(), 4); // check MTVEC
         assert_eq!(cpu.csr.read(MEPC).unwrap(), 7); // mepc
@@ -213,7 +214,7 @@ mod tests {
     #[test]
     fn test_handle_trap_sets_in_trap_flag() {
         let mut cpu = build_cpu_state();
-        cpu.csr.write(MTVEC, 4, CPUMode::M);
+        cpu.csr.guest_write(MTVEC, 4, CPUMode::M);
         assert_eq!(cpu.flags.in_trap, false);
         handle_trap(&mut cpu, TrapCause::IllegalInstruction { instruction: Some(33) });
         assert_eq!(cpu.flags.in_trap, true);
@@ -222,7 +223,7 @@ mod tests {
     #[test]
     fn test_handle_trap_returns_halt_on_double_trap() {
         let mut cpu = build_cpu_state();
-        cpu.csr.write(MTVEC, 4, CPUMode::M);
+        cpu.csr.guest_write(MTVEC, 4, CPUMode::M);
         // first trap enters the handler normally
         let first = handle_trap(&mut cpu, TrapCause::IllegalInstruction { instruction: Some(1) });
         assert_eq!(first, ExecutionSignal::Continue);

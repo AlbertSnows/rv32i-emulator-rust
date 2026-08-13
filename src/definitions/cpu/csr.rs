@@ -1,9 +1,10 @@
 use crate::definitions::trap_cause::TrapCause;
-use crate::definitions::cpu_definition::{CPUMode, CPUCycles};
+use crate::definitions::cpu::cpu_definition::{CPUMode, CPUCycles};
 use crate::definitions::addresses::{
     MSTATUS, MTVEC, MEPC, MCAUSE, MTVAL, MCYCLE, MINSTRET, CYCLE, TIME, INSTRET,
 };
-use crate::utility::bit_operations::mask_and_shift;
+use crate::utility::bit_operations::{mask_and_shift, set_bit_range};
+use crate::definitions::masks;
 
 const ACCESS_TYPE_LOCATION: u32 = 10;
 const MINIMUM_PRIVILEGE_LOCATION: u32 = 8;
@@ -18,6 +19,8 @@ pub fn build_csr_state() -> CSRState {
         mtval: 0,
         mcycle: 0,
         minstret: 0,
+        mie: 0,
+        mip: 0
      }
 }
 
@@ -32,6 +35,8 @@ pub struct CSRState {
     mtval: u32,
     mcycle: u32,
     minstret: u32,
+    mie: u32,
+    mip: u32
 }
 
 impl CSRState {
@@ -45,6 +50,7 @@ impl CSRState {
             MTVAL => Ok(&mut self.mtval),
             MCYCLE | CYCLE | TIME => Ok(&mut self.mcycle),
             MINSTRET | INSTRET => Ok(&mut self.minstret),
+            MIP => Ok(&mut self.mip),
             _ => Err(TrapCause::IllegalInstruction { instruction: None }),
         }
     }
@@ -58,17 +64,21 @@ impl CSRState {
             MTVAL => Ok(self.mtval),
             MCYCLE | CYCLE | TIME => Ok(self.mcycle),
             MINSTRET | INSTRET => Ok(self.minstret),
+            MIP => Ok(self.mip),
             _ => Err(TrapCause::IllegalInstruction { instruction: None }),
         }
     }
 
-    pub fn write(&mut self, address: usize, value: u32, current_mode: CPUMode) -> Result<u32, TrapCause> {
-        // "The top two bits (csr[11:10]) indicate whether the register is read/write (00, 01, or 10) or read-only (11).
-        // The next two bits (csr[9:8]) encode the lowest privilege level that can access the CSR."
-        // NOTE: 9:8 means, "In order to write to the CSR, you must have at least this much access"
-
-        // https://docs.riscv.org/reference/isa/_attachments/riscv-privileged.pdf
-        // todo: replace 10, 8, and maybe 0b11 with non-magic numbers
+    // "The top two bits (csr[11:10]) indicate whether the register is read/write (00, 01, or 10) or read-only (11).
+    // The next two bits (csr[9:8]) encode the lowest privilege level that can access the CSR."
+    // NOTE: 9:8 means, "In order to write to the CSR, you must have at least this much access"
+    //  "Implementations will not raise an exception on writes of unsupported values 
+    //   to a WARL field... Implementations can return any legal value on the read 
+    //   of a WARL field when the last write was of an illegal value, 
+    //   but the legal value returned should deterministically depend on the illegal 
+    //   written value and the architectural state of the hart."
+    // https://docs.riscv.org/reference/isa/_attachments/riscv-privileged.pdf
+    pub fn guest_write(&mut self, address: usize, value: u32, current_mode: CPUMode) -> Result<u32, TrapCause> {
         let has_write_access = mask_and_shift(address as u32, 0b11 << ACCESS_TYPE_LOCATION) != READ_ONLY;
         let privilege_level = mask_and_shift(address as u32, 0b11 << MINIMUM_PRIVILEGE_LOCATION);
         let meets_minimum_privilege = privilege_level <= current_mode.as_privilege_level();
@@ -77,8 +87,14 @@ impl CSRState {
             return Err(TrapCause::IllegalInstruction { instruction: None });
         }
         let property = self.field_for(address)?;
-        *property = value;
-        Ok(value)
+
+        match address {
+            MIP => Ok(*property),
+            _ => {
+                *property = value;
+                Ok(value)
+            }
+        }
     }
 
     pub fn update_cycle(&mut self, cycle: CPUCycles) {
@@ -90,6 +106,10 @@ impl CSRState {
                 self.minstret += 1;
             },
         }
+    }
+
+    pub fn update_mip(&mut self) {
+        self.mip = set_bit_range(self.mip, (mtime >= mtimecmp) as u32, 1, masks::MTI.trailing_zeros() as usize);
     }
 }
 
@@ -120,14 +140,14 @@ mod tests {
     fn test_csr_write_denies_insufficient_privilege() {
         // mepc (0x341) requires M -- writing from S should be rejected.
         let mut csr = build_csr_state();
-        let outcome = csr.write(0x341, 42, CPUMode::S);
+        let outcome = csr.guest_write(0x341, 42, CPUMode::S);
         assert!(outcome.is_err());
     }
 
     #[test]
     fn test_csr_write_allows_sufficient_privilege() {
         let mut csr = build_csr_state();
-        let outcome = csr.write(0x341, 42, CPUMode::M);
+        let outcome = csr.guest_write(0x341, 42, CPUMode::M);
         assert!(outcome.is_ok());
     }
 }

@@ -1,4 +1,4 @@
-use crate::definitions::cpu_definition::{PCState, RegisterFile};
+use crate::definitions::cpu::cpu_definition::{PCState, RegisterFile};
 use crate::instructions::Format;
 use crate::instructions::b::BOp;
 use crate::definitions::trap_cause::TrapCause;
@@ -41,8 +41,8 @@ pub fn advance_pc(pc: &mut PCState, instruction: &Format, reg_file: &RegisterFil
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::definitions::cpu_definition::build_pc_state;
-    use crate::definitions::cpu_definition::build_register_file;
+    use crate::definitions::cpu::cpu_definition::build_pc_state;
+    use crate::definitions::cpu::cpu_definition::build_register_file;
     use crate::instructions::j::JOp;
     use crate::instructions::u::UOp;
 

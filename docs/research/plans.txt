@@ -79,6 +79,15 @@ components:
     indefinitely (single-hart project). Biggest remaining item by far --
     everything else left is small by comparison.
 
+[ ] 9. Refactor CSRState -- attempt after item #8 is done. Motivation:
+    building mip surfaced how much side-effect/special-case behavior
+    CSRState::write has accumulated (address-level read-only vs.
+    field-level read-only within an otherwise-writable register, internal
+    bypass paths for cycle/instret/mip that never go through write() at
+    all, per-CSR exceptions like MIP's no-op case). Worth revisiting the
+    whole read/write/field_for design once interrupts exposes the full
+    shape of what it actually needs to handle, rather than guessing now.
+
 --- beyond CPU emulation: peripherals / BIOS / OS (distant goal, see
     project_goal_boot_linux.md -- not near-term architecture, just a list
     for later) ---

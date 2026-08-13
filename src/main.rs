@@ -6,7 +6,7 @@ mod definitions;
 mod utility;
 mod programs;
 mod core;
-use crate::definitions::cpu_definition::build_cpu_state;
+use crate::definitions::cpu::cpu_definition::build_cpu_state;
 use decoder::decode_word_to_instruction;
 use fetcher::{InstructionWord, fetch_word_from_memory};
 use utility::bit_operations::store_in_mem;

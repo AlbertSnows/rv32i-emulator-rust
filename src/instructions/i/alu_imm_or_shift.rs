@@ -1,4 +1,4 @@
-use crate::definitions::cpu_definition::RegisterFile;
+use crate::definitions::cpu::cpu_definition::RegisterFile;
 use crate::fetcher::InstructionWord;
 use crate::instructions::Format;
 use crate::definitions::codes::ExecutionSignal;
@@ -134,7 +134,7 @@ pub fn inst_i_andi(rd: usize, rs1: usize, imm_i: i32, reg_file: &mut RegisterFil
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::definitions::cpu_definition::build_register_file;
+    use crate::definitions::cpu::cpu_definition::build_register_file;
 
     #[test]
     fn test_parse_alu_imm_or_shift_inst_routes_to_alu_imm() {

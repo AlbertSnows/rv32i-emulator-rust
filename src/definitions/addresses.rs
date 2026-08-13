@@ -29,3 +29,20 @@ pub const INSTRET: usize = 0xC02; // shadows MINSTRET
 pub const MCYCLE: usize = 0xB00;
 pub const MINSTRET: usize = 0xB02; 
 pub const WFI_FUNCT_TWELVE:usize = 0x105;
+// An interrupt is a signal that something happend that is unrelated to
+// the cpu's current instruction.
+// These contrast traps, which happen because of an instruction.
+//
+// mip / mie bit layout (RV32). 
+/// Both registers share the identical bit assignments 
+/// - bit i always means "interrupt source i", whether the
+//    register is asking "is it pending" (mip) or "is it enabled" (mie).
+// Even-numbered bits (and 15:14) are Reserved. 
+// Table 16, riscv_privleged.txt p.49-50.
+//
+// |Platform Use (custom)|Rsvd |LCOFI|Rsvd|MEI|Rsvd|SEI|Rsvd|MTI|Rsvd|STI|Rsvd|MSI|Rsvd|SSI|Rsvd|
+// |31:16                |15:14|13   |12  |11 |10  |9  |8   |7  |6   |5  |4   |3  |2   |1  |0   |
+// mie is about what we're willing to have interrupt us/willing to accept
+pub const MIE: usize = 0x304;
+// mip is about what's currently interrupting/what's pending
+pub const MIP: usize = 0x344;
