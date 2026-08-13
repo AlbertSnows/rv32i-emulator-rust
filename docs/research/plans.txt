@@ -64,39 +64,6 @@ components:
     interrupts land.
 
 
-[ ] 5. CSRs are all generic, meaningless storage right now.
-    CSRState is a flat [u32; 4096] -- reading or writing any address just
-    touches a plain array slot, nothing more. On real hardware, specific
-    addresses have predefined meaning and behavior: reading the `cycle`
-    CSR returns a live, continuously-updating counter (not a static stored
-    value); specific bits of `mstatus` control whether interrupts are
-    enabled and actually affect CPU behavior when changed; etc. None of
-    that exists here -- every CSR address behaves identically, as inert
-    storage, regardless of which "real" CSR it's supposed to represent.
-
-[ ] 6. WFI (Wait for Interrupt) -- not parsed or executed at all.
-    Same SYSTEM/funct12 family as MRET (funct12=0x105, confirmed via
-    Figure 93, riscv_privleged.pdf Chapter 19 p.202). Per Section 3.3.3
-    "Wait for Interrupt", p.61-62: "a legal implementation is to simply
-    implement the WFI instruction as a NOP" -- so this doesn't need
-    interrupts (item #8) to exist first; it can be a stub returning
-    Continue, same shape as FENCE's. Small, independent, no blockers.
-
-[ ] 7. Double trap -- no protection against a second trap corrupting the
-    first one's state. Mechanism per Section 3.1.6.2 "Double Trap Control
-    in mstatus Register" (p.33) and Chapter 10 "Smdbltrp" Double Trap
-    Extension (p.96): occurs when a new trap arrives while the trap
-    handler is still in a non-reentrant state (hasn't yet saved recovery
-    state) -- an "unexpected trap." Without Smrnmi (not needed here), the
-    spec's defined response is exact: "the hart enters a critical-error
-    state... ceasing execution, disabling all interrupts... and asserting
-    a critical-error signal to the platform." Minimal version: track
-    whether we're already inside trap handling; if a second trap arrives
-    before that's cleared, treat it as unrecoverable (halt) -- close to
-    what this emulator already does by default for everything else.
-    Depends on item #4 (mode-switching) existing first, since "inside
-    trap handling" is naturally tracked alongside mode.
-
 [ ] 8. Interrupts -- the entire separate Interrupt=1 half of Table 16 (not
     implemented at all: no mip/mie, no pending-interrupt check anywhere
     in the step loop, no timer). This is the one remaining piece that's
