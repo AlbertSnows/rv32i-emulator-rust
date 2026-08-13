@@ -70,9 +70,10 @@ fn set_mtval(cpu: &mut CPUState, trap_cause: &TrapCause) -> Result<(), TrapCause
 // Vectored mode's per-cause offsets have nothing to apply to).
 // docs/research/riscv_privleged.pdf, 3.1.7 "Machine Trap-Vector
 // Base-Address (mtvec) Register", p.41.
-fn jump_to_trap_handler(cpu: &mut CPUState) {
+fn jump_to_trap_handler(cpu: &mut CPUState) -> Result<(), TrapCause> {
     // MTVEC is a real, always-implemented address -- this read cannot fail.
     cpu.pc.write(cpu.csr.read(MTVEC)? as usize);
+    Ok(())
 }
 
 fn set_mpp(cpu: &mut CPUState) -> Result<(), TrapCause> {

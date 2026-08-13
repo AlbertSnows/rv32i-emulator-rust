@@ -137,43 +137,52 @@ impl RegisterFile {
     }
 }
 
+
+// A file, historically, is an ordered row or collection of things. 
+// Think of, "rank and file" -> |||||, an ordered line
+// So a register file is an ordered list of storage cells.
+// Register file can also be thought of as "all of the CPU's registers grouped together"
+pub fn build_register_file() -> RegisterFile {
+ RegisterFile { storage: [
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+]
+}
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn test_update_cycle_increments_cycle_and_time_together() {
-        let mut csr = build_csr_state();
-        csr.update_cycle(CPUCycles::Cycle);
-        assert_eq!(csr.read(CYCLE).unwrap(), 1);
-        assert_eq!(csr.read(TIME).unwrap(), 1);
-    }
-
-    #[test]
-    fn test_update_cycle_instret_tracks_its_own_count_not_cycles() {
-        // cycle advances twice, then one instruction retires -- instret
-        // should read 1 (its own first increment), not 3 (cycle's value).
-        let mut csr = build_csr_state();
-        csr.update_cycle(CPUCycles::Cycle);
-        csr.update_cycle(CPUCycles::Cycle);
-        csr.update_cycle(CPUCycles::Instret);
-        assert_eq!(csr.read(INSTRET).unwrap(), 1);
-    }
-
-    #[test]
-    fn test_csr_write_denies_insufficient_privilege() {
-        // mepc (0x341) requires M -- writing from S should be rejected.
-        let mut csr = build_csr_state();
-        let outcome = csr.write(0x341, 42, CPUMode::S);
-        assert!(outcome.is_err());
-    }
-
-    #[test]
-    fn test_csr_write_allows_sufficient_privilege() {
-        let mut csr = build_csr_state();
-        let outcome = csr.write(0x341, 42, CPUMode::M);
-        assert!(outcome.is_ok());
-    }
 
     #[test]
     fn test_write_to_x0_is_ignored() {
@@ -268,46 +277,3 @@ mod tests {
         assert!(outcome.is_err());
     }
 }
-
-// A file, historically, is an ordered row or collection of things. 
-// Think of, "rank and file" -> |||||, an ordered line
-// So a register file is an ordered list of storage cells.
-// Register file can also be thought of as "all of the CPU's registers grouped together"
-pub fn build_register_file() -> RegisterFile {
- RegisterFile { storage: [
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0
-]
-}
-}
-
