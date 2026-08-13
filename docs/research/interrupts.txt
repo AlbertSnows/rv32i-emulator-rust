@@ -1,0 +1,163 @@
+interrupts (item #8) -- why and how
+
+
+--- what's involved ---
+
+Two new machine-level CSRs (riscv_privleged.txt, CSR address table, p.9):
+
+  0x304  MRW  mie   Machine interrupt-enable register.
+  0x344  MRW  mip   Machine interrupt-pending register.
+
+Both share the same top nibble (0x3). mip has some bits that are read-only
+even though the register as a whole is MRW (see "design wrinkles" below).
+
+A third piece, mtime/mtimecmp, is NOT a CSR at all. Section 3.2.1 (p.59-60):
+"Platforms provide a real-time counter, exposed as a memory-mapped
+machine-mode read-write register, mtime... Platforms provide a 64-bit
+memory-mapped machine-mode timer compare register (mtimecmp)." These are
+platform-defined memory addresses, not part of the CSR address space.
+
+--- when does an interrupt actually fire? ---
+
+Section 3.1.9 (p.43-44), the exact three conditions, all of which must
+hold:
+
+  "(a) either the current privilege mode is M and the MIE bit in the
+  mstatus register is set, or the current privilege mode has less
+  privilege than M-mode; (b) bit i is set in both mip and mie; and (c) if
+  register mideleg exists, bit i is not set in mideleg."
+
+We're M-mode only right now (no S-mode), so (c) doesn't apply yet (no
+mideleg). (a) reduces to: mstatus.MIE must be 1 (since everything we run
+is M-mode, there's no lower-privilege mode to trivially satisfy the
+"current mode has less privilege than M" branch). (b) is the actual
+per-source enable/pending check.
+
+this can't be checked only reactively.
+The same section: "These conditions... must be evaluated in a bounded
+amount of time from when an interrupt becomes... pending... and must also
+be evaluated immediately following the execution of an xRET instruction or
+an explicit write to a CSR on which these interrupt trap conditions
+expressly depend." 
+In other words, an interrupt can become deliverable
+between two instructions that have nothing to do with it -- step() needs
+its own proactive check, not just perform_step()'s existing Err path.
+
+Priority, when more than one interrupt is simultaneously pending and
+enabled (p.45): "MEI, MSI, MTI, SEI, SSI, STI, LCOFI" (decreasing
+priority). We won't have simultaneous sources for a while, but worth
+knowing the order exists.
+
+--- which bits, which sources ---
+
+Table 16 (p.49-50), the Interrupt=1 half -- bit i in mcause corresponds to
+bit i in both mip and mie:
+
+  1   Supervisor software interrupt (SSI)
+  3   Machine software interrupt (MSI)
+  5   Supervisor timer interrupt (STI)
+  7   Machine timer interrupt (MTI)
+  9   Supervisor external interrupt (SEI)
+  11  Machine external interrupt (MEI)
+  13  Counter-overflow interrupt (LCOFI, needs Sscofpmf, not relevant)
+  >=16  platform use
+
+Since S-mode isn't implemented: "If supervisor mode is not implemented,
+bits SEIP, STIP, and SSIP of mip and SEIE, STIE, and SSIE of mie are
+read-only zeros" (p.44-45) -- so bits 1/5/9 are hardwired 0 for now..
+
+That leaves bit 3 (MSI), bit 7 (MTI), bit 11 (MEI) as the realistic set.
+MSI needs inter-hart signaling,
+irrelevant to a single-hart emulator, defer indefinitely. MEI needs a real
+device generating external interrupts, nothing does yet, defer until
+peripherals exist. MTI (mtime >= mtimecmp) is the one with an actual
+forcing function right now -- it's what Linux's scheduler needs. First
+concrete interrupt source to implement: bit 7, MTI.
+
+--- mcause encoding for interrupts ---
+
+Section 3.1.15 (p.48-49): "The Interrupt bit in the mcause register is set
+if the trap was caused by an interrupt." That's the MSB -- bit 31 on
+RV32. So an interrupt's full mcause value isn't just the Table 16 code
+(e.g. 7 for MTI) -- it's that code with bit 31 also set
+(0x8000_0007 for MTI), distinguishing it from an ordinary exception with
+the same low bits. TrapCause::mcause_code() currently only returns the
+low, exception-code half (see src/definitions/trap_cause.rs) -- every
+existing variant is an exception, so this was never needed before. Adding
+interrupt variants means deciding where the interrupt bit gets OR'd in --
+inside mcause_code() itself (cleanest, keeps the encoding logic in one
+place), or wherever the interrupt is raised.
+
+--- the mstatus MIE/MPIE dance: half-done ---
+
+Section 3.1.6.1 (p.31-32), trap entry: "When a trap is taken from
+privilege mode y into privilege mode x, xPIE is set to the value of xIE;
+xIE is set to 0; and xPP is set to y."
+
+Our current set_mpp() (core.rs) only does the xPP part -- it captures the
+pre-trap mode into MPP, but never touches MIE/MPIE at all. This was fine
+before, because nothing checked MIE, so a stale/uncleared MIE had no
+observable effect. It matters now: if MIE never gets cleared on trap
+entry, and MPIE never captures what MIE was, then MRET's existing
+restore step (inst_i_mret already does mstatus MIE=MPIE, MPIE=1 -- see
+"MRET then in mstatus/mstatush sets... MIE=MPIE, and MPIE=1", same
+section) ends up restoring garbage. The masks already exist
+(masks::MIE, masks::MPIE, src/definitions/masks.rs) and are already used
+by inst_i_mret -- what's missing is the entry-side counterpart, which
+would presumably live alongside set_mpp's existing MPP-capture logic in
+core.rs.
+
+--- design wrinkles ---
+
+1. mip's per-bit read-only-ness doesn't fit the existing permission model.
+CSRState's read-only check (see csr.rs) is per-ADDRESS: bits[11:10] of the
+whole CSR address say whether the whole register is writable. mip is MRW
+at the address level, but MTIP specifically is documented as "read-only in
+the mip register, and is cleared by writing to the memory-mapped
+machine-mode timer compare register" (p.45) -- i.e. software can't
+directly write bit 7 of mip via csrrw; it can only be cleared as a side
+effect of writing mtimecmp. That's a per-BIT rule, not a per-address one,
+so it doesn't fit CSRState::write's current model cleanly. Needs its own
+handling, likely: mip's own write() masks out MTIP before applying
+whatever software wrote, same category of thing as counters.txt's
+"internal bookkeeping bypasses the normal write path" pattern, just
+mirrored, hardware bypasses part of a normally-writable register instead
+of writing to a normally-read-only one.
+
+2. Where does mtime/mtimecmp actually live? These are memory-mapped, not
+CSRs -- they need real addresses in MemoryState's address space (or a new,
+separate mechanism, since MemoryState right now is a flat byte array with
+no notion of "special" addresses that trigger side effects on read/write).
+This is the first place this emulator needs anything like a memory-mapped
+device at all. Worth deciding deliberately rather than bolting on --
+possibly connects to the "peripherals" section already noted as a distant
+goal (memory-mapped I/O device model), even though mtime/mtimecmp
+themselves aren't a distant-goal item.
+
+3. Simplification available: since this emulator's `cycle` already
+increments once per step() call (see counters.txt), a first-pass mtime
+could just be another counter incremented the same way, sidestepping
+"real" wall-clock semantics (same simplification the spec explicitly
+allows for `time`/`cycle`). Real wall-clock time doesn't matter for
+correctness here, only that mtime advances monotonically and mtimecmp
+comparisons work.
+
+--- outline of steps, in dependency order ---
+
+1. Add mie (0x304) and mip (0x344) to CSRState as real fields, same
+   pattern as mstatus/mepc/etc. Decide mip's write-masking (wrinkle #1).
+2. Decide where mtime/mtimecmp live and how they're read/written (wrinkle
+   #2), and how mtime advances (wrinkle #3's simplification is one option).
+3. Wire mtime >= mtimecmp into mip.MTIP becoming pending.
+4. Fix trap entry (core.rs, alongside set_mpp) to also do MPIE=MIE, MIE=0,
+   completing the currently-half-implemented mstatus dance.
+5. Add the interrupt bit to mcause encoding (TrapCause::mcause_code() or
+   wherever interrupts get raised), plus new TrapCause variant(s) for at
+   least MachineTimerInterrupt.
+6. Add the proactive interrupt check itself: evaluate conditions (a)(b)(c)
+   from section 3.1.9, most naturally each pass through step(), not just
+   reactively through perform_step()'s existing Err path.
+7. Tests: MTI fires when pending+enabled+MIE=1; doesn't fire when MIE=0 or
+   MTIE=0; mcause has the interrupt bit set and the right code (7); MRET's
+   existing MIE=MPIE restore now round-trips a real captured value instead
+   of whatever was already there.
