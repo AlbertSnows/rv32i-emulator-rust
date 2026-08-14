@@ -1,7 +1,7 @@
 use crate::definitions::trap_cause::TrapCause;
 use crate::definitions::cpu::cpu_definition::{CPUMode, CPUCycles};
 use crate::definitions::addresses::{
-    MSTATUS, MTVEC, MEPC, MCAUSE, MTVAL, MCYCLE, MINSTRET, CYCLE, TIME, INSTRET,
+    MSTATUS, MTVEC, MEPC, MCAUSE, MTVAL, MCYCLE, MINSTRET, CYCLE, TIME, INSTRET, MIP, MIE
 };
 use crate::utility::bit_operations::{mask_and_shift, set_bit_range};
 use crate::definitions::masks;
@@ -37,6 +37,13 @@ pub struct CSRState {
     minstret: u32,
     mie: u32,
     mip: u32
+}
+
+// Which interrupt-pending bit in mip is being updated. Only MTI exists for
+// now since it's the only interrupt source currently implemented
+#[derive(Debug, Copy, Clone, PartialEq)]
+pub enum MIPBits {
+    MTI,
 }
 
 impl CSRState {
@@ -108,8 +115,13 @@ impl CSRState {
         }
     }
 
-    pub fn update_mip(&mut self) {
-        self.mip = set_bit_range(self.mip, (mtime >= mtimecmp) as u32, 1, masks::MTI.trailing_zeros() as usize);
+    pub fn update_mip_pending_bit(&mut self, location_id: MIPBits, location_value: u32) {
+        match location_id {
+            MIPBits::MTI => {
+                // (mtime >= mtimecmp) as u32
+                self.mip = set_bit_range(self.mip, location_value, 1, masks::MTI.trailing_zeros() as usize);
+            }
+        }
     }
 }
 

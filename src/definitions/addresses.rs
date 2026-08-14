@@ -1,4 +1,13 @@
-// Machine-level CSR addresses. 
+use crate::utility::types::ByteType;
+
+// Machine-level addresses. 
+// Remember: addresses are just a number
+// 0x1234 tells you where to start, it does not hold the value itself
+// you need a predefined entity,E, (array) to define a range of bits to hold the value
+// E[0x1234] is getting the value at that address
+
+
+// CSR addresses
 // Each is 12 bits, 3 hex digits, 4 bits apiece 
 // Bits [11:10] (R/W vs. read-only) and bits [9:8] (required privilege level) 
 // sit right next to each other, together spanning bits [11:8] 
@@ -29,6 +38,7 @@ pub const INSTRET: usize = 0xC02; // shadows MINSTRET
 pub const MCYCLE: usize = 0xB00;
 pub const MINSTRET: usize = 0xB02; 
 pub const WFI_FUNCT_TWELVE:usize = 0x105;
+
 // An interrupt is a signal that something happend that is unrelated to
 // the cpu's current instruction.
 // These contrast traps, which happen because of an instruction.
@@ -46,3 +56,9 @@ pub const WFI_FUNCT_TWELVE:usize = 0x105;
 pub const MIE: usize = 0x304;
 // mip is about what's currently interrupting/what's pending
 pub const MIP: usize = 0x344;
+
+// Memory addresses
+pub const MTIME: usize = 0x0200BFF8;
+pub const MTIMECMP: usize = 0x02004000;
+pub const MTIME_END: usize = MTIME + ByteType::DoubleWord.as_num() - 1;
+pub const MTIMECMP_END: usize = MTIMECMP + ByteType::DoubleWord.as_num() - 1;

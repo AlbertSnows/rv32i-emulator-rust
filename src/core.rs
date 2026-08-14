@@ -7,6 +7,7 @@ use crate::instructions::pc::advance_pc;
 use crate::definitions::trap_cause::TrapCause;
 use crate::utility::bit_operations::set_bit_range;
 use crate::definitions::cpu::cpu_definition::CPUCycles;
+use crate::definitions::cpu::csr::MIPBits;
 
 fn perform_step(cpu: &mut CPUState) -> Result<ExecutionSignal, TrapCause> {
     // mut allows cpu to change in the local scope
@@ -123,7 +124,7 @@ pub fn handle_trap(cpu: &mut CPUState, trap_cause: TrapCause) -> ExecutionSignal
 
 pub fn step(cpu: &mut CPUState) -> Result<ExecutionSignal, TrapCause> {
     cpu.csr.update_cycle(CPUCycles::Cycle);
-    cpu.csr.update_mip();
+    cpu.csr.update_mip_pending_bit(MIPBits::MTI, (cpu.mem.mtime >= cpu.mem.mtimecmp) as u32);
     match perform_step(cpu) {
         Ok(signal) => {
             cpu.csr.update_cycle(CPUCycles::Instret); 
