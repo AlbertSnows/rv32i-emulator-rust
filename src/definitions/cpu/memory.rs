@@ -21,6 +21,10 @@ pub fn build_memory_state() -> MemoryState {
 }
 
 impl MemoryState {
+
+    pub fn update_time(&mut self) {
+        self.mtime += 1;
+    }
     
     // Writes the low `num_bytes` bytes of `value` to memory starting at
     // `address`, little-endian (least-significant byte at the lowest address)

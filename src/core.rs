@@ -5,9 +5,10 @@ use crate::fetcher::fetch_word_from_memory;
 use crate::decoder::decode_word_to_instruction;
 use crate::instructions::pc::advance_pc;
 use crate::definitions::trap_cause::TrapCause;
-use crate::utility::bit_operations::set_bit_range;
+use crate::utility::bit_operations::{set_bit_range, mask_and_shift};
 use crate::definitions::cpu::cpu_definition::CPUCycles;
 use crate::definitions::cpu::csr::MIPBits;
+use crate::definitions::masks::{MIE, MPIE};
 
 fn perform_step(cpu: &mut CPUState) -> Result<ExecutionSignal, TrapCause> {
     // mut allows cpu to change in the local scope
@@ -113,17 +114,24 @@ pub fn handle_trap(cpu: &mut CPUState, trap_cause: TrapCause) -> ExecutionSignal
     set_mpp(cpu); // save the mode to mstatus
     cpu.mode = CPUMode::M;
     set_mcause(cpu, trap_cause.mcause_code()); // store why the trap happened for guest function
+
+    set_mtval(cpu, &trap_cause);
+    let mstatus = cpu.csr.read(MSTATUS).expect("MSTATUS is defined");
+    let mie = mask_and_shift(mstatus, MIE);
+    let mstatus_after_mie = set_bit_range(mstatus, 0, 1, MIE.trailing_zeros() as usize);
+    let mstatus_after_mpie = set_bit_range(mstatus_after_mie, mie, 1, MPIE.trailing_zeros() as usize);
+    cpu.csr.guest_write(MSTATUS, mstatus_after_mpie, CPUMode::M).expect("Writing to MSTATUS is safe.");
     // "If mtval is written with a nonzero value when 
     // a breakpoint, address-misaligned, access-fault, page-fault, or hardware-error exception occurs 
     // on an instruction fetch, load, or store, 
     // then mtval will contain the faulting virtual address.
-    set_mtval(cpu, &trap_cause);
     jump_to_trap_handler(cpu); // write the trap handler address to pc to go there
     ExecutionSignal::Continue
 }
 
 pub fn step(cpu: &mut CPUState) -> Result<ExecutionSignal, TrapCause> {
     cpu.csr.update_cycle(CPUCycles::Cycle);
+    cpu.mem.update_time();
     cpu.csr.update_mip_pending_bit(MIPBits::MTI, (cpu.mem.mtime >= cpu.mem.mtimecmp) as u32);
     match perform_step(cpu) {
         Ok(signal) => {
