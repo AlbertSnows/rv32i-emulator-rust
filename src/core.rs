@@ -1,6 +1,6 @@
 use crate::definitions::cpu::cpu_definition::{CPUState, CPUMode};
 use crate::definitions::codes::ExecutionSignal;
-use crate::definitions::addresses::{MTVEC, MEPC, MCAUSE, MTVAL, MSTATUS};
+use crate::definitions::addresses::{MTVEC, MEPC, MCAUSE, MTVAL, MSTATUS, MIE, MIP};
 use crate::fetcher::fetch_word_from_memory;
 use crate::decoder::decode_word_to_instruction;
 use crate::instructions::pc::advance_pc;
@@ -8,7 +8,7 @@ use crate::definitions::trap_cause::TrapCause;
 use crate::utility::bit_operations::{set_bit_range, mask_and_shift};
 use crate::definitions::cpu::cpu_definition::CPUCycles;
 use crate::definitions::cpu::csr::MIPBits;
-use crate::definitions::masks::{MIE, MPIE};
+use crate::definitions::masks::{GLOBAL_MIE, MPIE, MTIP, MTIE};
 
 fn perform_step(cpu: &mut CPUState) -> Result<ExecutionSignal, TrapCause> {
     // mut allows cpu to change in the local scope
@@ -57,7 +57,9 @@ fn set_mtval(cpu: &mut CPUState, trap_cause: &TrapCause) {
         TrapCause::StoreAddressMisaligned { address } |  
         TrapCause::StoreAccessFault { address } => *address as u32,
         TrapCause::IllegalInstruction { instruction } => instruction.unwrap_or(0), 
-        TrapCause::Breakpoint | TrapCause::EnvironmentCallFromMMode | TrapCause::EnvironmentCallFromSMode | TrapCause::EnvironmentCallFromUMode 
+        TrapCause::Breakpoint | TrapCause::EnvironmentCallFromMMode | 
+        TrapCause::EnvironmentCallFromSMode | TrapCause::EnvironmentCallFromUMode |
+        TrapCause::MachineTimerInterrupt
             => 0
     };
     cpu.csr.guest_write(MTVAL, trap_val, CPUMode::M)
@@ -117,8 +119,8 @@ pub fn handle_trap(cpu: &mut CPUState, trap_cause: TrapCause) -> ExecutionSignal
 
     set_mtval(cpu, &trap_cause);
     let mstatus = cpu.csr.read(MSTATUS).expect("MSTATUS is defined");
-    let mie = mask_and_shift(mstatus, MIE);
-    let mstatus_after_mie = set_bit_range(mstatus, 0, 1, MIE.trailing_zeros() as usize);
+    let mie = mask_and_shift(mstatus, GLOBAL_MIE);
+    let mstatus_after_mie = set_bit_range(mstatus, 0, 1, GLOBAL_MIE.trailing_zeros() as usize);
     let mstatus_after_mpie = set_bit_range(mstatus_after_mie, mie, 1, MPIE.trailing_zeros() as usize);
     cpu.csr.guest_write(MSTATUS, mstatus_after_mpie, CPUMode::M).expect("Writing to MSTATUS is safe.");
     // "If mtval is written with a nonzero value when 
@@ -133,12 +135,19 @@ pub fn step(cpu: &mut CPUState) -> Result<ExecutionSignal, TrapCause> {
     cpu.csr.update_cycle(CPUCycles::Cycle);
     cpu.mem.update_time();
     cpu.csr.update_mip_pending_bit(MIPBits::MTI, (cpu.mem.mtime >= cpu.mem.mtimecmp) as u32);
-    match perform_step(cpu) {
-        Ok(signal) => {
-            cpu.csr.update_cycle(CPUCycles::Instret); 
-            Ok(signal)
-        },
-        Err(trap_cause) => Ok(handle_trap(cpu, trap_cause))
+    let interrupt_detected = mask_and_shift(cpu.csr.read(MSTATUS).expect("MSTATUS defined"), GLOBAL_MIE) == 1 && 
+                             mask_and_shift(cpu.csr.read(MIP).expect("MIP defined"), MTIP) == 1 && 
+                             mask_and_shift(cpu.csr.read(MIE).expect("MIE defined"), MTIE) == 1;
+    if interrupt_detected {
+        Ok(handle_trap(cpu, TrapCause::MachineTimerInterrupt))
+    } else {
+        match perform_step(cpu) {
+            Ok(signal) => {
+                cpu.csr.update_cycle(CPUCycles::Instret); 
+                Ok(signal)
+            },
+            Err(trap_cause) => Ok(handle_trap(cpu, trap_cause))
+        }
     }
 }
 

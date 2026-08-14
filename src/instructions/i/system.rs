@@ -72,7 +72,7 @@ pub fn inst_i_mret(cpu: &mut CPUState) -> Result<ExecutionSignal, TrapCause> {
     let mstatus_after_resetting_mpp = set_bit_range(mstatus, 00, 2, 11);
     //  "MRET then in mstatus/mstatush sets... MIE=MPIE, and MPIE=1"
     let mpie = mask_and_shift(mstatus, masks::MPIE);
-    let mstatus_after_mie = set_bit_range(mstatus_after_resetting_mpp, mpie, 1, masks::MIE.trailing_zeros() as usize);
+    let mstatus_after_mie = set_bit_range(mstatus_after_resetting_mpp, mpie, 1, masks::GLOBAL_MIE.trailing_zeros() as usize);
     let mstatus_after_mpie = set_bit_range(mstatus_after_mie, 1, 1, masks::MPIE.trailing_zeros() as usize);
     csr.guest_write(MSTATUS, mstatus_after_mpie, CPUMode::M)?;
     // dereference assignment

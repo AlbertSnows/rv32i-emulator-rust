@@ -1,3 +1,5 @@
+use crate::definitions::masks::{MCAUSE_INTERRUPT};
+
 // Traps are about transferring control
 // To transfer control, you will want to overwirte the pc with an address (source?)
 
@@ -14,7 +16,7 @@ pub enum TrapCause {
     EnvironmentCallFromMMode,
     EnvironmentCallFromUMode,
     EnvironmentCallFromSMode,
-    
+    MachineTimerInterrupt
 }
 
 impl TrapCause {
@@ -31,6 +33,7 @@ impl TrapCause {
             TrapCause::EnvironmentCallFromMMode => 11,
             TrapCause::EnvironmentCallFromSMode => 9,
             TrapCause::EnvironmentCallFromUMode => 8,
+            TrapCause::MachineTimerInterrupt => MCAUSE_INTERRUPT | 7
         }
     }
 }

@@ -72,6 +72,7 @@ impl CSRState {
             MCYCLE | CYCLE | TIME => Ok(self.mcycle),
             MINSTRET | INSTRET => Ok(self.minstret),
             MIP => Ok(self.mip),
+            MIE => Ok(self.mie),
             _ => Err(TrapCause::IllegalInstruction { instruction: None }),
         }
     }
