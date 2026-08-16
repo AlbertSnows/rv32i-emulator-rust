@@ -1,5 +1,5 @@
 use crate::definitions::trap_cause::TrapCause;
-use crate::definitions::cpu::cpu_definition::{CPUMode, CPUCycles};
+use crate::definitions::cpu::cpu_definition::CPUMode;
 use crate::definitions::addresses::{
     MSTATUS, MTVEC, MEPC, MCAUSE, MTVAL, MCYCLE, MINSTRET, CYCLE, TIME, INSTRET, MIP, MIE
 };
@@ -9,6 +9,13 @@ use crate::definitions::masks;
 const ACCESS_TYPE_LOCATION: u32 = 10;
 const MINIMUM_PRIVILEGE_LOCATION: u32 = 8;
 const READ_ONLY: u32 = 0b11;
+
+#[derive(Debug, Copy, Clone, PartialEq)]
+pub enum CPUCycles {
+    Cycle,
+    Instret,
+    Time
+}
 
 pub fn build_csr_state() -> CSRState {
     CSRState { 
@@ -25,9 +32,10 @@ pub fn build_csr_state() -> CSRState {
 }
 
 // CSR (Control and Status Register) address space is 12 bits wide (0..4096), per the Zicsr extension 
-// separate storage from the general-purpose, not reg  file
+// separate storage from the general-purpose, not reg file
 #[derive(Debug, Copy, PartialEq, Clone)]
 pub struct CSRState {
+    // todo: look into bit flags, bit field, crate
     mstatus: u32,
     mtvec: u32,
     mepc: u32, 

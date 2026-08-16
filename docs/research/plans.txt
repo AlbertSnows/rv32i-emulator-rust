@@ -107,5 +107,5 @@ components:
     OS (Linux):
     - Sv32 virtual memory (satp, page-table walker/translation)
     - full U/S/M three-mode operation
-    - timer-driven preemption (mtime/mtimecmp, already covered under item #8)
+    - timer-driven preemption (mtime/mtimecmp)
     - console + disk drivers matching whatever device model above

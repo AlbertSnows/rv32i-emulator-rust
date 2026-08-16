@@ -6,8 +6,7 @@ use crate::decoder::decode_word_to_instruction;
 use crate::instructions::pc::advance_pc;
 use crate::definitions::trap_cause::TrapCause;
 use crate::utility::bit_operations::{set_bit_range, mask_and_shift};
-use crate::definitions::cpu::cpu_definition::CPUCycles;
-use crate::definitions::cpu::csr::MIPBits;
+use crate::definitions::cpu::csr::{CPUCycles, MIPBits};
 use crate::definitions::masks::{GLOBAL_MIE, MPIE, MTIP, MTIE};
 
 fn perform_step(cpu: &mut CPUState) -> Result<ExecutionSignal, TrapCause> {
@@ -88,6 +87,19 @@ fn set_mpp(cpu: &mut CPUState) {
 
 }
 
+// "When a trap is taken from privilege mode y into privilege mode x,
+// xPIE is set to the value of xIE; xIE is set to 0." -- captures the
+// current global interrupt-enable (MIE) into MPIE, then clears MIE, so
+// no further interrupts fire while this trap handler is running. MRET's
+// existing restore step (MIE=MPIE, MPIE=1) is the mirror image of this.
+fn set_mpie(cpu: &mut CPUState) {
+    let mstatus = cpu.csr.read(MSTATUS).expect("MSTATUS is defined");
+    let mie = mask_and_shift(mstatus, GLOBAL_MIE);
+    let mstatus_after_mie = set_bit_range(mstatus, 0, 1, GLOBAL_MIE.trailing_zeros() as usize);
+    let mstatus_after_mpie = set_bit_range(mstatus_after_mie, mie, 1, MPIE.trailing_zeros() as usize);
+    cpu.csr.guest_write(MSTATUS, mstatus_after_mpie, CPUMode::M).expect("Writing to MSTATUS is safe.");
+}
+
 // Here we want to transfer control.
 // Where do we store our address
 // exceprt:
@@ -116,14 +128,9 @@ pub fn handle_trap(cpu: &mut CPUState, trap_cause: TrapCause) -> ExecutionSignal
     set_mpp(cpu); // save the mode to mstatus
     cpu.mode = CPUMode::M;
     set_mcause(cpu, trap_cause.mcause_code()); // store why the trap happened for guest function
-
-    set_mtval(cpu, &trap_cause);
-    let mstatus = cpu.csr.read(MSTATUS).expect("MSTATUS is defined");
-    let mie = mask_and_shift(mstatus, GLOBAL_MIE);
-    let mstatus_after_mie = set_bit_range(mstatus, 0, 1, GLOBAL_MIE.trailing_zeros() as usize);
-    let mstatus_after_mpie = set_bit_range(mstatus_after_mie, mie, 1, MPIE.trailing_zeros() as usize);
-    cpu.csr.guest_write(MSTATUS, mstatus_after_mpie, CPUMode::M).expect("Writing to MSTATUS is safe.");
-    // "If mtval is written with a nonzero value when 
+    set_mtval(cpu, &trap_cause); // set info about where it failed/which address
+    set_mpie(cpu); // capture MIE into MPIE, then clear MIE
+    // "If mtval is written with a nonzero value when
     // a breakpoint, address-misaligned, access-fault, page-fault, or hardware-error exception occurs 
     // on an instruction fetch, load, or store, 
     // then mtval will contain the faulting virtual address.

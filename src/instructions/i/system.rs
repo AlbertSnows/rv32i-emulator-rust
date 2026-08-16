@@ -53,6 +53,8 @@ pub fn execute_i_system_type(op: &SystemOp, cpu: &mut CPUState) -> Result<Execut
     }
 }
 
+// essentially the inverse of handle_trap
+// trap function needs to run inst_i_mret to return cpu to normal state
 pub fn inst_i_mret(cpu: &mut CPUState) -> Result<ExecutionSignal, TrapCause> {
     let mode = &mut cpu.mode;
     let pc = &mut cpu.pc;

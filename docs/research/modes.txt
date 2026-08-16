@@ -5,7 +5,6 @@ what are the modes?
 - S
 - M
 - U
-- what else?
 
 implementation steps
 - add mode to cpu state

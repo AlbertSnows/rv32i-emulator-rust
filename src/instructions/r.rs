@@ -74,6 +74,7 @@ pub fn execute_r_type(op: &AluOp, rd: usize, rs1: usize, rs2: usize, reg_file: &
         AluOp::Or => inst_r_or(rd, rs1, rs2, reg_file),
         AluOp::And => inst_r_and(rd, rs1, rs2, reg_file),
     }
+    // todo: inst_fn(rd, rs1, rs2, reg_file);
     Ok(ExecutionSignal::Continue)
 }
 

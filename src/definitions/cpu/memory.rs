@@ -3,6 +3,8 @@ use crate::definitions::addresses::{MTIME, MTIMECMP, MTIME_END, MTIMECMP_END};
 use crate::utility::bit_operations::{ as_window, extract_sub_bytes };
 use crate::utility::types::{ ByteType, as_byte_type };
 
+const TEST_MEM_SIZE: usize = 4096;
+const FULL_MEM_SIZE: usize = 65536;
 #[derive(Debug, Copy, PartialEq, Clone)]
 pub struct MemoryState {
     pub storage: [u8; TEST_MEM_SIZE],
@@ -10,8 +12,6 @@ pub struct MemoryState {
     pub mtimecmp: u64,
 }
 
-const TEST_MEM_SIZE: usize = 4096;
-const FULL_MEM_SIZE: usize = 65536;
 pub fn build_memory_state() -> MemoryState {
     MemoryState { 
         storage: [0; TEST_MEM_SIZE],

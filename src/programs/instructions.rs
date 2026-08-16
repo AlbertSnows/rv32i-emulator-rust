@@ -8,5 +8,12 @@
 // - rs1 (bits 19-15) = 00001 = 1 → x1
 // - rs2 (bits 24-20) = 00010 = 2 → x2
 // - funct7 (bits 31-25) = 0000000
+//
+// full 32 bits, grouped by field (funct7|rs2|rs1|funct3|rd|opcode):
+// 0000000 00010 00001 000 00011 0110011
+// same 32 bits, grouped by hex nibble instead (= 0x002081B3):
+// 0000 0000 0010 0000 1000 0001 1011 0011
 pub const ADD_X3_X1_X2: u32 = 0x002081B3;
 pub const NO_OP: u32 = 0x00000000;
+// todo: get fuzz tests
+// aka, get a huge test suite to test my cpu emulator

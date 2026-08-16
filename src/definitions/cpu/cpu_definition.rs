@@ -16,14 +16,6 @@ pub struct CPUState {
 }
 
 #[derive(Debug, Copy, Clone, PartialEq)]
-pub enum CPUCycles {
-    Cycle,
-    Instret,
-    Time
-}
-
-
-#[derive(Debug, Copy, Clone, PartialEq)]
 pub enum CPUMode {
     S,
     M,
@@ -61,6 +53,7 @@ pub fn build_cpu_state() -> CPUState {
     }
 }
 
+// Program Counter
 #[derive(Debug, Copy, PartialEq, Clone)]
 pub struct PCState {
     value: usize
