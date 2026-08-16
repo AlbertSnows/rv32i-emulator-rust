@@ -11,74 +11,6 @@ components:
 - decode
 - execute
 
---- remaining work ---
-
-      8   Environment call from U-mode  \  needs privilege levels (item #4).
-      9   Environment call from S-mode  /  Confirmed needed: Section 1.2,
-          p.11 -- "User-mode (U-mode) and supervisor-mode (S-mode) are
-          intended for conventional application and operating system usage
-          respectively." Linux kernel runs in S-mode (code 9 territory when
-          it calls into M-mode SBI firmware), Linux processes run in U-mode
-          (code 8 territory for syscalls).
-
-      12  Instruction page fault  \  needs virtual memory (Sv32 paging,
-      13  Load page fault         |  Chapter 12.3, p.129). Linux relies on
-      15  Store/AMO page fault    /  virtual memory pervasively (per-process
-          address spaces, demand paging, copy-on-write) -- essentially
-          required for real OS memory management, not optional.
-
-      16  Double trap -- confirmed wanted. Mechanism per Section 3.1.6.2
-          "Double Trap Control in mstatus Register" (p.33) and Chapter 10
-          "Smdbltrp" Double Trap Extension (p.96): occurs when a new trap
-          arrives while the trap handler is still in a non-reentrant state
-          (hasn't yet saved recovery state) -- called an "unexpected trap."
-          Without the Smrnmi extension (not needed here), the spec's defined
-          response is exact: "the hart enters a critical-error state...
-          ceasing execution, disabling all interrupts... and asserting a
-          critical-error signal to the platform." A minimal version: track
-          whether we're already inside trap handling; if a second trap
-          arrives before that's cleared, treat it as unrecoverable (halt) --
-          close to what this emulator already does by default for
-          everything else, so this is a small addition once the base
-          mechanism (item #3) exists, not a big new piece.
-
-
-    Interrupts (the ENTIRE separate Interrupt=1 half of Table 16, not just
-    individual missing codes) -- will eventually be needed, for a
-    fundamental reason: Linux's scheduler relies on preemptive multitasking
-    driven by periodic timer interrupts (codes 5 Supervisor timer / 7
-    Machine timer -- mechanism is mtime/mtimecmp, Section 3.2.1, p.59).
-    External interrupts (Supervisor/Machine external) will matter once real
-    device I/O (console, disk) exists. Software interrupts (inter-hart
-    signaling) can stay deferred indefinitely -- this project is single-hart
-    and multi-hart seems out of scope even for "rudimentary."
-
-    xIE (global interrupt-enable bit, e.g. MIE for M-mode) -- lives in
-    mstatus alongside MPP, right next to it (Section 3.1.6.1, p.31-32).
-    Same trap-entry moment that sets MPP also clears xIE ("xIE is set to
-    0"); MRET/SRET restore it from xPIE the same way they restore mode from
-    xPP. Noted here because it surfaced while designing item #4's MPP/MRET
-    work, but it has zero functional effect until interrupts (above) exist
-    -- nothing in this emulator checks it yet. Don't implement the check
-    now; just don't forget it's part of the same mstatus register once
-    interrupts land.
-
-
-[ ] 8. Interrupts -- the entire separate Interrupt=1 half of Table 16 (not
-    implemented at all: no mip/mie, no pending-interrupt check anywhere
-    in the step loop, no timer). This is the one remaining piece that's
-    actually about CPU correctness, not about hosting a particular OS --
-    any preemptive multitasking OS needs some interrupt source, not just
-    Linux. Needs: mip/mie CSRs (Section 3.1.9, p.43) -- interrupt cause
-    number i corresponds to bit i in both; mtime/mtimecmp (Section 3.2.1,
-    p.59) as the timer mechanism (codes 5 Supervisor timer / 7 Machine
-    timer); and a proactive check each step (not just reactive trap
-    catching like exceptions -- interrupts can fire between instructions
-    regardless of what's executing). External interrupts matter once real
-    device I/O exists; software interrupts (inter-hart) can stay deferred
-    indefinitely (single-hart project). Biggest remaining item by far --
-    everything else left is small by comparison.
-
 [ ] 9. Refactor CSRState -- attempt after item #8 is done. Motivation:
     building mip surfaced how much side-effect/special-case behavior
     CSRState::write has accumulated (address-level read-only vs.
@@ -105,7 +37,10 @@ components:
     - SBI call surface
 
     OS (Linux):
-    - Sv32 virtual memory (satp, page-table walker/translation)
+    - Sv32 virtual memory (satp, page-table walker/translation) -- needed
+      for instruction/load/store page faults (Table 16 codes 12/13/15,
+      Chapter 12.3, p.129); Linux relies on virtual memory pervasively
+      (per-process address spaces, demand paging, copy-on-write)
     - full U/S/M three-mode operation
     - timer-driven preemption (mtime/mtimecmp)
     - console + disk drivers matching whatever device model above

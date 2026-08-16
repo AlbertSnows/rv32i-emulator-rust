@@ -8,6 +8,7 @@ use crate::definitions::trap_cause::TrapCause;
 use crate::utility::bit_operations::{set_bit_range, mask_and_shift};
 use crate::definitions::cpu::csr::{CPUCycles, MIPBits};
 use crate::definitions::masks::{GLOBAL_MIE, MPIE, MTIP, MTIE};
+use crate::instructions::i::system::{inst_i_mret};
 
 fn perform_step(cpu: &mut CPUState) -> Result<ExecutionSignal, TrapCause> {
     // mut allows cpu to change in the local scope
@@ -287,9 +288,6 @@ mod tests {
         assert_eq!(cpu.csr.read(MEPC).unwrap(), 1);
         assert_eq!(cpu.csr.read(MCAUSE).unwrap(), 0x8000_0007);
         assert_eq!(cpu.register.read(3), 0);
-        
-
-
     }
 
     #[test]
@@ -301,8 +299,8 @@ mod tests {
         cpu.register.write(1, 4);
         // mie = per-bit interrupt
         // mtie = bit 7 of mie, allows machine timer interrupt if set
-        cpu.csr.guest_write(MIE, 0, CPUMode::M);
-        cpu.csr.guest_write(MSTATUS, GLOBAL_MIE, CPUMode::M);
+        cpu.csr.guest_write(MIE, MTIE, CPUMode::M);
+        cpu.csr.guest_write(MSTATUS, 0, CPUMode::M);
         cpu.csr.guest_write(MTVEC, 3, CPUMode::M);
         store_in_mem(&ADD_X3_X1_X2.to_le_bytes(), &mut cpu.mem, 4);
         cpu.pc.write(4);
@@ -316,6 +314,19 @@ mod tests {
     #[test]
     fn test_step_does_not_interrupt_when_mtie_clear() {
         // pending + mstatus.MIE=1, but MTIE=0 -- should run normally.
+        let mut cpu = build_cpu_state();
+        cpu.register.write(2, 4);
+        cpu.register.write(1, 3);
+        cpu.csr.guest_write(MIE, 0, CPUMode::M);
+        cpu.csr.guest_write(MSTATUS, GLOBAL_MIE, CPUMode::M);
+        cpu.csr.guest_write(MTVEC, 3, CPUMode::M);
+        store_in_mem(&ADD_X3_X1_X2.to_le_bytes(), &mut cpu.mem, 4);
+        cpu.pc.write(4);
+        step(&mut cpu);
+        assert_eq!(cpu.pc.read(), 8);
+        assert_eq!(cpu.csr.read(MEPC).unwrap(), 0);
+        assert_eq!(cpu.csr.read(MCAUSE).unwrap(), 0);
+        assert_eq!(cpu.register.read(3), 7);
     }
 
     #[test]
@@ -324,12 +335,42 @@ mod tests {
         // never goes pending, should run normally. Careful: mtime and
         // mtimecmp both default to 0, and 0 >= 0 is true, so mtimecmp
         // needs to be deliberately set above mtime for this one.
+        let mut cpu = build_cpu_state();
+        cpu.register.write(2, 4);
+        cpu.register.write(1, 3);
+        cpu.csr.guest_write(MIE, MTIE, CPUMode::M);
+        cpu.csr.guest_write(MSTATUS, GLOBAL_MIE, CPUMode::M);
+        cpu.csr.guest_write(MTVEC, 3, CPUMode::M);
+        store_in_mem(&ADD_X3_X1_X2.to_le_bytes(), &mut cpu.mem, 4);
+        cpu.pc.write(4);
+        cpu.mem.mtime = 1;
+        cpu.mem.mtimecmp = 4;
+        step(&mut cpu);
+        assert_eq!(cpu.pc.read(), 8);
+        assert_eq!(cpu.csr.read(MEPC).unwrap(), 0);
+        assert_eq!(cpu.csr.read(MCAUSE).unwrap(), 0);
+        assert_eq!(cpu.register.read(3), 7);
     }
 
     #[test]
     fn test_machine_timer_interrupt_sets_mtval_to_zero() {
         // after the interrupt fires, mtval should read 0 -- no faulting
         // address applies to an interrupt.
+        let mut cpu = build_cpu_state();
+        cpu.register.write(2, 4);
+        cpu.register.write(1, 3);
+        cpu.csr.guest_write(MIE, MTIE, CPUMode::M);
+        cpu.csr.guest_write(MSTATUS, GLOBAL_MIE, CPUMode::M);
+        cpu.csr.guest_write(MTVEC, 3, CPUMode::M);
+        store_in_mem(&ADD_X3_X1_X2.to_le_bytes(), &mut cpu.mem, 4);
+        cpu.pc.write(4);
+        cpu.csr.guest_write(MTVAL, 999, CPUMode::M);
+        step(&mut cpu);
+        assert_eq!(cpu.pc.read(), 3);
+        assert_eq!(cpu.csr.read(MEPC).unwrap(), 4);
+        assert_eq!(cpu.csr.read(MCAUSE).unwrap(), 0x8000_0007);
+        assert_eq!(cpu.csr.read(MTVAL).unwrap(), 0);
+        assert_eq!(cpu.register.read(3), 0);
     }
 
     #[test]
@@ -338,6 +379,15 @@ mod tests {
         // captured 1 and MIE should be 0; after MRET, MIE should read
         // back as 1 -- proves entry's MPIE=MIE capture and MRET's
         // MIE=MPIE restore round-trip a real value now, not stale data.
+        let mut cpu = build_cpu_state();
+        cpu.csr.guest_write(MSTATUS, GLOBAL_MIE, CPUMode::M);
+        assert_eq!(mask_and_shift(cpu.csr.read(MSTATUS).unwrap(), GLOBAL_MIE), 1);
+        handle_trap(&mut cpu, TrapCause::IllegalInstruction { instruction: Some(0x1234) });
+        let mstatus_after_trap = cpu.csr.read(MSTATUS).unwrap();
+        assert_eq!(mask_and_shift(mstatus_after_trap, MPIE), 1);
+        assert_eq!(mask_and_shift(mstatus_after_trap, GLOBAL_MIE), 0);
+        inst_i_mret(&mut cpu);
+        assert_eq!(mask_and_shift(cpu.csr.read(MSTATUS).unwrap(), GLOBAL_MIE), 1);
     }
 
     #[test]
@@ -345,5 +395,11 @@ mod tests {
         // cpu.flags.in_trap already true, then conditions for a timer
         // interrupt become true -- should hit the existing double-trap
         // path (Halt), not enter the handler again.
+        let mut cpu = build_cpu_state();
+        cpu.flags.in_trap = true;
+        cpu.csr.guest_write(MIE, MTIE, CPUMode::M);
+        cpu.csr.guest_write(MSTATUS, GLOBAL_MIE, CPUMode::M);
+        let outcome = step(&mut cpu);
+        assert_eq!(outcome, Ok(ExecutionSignal::Halt));
     }
 }
