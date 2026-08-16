@@ -60,21 +60,19 @@ pub fn parse_r_inst(raw_word: InstructionWord) -> Result<Format, TrapCause> {
 }
 
 pub fn execute_r_type(op: &AluOp, rd: usize, rs1: usize, rs2: usize, reg_file: &mut RegisterFile) -> Result<ExecutionSignal, TrapCause> {
-    match op {
-        AluOp::Add => {
-            inst_r_add(rd, rs1, rs2, reg_file);
-        },
-        AluOp::Sub => inst_r_sub(rd, rs1, rs2, reg_file),
-        AluOp::Sll => inst_r_sll(rd, rs1, rs2, reg_file),
-        AluOp::Slt => inst_r_slt(rd, rs1, rs2, reg_file),
-        AluOp::Sltu => inst_r_sltu(rd, rs1, rs2, reg_file),
-        AluOp::Xor => inst_r_xor(rd, rs1, rs2, reg_file),
-        AluOp::Srl => inst_r_srl(rd, rs1, rs2, reg_file),
-        AluOp::Sra => inst_r_sra(rd, rs1, rs2, reg_file),
-        AluOp::Or => inst_r_or(rd, rs1, rs2, reg_file),
-        AluOp::And => inst_r_and(rd, rs1, rs2, reg_file),
-    }
-    // todo: inst_fn(rd, rs1, rs2, reg_file);
+    let inst_fn = match op {
+        AluOp::Add => inst_r_add,
+        AluOp::Sub => inst_r_sub,
+        AluOp::Sll => inst_r_sll,
+        AluOp::Slt => inst_r_slt,
+        AluOp::Sltu => inst_r_sltu,
+        AluOp::Xor => inst_r_xor,
+        AluOp::Srl => inst_r_srl,
+        AluOp::Sra => inst_r_sra,
+        AluOp::Or => inst_r_or,
+        AluOp::And => inst_r_and,
+    };
+    inst_fn(rd, rs1, rs2, reg_file);
     Ok(ExecutionSignal::Continue)
 }
 
