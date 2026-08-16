@@ -2,6 +2,7 @@ use crate::definitions::cpu::cpu_definition::{PCState, RegisterFile};
 use crate::instructions::Format;
 use crate::instructions::b::BOp;
 use crate::definitions::trap_cause::TrapCause;
+use crate::instructions::r::AluOp;
 
 pub fn advance_pc(pc: &mut PCState, instruction: &Format, reg_file: &RegisterFile) -> Result<usize, TrapCause> {
     let pc_value = pc.read() as i32;
@@ -119,5 +120,23 @@ mod tests {
         let instruction = Format::UType { op: UOp::Lui, rd: 1, imm_upper: 0 };
         let result = advance_pc(&mut pc, &instruction, &reg_file);
         assert_eq!(result.unwrap() as i32, -2147483648);
+    }
+
+    #[test]
+    fn test_advance_pc_rejects_misaligned_starting_pc() {
+        // an ordinary, non-branching instruction (e.g. an R-type add),
+        // starting from a pc that isn't 4-byte aligned -- advance_pc
+        // should return Err(InstructionAddressMisaligned { address }),
+        // not silently succeed. This is the general case, distinct from
+        // the i32::MAX-wrapping tests above.
+        let mut pc = build_pc_state();
+        pc.write(1);
+        let mut reg_file = build_register_file();
+        let instruction = Format::RType { op: AluOp::Add, rs1: 2, rs2: 3, rd: 23};
+        reg_file.write(2, 1);
+        reg_file.write(3, 2);
+        let result = advance_pc(&mut pc, &instruction, &reg_file);
+        assert_eq!(pc.read(), 1);
+        assert_eq!(result, Err(TrapCause::InstructionAddressMisaligned { address: 5 }));
     }
 }

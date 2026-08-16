@@ -272,6 +272,8 @@ mod tests {
         // step() should trap
         // into the handler instead of running the next instruction: 
         // pc jumps to mtvec, mepc captures the pre-interrupt pc, 
+        // top bit = is interrupt
+        // bottob bit tranlates trap cause
         // mcause == 0x8000_0007. 
         // Confirm the instruction that would've run didn't.
         assert_eq!(cpu.pc.read(), 3);
@@ -287,6 +289,21 @@ mod tests {
     fn test_step_does_not_interrupt_when_mstatus_mie_clear() {
         // same setup as above but mstatus.MIE=0 -- should run the pending
         // instruction normally instead of trapping.
+        let mut cpu = build_cpu_state();
+        cpu.register.write(2, 3);
+        cpu.register.write(1, 4);
+        // mie = per-bit interrupt
+        // mtie = bit 7 of mie, allows machine timer interrupt if set
+        cpu.csr.guest_write(MIE, 0, CPUMode::M);
+        cpu.csr.guest_write(MSTATUS, GLOBAL_MIE, CPUMode::M);
+        cpu.csr.guest_write(MTVEC, 3, CPUMode::M);
+        store_in_mem(&ADD_X3_X1_X2.to_le_bytes(), &mut cpu.mem, 4);
+        cpu.pc.write(4);
+        step(&mut cpu);
+        assert_eq!(cpu.pc.read(), 8);
+        assert_eq!(cpu.csr.read(MEPC).unwrap(), 0);
+        assert_eq!(cpu.csr.read(MCAUSE).unwrap(), 0);
+        assert_eq!(cpu.register.read(3), 7);
     }
 
     #[test]
