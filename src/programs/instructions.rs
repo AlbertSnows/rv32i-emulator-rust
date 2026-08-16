@@ -1,7 +1,7 @@
 // Named instruction-word constants, reused across tests instead of
 // repeating the same raw hex/byte literals in every file.
 
-// add x3, x1, x2 -- opcode=R, funct7=0000000, funct3=000, rd=3, rs1=1, rs2=2
+// add x3, x1, x2 -- opcode format=R, funct7=0000000, funct3=000, rd=3, rs1=1, rs2=2
 // - opcode (bits 6-0) = 0110011 = R-type opcode ✓
 // - rd (bits 11-7) = 00011 = 3 → x3
 // - funct3 (bits 14-12) = 000

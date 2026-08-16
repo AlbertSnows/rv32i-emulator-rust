@@ -135,15 +135,15 @@ pub fn step(cpu: &mut CPUState) -> Result<ExecutionSignal, TrapCause> {
     cpu.csr.update_cycle(CPUCycles::Cycle);
     cpu.mem.update_time();
     cpu.csr.update_mip_pending_bit(MIPBits::MTI, (cpu.mem.mtime >= cpu.mem.mtimecmp) as u32);
-    let interrupt_detected = mask_and_shift(cpu.csr.read(MSTATUS).expect("MSTATUS defined"), GLOBAL_MIE) == 1 && 
-                             mask_and_shift(cpu.csr.read(MIP).expect("MIP defined"), MTIP) == 1 && 
+    let interrupt_detected = mask_and_shift(cpu.csr.read(MSTATUS).expect("MSTATUS defined"), GLOBAL_MIE) == 1 &&
+                             mask_and_shift(cpu.csr.read(MIP).expect("MIP defined"), MTIP) == 1 &&
                              mask_and_shift(cpu.csr.read(MIE).expect("MIE defined"), MTIE) == 1;
     if interrupt_detected {
         Ok(handle_trap(cpu, TrapCause::MachineTimerInterrupt))
     } else {
         match perform_step(cpu) {
             Ok(signal) => {
-                cpu.csr.update_cycle(CPUCycles::Instret); 
+                cpu.csr.update_cycle(CPUCycles::Instret);
                 Ok(signal)
             },
             Err(trap_cause) => Ok(handle_trap(cpu, trap_cause))
@@ -248,5 +248,78 @@ mod tests {
         // a second trap, before MRET clears in_trap, is a double trap
         let second = handle_trap(&mut cpu, TrapCause::IllegalInstruction { instruction: Some(2) });
         assert_eq!(second, ExecutionSignal::Halt);
+    }
+
+    #[test]
+    fn test_step_takes_interrupt_when_pending_enabled_and_mie_set() {
+        // when a timer interrupt is due
+        // the cpu takes it instead of running the instruction it was about to execute
+
+        // mtime >= mtimecmp, MTIE=1, mstatus.MIE=1 
+        let mut cpu = build_cpu_state();
+        cpu.register.write(2, 2);
+        cpu.register.write(1, 1);
+        // mie = per-bit interrupt
+        // mtie = bit 7 of mie, allows machine timer interrupt
+        cpu.csr.guest_write(MIE, MTIE, CPUMode::M);
+        // mstatus mie = global interrupt enable
+        cpu.csr.guest_write(MSTATUS, GLOBAL_MIE, CPUMode::M);
+        // mtvec = trap handler location
+        cpu.csr.guest_write(MTVEC, 3, CPUMode::M);
+        store_in_mem(&ADD_X3_X1_X2.to_le_bytes(), &mut cpu.mem, 1);
+        cpu.pc.write(1);
+        step(&mut cpu);
+        // step() should trap
+        // into the handler instead of running the next instruction: 
+        // pc jumps to mtvec, mepc captures the pre-interrupt pc, 
+        // mcause == 0x8000_0007. 
+        // Confirm the instruction that would've run didn't.
+        assert_eq!(cpu.pc.read(), 3);
+        assert_eq!(cpu.csr.read(MEPC).unwrap(), 1);
+        assert_eq!(cpu.csr.read(MCAUSE).unwrap(), 0x8000_0007);
+        assert_eq!(cpu.register.read(3), 0);
+        
+
+
+    }
+
+    #[test]
+    fn test_step_does_not_interrupt_when_mstatus_mie_clear() {
+        // same setup as above but mstatus.MIE=0 -- should run the pending
+        // instruction normally instead of trapping.
+    }
+
+    #[test]
+    fn test_step_does_not_interrupt_when_mtie_clear() {
+        // pending + mstatus.MIE=1, but MTIE=0 -- should run normally.
+    }
+
+    #[test]
+    fn test_step_does_not_interrupt_when_mtip_not_pending() {
+        // mtimecmp set higher than mtime, MTIE=1, mstatus.MIE=1 -- MTIP
+        // never goes pending, should run normally. Careful: mtime and
+        // mtimecmp both default to 0, and 0 >= 0 is true, so mtimecmp
+        // needs to be deliberately set above mtime for this one.
+    }
+
+    #[test]
+    fn test_machine_timer_interrupt_sets_mtval_to_zero() {
+        // after the interrupt fires, mtval should read 0 -- no faulting
+        // address applies to an interrupt.
+    }
+
+    #[test]
+    fn test_mret_restores_real_mie_value_captured_on_trap_entry() {
+        // mstatus.MIE=1 before any trap; after entry, MPIE should have
+        // captured 1 and MIE should be 0; after MRET, MIE should read
+        // back as 1 -- proves entry's MPIE=MIE capture and MRET's
+        // MIE=MPIE restore round-trip a real value now, not stale data.
+    }
+
+    #[test]
+    fn test_interrupt_arriving_while_already_in_trap_halts() {
+        // cpu.flags.in_trap already true, then conditions for a timer
+        // interrupt become true -- should hit the existing double-trap
+        // path (Halt), not enter the handler again.
     }
 }

@@ -142,21 +142,6 @@ allows for `time`/`cycle`). Real wall-clock time doesn't matter for
 correctness here, only that mtime advances monotonically and mtimecmp
 comparisons work.
 
---- outline of steps, in dependency order ---
-
-1. Add mie (0x304) and mip (0x344) to CSRState as real fields, same
-   pattern as mstatus/mepc/etc. Decide mip's write-masking (wrinkle #1).
-2. Decide where mtime/mtimecmp live and how they're read/written (wrinkle
-   #2), and how mtime advances (wrinkle #3's simplification is one option).
-3. Wire mtime >= mtimecmp into mip.MTIP becoming pending.
-4. Fix trap entry (core.rs, alongside set_mpp) to also do MPIE=MIE, MIE=0,
-   completing the currently-half-implemented mstatus dance.
-5. Add the interrupt bit to mcause encoding (TrapCause::mcause_code() or
-   wherever interrupts get raised), plus new TrapCause variant(s) for at
-   least MachineTimerInterrupt.
-6. Add the proactive interrupt check itself: evaluate conditions (a)(b)(c)
-   from section 3.1.9, most naturally each pass through step(), not just
-   reactively through perform_step()'s existing Err path.
 7. Tests: MTI fires when pending+enabled+MIE=1; doesn't fire when MIE=0 or
    MTIE=0; mcause has the interrupt bit set and the right code (7); MRET's
    existing MIE=MPIE restore now round-trips a real captured value instead
