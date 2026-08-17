@@ -12,7 +12,7 @@ use crate::instructions::i::system::{inst_i_mret};
 
 fn perform_step(cpu: &mut CPUState) -> Result<ExecutionSignal, TrapCause> {
     // mut allows cpu to change in the local scope
-    let raw_word = fetch_word_from_memory(&cpu.pc, &cpu.mem)?; // 51 = 0x33 = 0011 0011
+    let raw_word = fetch_word_from_memory(&cpu.pc, &cpu.bus)?; // 51 = 0x33 = 0011 0011
     let instruction = decode_word_to_instruction(raw_word)?;
     // &mut cpu passes a mutable reference to cpu
     // &mut cpu = this reference has "mutable" permission to cpu
@@ -141,8 +141,8 @@ pub fn handle_trap(cpu: &mut CPUState, trap_cause: TrapCause) -> ExecutionSignal
 
 pub fn step(cpu: &mut CPUState) -> Result<ExecutionSignal, TrapCause> {
     cpu.csr.update_cycle(CPUCycles::Cycle);
-    cpu.mem.update_time();
-    cpu.csr.update_mip_pending_bit(MIPBits::MTI, (cpu.mem.mtime >= cpu.mem.mtimecmp) as u32);
+    cpu.bus.clint.update_time();
+    cpu.csr.update_mip_pending_bit(MIPBits::MTI, (cpu.bus.clint.mtime >= cpu.bus.clint.mtimecmp) as u32);
     let interrupt_detected = mask_and_shift(cpu.csr.read(MSTATUS).expect("MSTATUS defined"), GLOBAL_MIE) == 1 &&
                              mask_and_shift(cpu.csr.read(MIP).expect("MIP defined"), MTIP) == 1 &&
                              mask_and_shift(cpu.csr.read(MIE).expect("MIE defined"), MTIE) == 1;
@@ -175,7 +175,7 @@ mod tests {
         cpu.register.write(1, 10);
         cpu.register.write(2, 7);
         // to le bytes converts to [0x00, 0x20, 0x81, 0xB3]
-        store_in_mem(&ADD_X3_X1_X2.to_le_bytes(), &mut cpu.mem, 0);
+        store_in_mem(&ADD_X3_X1_X2.to_le_bytes(), &mut cpu.bus.ram, 0);
         let outcome = step(&mut cpu);
         assert_eq!(outcome, Ok(ExecutionSignal::Continue));
         assert_eq!(cpu.register.read(3), 17);
@@ -185,7 +185,7 @@ mod tests {
     #[test]
     fn test_step_increments_instret_on_successful_retire() {
         let mut cpu = build_cpu_state();
-        store_in_mem(&ADD_X3_X1_X2.to_le_bytes(), &mut cpu.mem, 0);
+        store_in_mem(&ADD_X3_X1_X2.to_le_bytes(), &mut cpu.bus.ram, 0);
         step(&mut cpu);
         assert_eq!(cpu.csr.read(CYCLE).unwrap(), 1);
         assert_eq!(cpu.csr.read(INSTRET).unwrap(), 1);
@@ -197,7 +197,7 @@ mod tests {
         // instruction never retires, so instret must not increment.
         // in other words, instret counts successful steps, and thus should be 0 here
         let mut cpu = build_cpu_state();
-        store_in_mem(&NO_OP.to_le_bytes(), &mut cpu.mem, 0);
+        store_in_mem(&NO_OP.to_le_bytes(), &mut cpu.bus.ram, 0);
         step(&mut cpu);
         assert_eq!(cpu.csr.read(CYCLE).unwrap(), 1);
         assert_eq!(cpu.csr.read(INSTRET).unwrap(), 0);
@@ -207,7 +207,7 @@ mod tests {
     fn test_step_returns_ok_on_undefined_opcode() {
         let mut cpu = build_cpu_state();
         // 0b0000000 isn't a real opcode -- decode should fail
-        store_in_mem(&NO_OP.to_le_bytes(), &mut cpu.mem, 0);
+        store_in_mem(&NO_OP.to_le_bytes(), &mut cpu.bus.ram, 0);
         let outcome = step(&mut cpu);
         assert_eq!(outcome, Ok(ExecutionSignal::Continue));
     }
@@ -274,7 +274,7 @@ mod tests {
         cpu.csr.guest_write(MSTATUS, GLOBAL_MIE, CPUMode::M);
         // mtvec = trap handler location
         cpu.csr.guest_write(MTVEC, 3, CPUMode::M);
-        store_in_mem(&ADD_X3_X1_X2.to_le_bytes(), &mut cpu.mem, 1);
+        store_in_mem(&ADD_X3_X1_X2.to_le_bytes(), &mut cpu.bus.ram, 1);
         cpu.pc.write(1);
         step(&mut cpu);
         // step() should trap
@@ -302,7 +302,7 @@ mod tests {
         cpu.csr.guest_write(MIE, MTIE, CPUMode::M);
         cpu.csr.guest_write(MSTATUS, 0, CPUMode::M);
         cpu.csr.guest_write(MTVEC, 3, CPUMode::M);
-        store_in_mem(&ADD_X3_X1_X2.to_le_bytes(), &mut cpu.mem, 4);
+        store_in_mem(&ADD_X3_X1_X2.to_le_bytes(), &mut cpu.bus.ram, 4);
         cpu.pc.write(4);
         step(&mut cpu);
         assert_eq!(cpu.pc.read(), 8);
@@ -320,7 +320,7 @@ mod tests {
         cpu.csr.guest_write(MIE, 0, CPUMode::M);
         cpu.csr.guest_write(MSTATUS, GLOBAL_MIE, CPUMode::M);
         cpu.csr.guest_write(MTVEC, 3, CPUMode::M);
-        store_in_mem(&ADD_X3_X1_X2.to_le_bytes(), &mut cpu.mem, 4);
+        store_in_mem(&ADD_X3_X1_X2.to_le_bytes(), &mut cpu.bus.ram, 4);
         cpu.pc.write(4);
         step(&mut cpu);
         assert_eq!(cpu.pc.read(), 8);
@@ -341,10 +341,10 @@ mod tests {
         cpu.csr.guest_write(MIE, MTIE, CPUMode::M);
         cpu.csr.guest_write(MSTATUS, GLOBAL_MIE, CPUMode::M);
         cpu.csr.guest_write(MTVEC, 3, CPUMode::M);
-        store_in_mem(&ADD_X3_X1_X2.to_le_bytes(), &mut cpu.mem, 4);
+        store_in_mem(&ADD_X3_X1_X2.to_le_bytes(), &mut cpu.bus.ram, 4);
         cpu.pc.write(4);
-        cpu.mem.mtime = 1;
-        cpu.mem.mtimecmp = 4;
+        cpu.bus.clint.mtime = 1;
+        cpu.bus.clint.mtimecmp = 4;
         step(&mut cpu);
         assert_eq!(cpu.pc.read(), 8);
         assert_eq!(cpu.csr.read(MEPC).unwrap(), 0);
@@ -362,7 +362,7 @@ mod tests {
         cpu.csr.guest_write(MIE, MTIE, CPUMode::M);
         cpu.csr.guest_write(MSTATUS, GLOBAL_MIE, CPUMode::M);
         cpu.csr.guest_write(MTVEC, 3, CPUMode::M);
-        store_in_mem(&ADD_X3_X1_X2.to_le_bytes(), &mut cpu.mem, 4);
+        store_in_mem(&ADD_X3_X1_X2.to_le_bytes(), &mut cpu.bus.ram, 4);
         cpu.pc.write(4);
         cpu.csr.guest_write(MTVAL, 999, CPUMode::M);
         step(&mut cpu);

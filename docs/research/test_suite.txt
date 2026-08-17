@@ -112,15 +112,71 @@ Only four of these matter for find_symbol:
   data, NUL-terminated -- not a name itself, has to be resolved by
   reading forward from strtab_offset + st_name until a \0 byte.
 
+--- backlog: base address remapping (blocks steps 5-6) ---
+
+Discovered while writing tests for load_elf/find_symbol: every real
+riscv-tests binary links at 0x80000000 (env/p/link.ld's doing, confirmed
+across add/ma_data/lui/auipc/simple), but mem.storage is only
+FULL_MEM_SIZE (65536) bytes -- load_elf against a real binary faults
+immediately, address way past the end of storage. Growing storage to
+actually cover 0x80000000 (~2-4 GiB) isn't realistic -- see below.
+
+The fix: treat 0x80000000 as a base offset (BASE_ADDRESS, already added
+as a const in memory.rs) and translate real addresses down to small
+array indices (real_index = address - BASE_ADDRESS) at the exact point
+something touches storage, mirroring how a real memory bus/interconnect
+routes a CPU-visible address to a small physical RAM chip mapped
+starting at that address -- not a workaround, a software model of how
+real hardware already does this.
+
+Where the translation needs to happen (checked directly, not assumed):
+- MemoryState::write_bytes / read_bytes (memory.rs), in the `_` fallthrough
+  branch only -- NOT the MTIME/MTIMECMP arms, which use their own fixed,
+  much smaller addresses and must keep checking the untranslated address.
+  The bounds check needs to move into that same branch too, checking the
+  translated index against storage.len(), not the raw address.
+- fetch_word_from_memory (fetcher.rs) -- bypasses read_bytes entirely
+  right now, indexes mem.storage[pc_value] directly. This is what
+  perform_step() actually calls every instruction cycle, so it needs
+  fixing too or instruction fetch stays broken even after write_bytes/
+  read_bytes are fixed. Cleanest fix: make it call mem.read_bytes(...)
+  instead of touching storage directly, same as every load/store
+  instruction already does -- collapses the translation back down to one
+  real place (inside MemoryState's own methods) instead of two.
+- store_in_mem (bit_operations.rs) also indexes storage directly, but
+  it's a test/demo-only helper, not part of load_elf's real path --
+  doesn't need to change for this.
+
+Not yet done: growing storage further wasn't the answer either -- see
+"why not just make memory larger" reasoning below, which is also why
+Copy got removed from MemoryState/CPUState (done, see next section).
+
+--- done: removed Copy from MemoryState/CPUState ---
+
+MemoryState derived Copy, and so did CPUState (since it embeds
+MemoryState) -- meaning every assignment/pass/return of either silently
+duplicated the *entire* storage array, with no visible cost at the call
+site. Harmless at 4096/65536 bytes, but the wrong thing to keep doing as
+storage potentially grows, and a real Rust anti-pattern in general
+(Copy should signal "cheap," Clone should signal "this might be
+expensive, and here's the explicit call site proving you meant it").
+Also matters given the distant boot-Linux goal (project_goal_boot_linux.md)
+-- copying all of memory on every pass-by-value is obviously wrong once
+this is modeling something closer to a real running OS.
+
+Removed `Copy` from both derives (kept `Clone`). Turned out completely
+painless -- cargo check --all-targets and the full test suite both stayed
+clean with zero changes needed elsewhere, since nearly everything already
+takes &CPUState/&mut CPUState by reference rather than by value.
+
 --- outline of steps, in dependency order ---
 
 
-4. Add symbol table parsing (or a simpler stopgap: read tohost's address
-   out of the ELF's symbol table specifically, since it's not a fixed
-   constant), so the harness knows where to watch.
 5. Write the external test-harness loop, in tests/: load a test ELF,
    run step() in a loop (with some iteration cap to avoid hanging on a
    genuinely broken test), poll the tohost address each iteration,
-   report pass/fail based on what gets written there.
+   report pass/fail based on what gets written there. Blocked on the
+   base address remapping backlog item above -- load_elf can't actually
+   load a real riscv-tests binary yet.
 6. Start with a small handful of rv32ui-p-* tests (e.g. add, addi, beq)
    to prove the whole pipeline end to end before running the full suite.

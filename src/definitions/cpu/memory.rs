@@ -1,30 +1,22 @@
 use crate::definitions::trap_cause::TrapCause;
-use crate::definitions::addresses::{MTIME, MTIMECMP, MTIME_END, MTIMECMP_END};
-use crate::utility::bit_operations::{ as_window, extract_sub_bytes };
-use crate::utility::types::{ ByteType, as_byte_type };
 
 const TEST_MEM_SIZE: usize = 4096;
 pub const FULL_MEM_SIZE: usize = 65536;
-#[derive(Debug, Copy, PartialEq, Clone)]
+pub const BASE_ADDRESS: u32 = 0x8000_0000;
+
+#[derive(Debug, PartialEq, Clone)]
 pub struct MemoryState {
     pub storage: [u8; FULL_MEM_SIZE],
-    pub mtime: u64,
-    pub mtimecmp: u64,
+
 }
 
 pub fn build_memory_state() -> MemoryState {
     MemoryState { 
         storage: [0; FULL_MEM_SIZE],
-        mtime: 0,
-        mtimecmp: 0
     }
 }
 
 impl MemoryState {
-
-    pub fn update_time(&mut self) {
-        self.mtime += 1;
-    }
     
     // Writes the low `num_bytes` bytes of `value` to memory starting at
     // `address`, little-endian (least-significant byte at the lowest address)
@@ -35,30 +27,10 @@ impl MemoryState {
         if address + bytes.len() > self.storage.len() {
             return Err(TrapCause::StoreAccessFault { address });
         }
-        match address {
-            MTIME..=MTIME_END => {
-                let offset = address - MTIME; 
-                let mut mtime_bytes = self.mtime.to_le_bytes();
-                let update_range = offset..(offset + bytes.len());
-                mtime_bytes[update_range].copy_from_slice(bytes);
-                self.mtime = u64::from_le_bytes(mtime_bytes);
-                Ok(())
-            },
-            MTIMECMP..=MTIMECMP_END => {
-                let offset = address - MTIMECMP; 
-                let mut mtimecmp_bytes = self.mtimecmp.to_le_bytes();
-                let update_range = offset..(offset + bytes.len());
-                mtimecmp_bytes[update_range].copy_from_slice(bytes);
-                self.mtimecmp = u64::from_le_bytes(mtimecmp_bytes);
-                Ok(())
-            },
-            _ => {
-                bytes.iter().enumerate().for_each(|(i, byte)| {
-                    self.storage[address + i] = *byte;
-                });
-                Ok(())
-            }
-        }
+        bytes.iter().enumerate().for_each(|(i, byte)| {
+            self.storage[address + i] = *byte;
+        });
+        Ok(())
     }
 
     // Reads `num_bytes` bytes starting at `address` and combines them
@@ -68,29 +40,13 @@ impl MemoryState {
         if address + num_bytes > self.storage.len() {
             return Err(TrapCause::LoadAccessFault { address });
         }
-        match address {
-            // X..=Y means range X to Y, inclusive Y
-            MTIME..=MTIME_END => {
-                let offset = address - MTIME;
-                let width = as_byte_type(num_bytes).ok_or(TrapCause::LoadAccessFault { address })?;
-                let sub_bytes = extract_sub_bytes(self.mtime, offset, width);
-                Ok(sub_bytes as u32)
-            },
-            MTIMECMP..=MTIMECMP_END => {
-                let offset = address - MTIMECMP;
-                let width = as_byte_type(num_bytes).ok_or(TrapCause::LoadAccessFault { address })?;
-                let sub_bytes = extract_sub_bytes(self.mtimecmp, offset, width);
-                Ok(sub_bytes as u32)            },
-            _ => {
-                let byte_range = 0..num_bytes;
-                let value = byte_range.fold(0u32, |acc, i| {
-                    let byte_at_index = self.storage[address + i] as u32;
-                    let positioned_byte = byte_at_index << (i * 8);
-                    acc | positioned_byte
-                });
-                Ok(value)
-            }
-        }
+        let byte_range = 0..num_bytes;
+        let value = byte_range.fold(0u32, |acc, i| {
+            let byte_at_index = self.storage[address + i] as u32;
+            let positioned_byte = byte_at_index << (i * 8);
+            acc | positioned_byte
+        });
+        Ok(value)
     }
 }
 

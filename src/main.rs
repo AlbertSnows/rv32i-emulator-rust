@@ -12,7 +12,7 @@ use rv32i_emulator::core::step;
 fn main() {
     println!("Hello, welcome to my emulation!");
     let mut cpu = build_cpu_state();
-    store_in_mem(&basic_addition(&mut cpu), &mut cpu.mem, 0);
+    store_in_mem(&basic_addition(&mut cpu), &mut cpu.bus.ram, 0);
 
     let mut execution_outcome = ExecutionSignal::Continue;
     while execution_outcome == ExecutionSignal::Continue {

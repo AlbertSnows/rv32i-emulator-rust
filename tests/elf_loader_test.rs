@@ -59,7 +59,7 @@ fn test_load_elf_copies_segment_bytes_into_memory() {
     let mut cpu = build_cpu_state();
     let elf_bytes = build_synthetic_elf_with_bss();
     load_elf(&elf_bytes, &mut cpu).expect("load_elf should succeed");
-    assert_eq!(cpu.mem.read_bytes(0x100, 4).unwrap(), 0x44332211);
+    assert_eq!(cpu.bus.direct_read(0x100, 4).unwrap(), 0x44332211);
 }
 
 #[test]
@@ -67,5 +67,5 @@ fn test_load_elf_zero_fills_bss_gap() {
     let mut cpu = build_cpu_state();
     let elf_bytes = build_synthetic_elf_with_bss();
     load_elf(&elf_bytes, &mut cpu).expect("load_elf should succeed");
-    assert_eq!(cpu.mem.read_bytes(0x104, 4).unwrap(), 0);
+    assert_eq!(cpu.bus.direct_read(0x104, 4).unwrap(), 0);
 }
