@@ -1,7 +1,7 @@
 
 use crate::definitions::cpu::cpu_definition::{PCState, build_pc_state};
 use crate::definitions::cpu::memory::FULL_MEM_SIZE;
-use crate::definitions::cpu::bus::{BUSState, build_bus_state};
+use crate::definitions::cpu::bus::{BUSState, build_bus_state, BASE_ADDRESS};
 use crate::definitions::trap_cause::TrapCause;
 // word in this context refers to the fixed-sized chunk of data to interface with
 // words for us are 32bits of data that we'll have to decode later, for now it's just raw bits
@@ -71,8 +71,9 @@ mod tests {
 
     #[test]
     fn test_fetch_word_from_memory() {
-        let pc = build_pc_state();
+        let mut pc = build_pc_state();
         let mut bus = build_bus_state();
+        pc.write(BASE_ADDRESS as usize);
         bus.ram.storage[0] = 1;
         bus.ram.storage[1] = 2;
         bus.ram.storage[2] = 3;
@@ -85,10 +86,11 @@ mod tests {
     fn test_fetch_word_from_memory_out_of_bounds_returns_err() {
         let mut pc = build_pc_state();
         let bus = build_bus_state();
-        // pc = FULL_MEM_SIZE - 2 means pc+3 reaches one past the last valid
-        // index -- should hit the bounds check regardless of how big
-        // ram storage actually is.
-        pc.write(FULL_MEM_SIZE - 2);
+        // BASE_ADDRESS + FULL_MEM_SIZE - 2 means pc+3 reaches one past the
+        // last valid index in ram.storage after translation 
+        //  should hit
+        // the bounds check regardless of how big ram storage actually is.
+        pc.write(BASE_ADDRESS as usize + FULL_MEM_SIZE - 2);
         let outcome = fetch_word_from_memory(&pc, &bus);
         assert!(outcome.is_err());
     }

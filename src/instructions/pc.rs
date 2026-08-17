@@ -5,21 +5,21 @@ use crate::definitions::trap_cause::TrapCause;
 use crate::instructions::r::AluOp;
 
 pub fn advance_pc(pc: &mut PCState, instruction: &Format, reg_file: &RegisterFile) -> Result<usize, TrapCause> {
-    let pc_value = pc.read() as i32;
+    let pc_value = pc.read() as u32;
 
     let new_value = match instruction {
-        Format::JType { op, rd, imm } => pc_value.wrapping_add(*imm),
+        Format::JType { op, rd, imm } => pc_value.wrapping_add(*imm as u32),
         Format::JalrType { rd, rs1, imm } => {
             let rs1_val = reg_file.read(*rs1);
             // 1 = ..001, !1 = ..110
             // (combine rs1 and imm) -> and with !1 which means keep all bits in (rs1 + imm) but force it to be even (rounded down)
-            let new_value = ((rs1_val as i32).wrapping_add(*imm)) & !1;
+            let new_value = (rs1_val.wrapping_add(*imm as u32)) & !1;
             new_value
         },
         Format::BType { op, imm, rs1, rs2 } => {
             let rs1_val = reg_file.read(*rs1);
             let rs2_val = reg_file.read(*rs2);
-            let imm_val = *imm;
+            let imm_val = *imm as u32;
             match op {
                 BOp::Beq => if rs1_val == rs2_val { pc_value.wrapping_add(imm_val) } else { pc_value.wrapping_add(4) },
                 BOp::Bne => if rs1_val != rs2_val { pc_value.wrapping_add(imm_val) } else { pc_value.wrapping_add(4) },
@@ -109,7 +109,8 @@ mod tests {
         reg_file.write(3, 9); // not equal -- branch not taken, falls through to pc + 4
         let instruction = Format::BType { op: BOp::Beq, imm: 100, rs1: 2, rs2: 3 };
         let result = advance_pc(&mut pc, &instruction, &reg_file);
-        assert_eq!(result, Err(TrapCause::InstructionAddressMisaligned { address: 18446744071562067971 }));
+        // i32::MAX (0x7FFFFFFF) + 4 wraps to 0x80000003
+        assert_eq!(result, Err(TrapCause::InstructionAddressMisaligned { address: 2147483651 }));
     }
 
     #[test]

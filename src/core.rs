@@ -163,6 +163,7 @@ pub fn step(cpu: &mut CPUState) -> Result<ExecutionSignal, TrapCause> {
 mod tests {
     use super::*;
     use crate::definitions::cpu::cpu_definition::build_cpu_state;
+    use crate::definitions::cpu::bus::BASE_ADDRESS;
     use crate::utility::bit_operations::{store_in_mem, mask_and_shift};
     use crate::programs::instructions::ADD_X3_X1_X2;
     use crate::programs::instructions::NO_OP;
@@ -176,16 +177,18 @@ mod tests {
         cpu.register.write(2, 7);
         // to le bytes converts to [0x00, 0x20, 0x81, 0xB3]
         store_in_mem(&ADD_X3_X1_X2.to_le_bytes(), &mut cpu.bus.ram, 0);
+        cpu.pc.write(BASE_ADDRESS as usize);
         let outcome = step(&mut cpu);
         assert_eq!(outcome, Ok(ExecutionSignal::Continue));
         assert_eq!(cpu.register.read(3), 17);
-        assert_eq!(cpu.pc.read(), 4);
+        assert_eq!(cpu.pc.read(), BASE_ADDRESS as usize + 4);
     }
 
     #[test]
     fn test_step_increments_instret_on_successful_retire() {
         let mut cpu = build_cpu_state();
         store_in_mem(&ADD_X3_X1_X2.to_le_bytes(), &mut cpu.bus.ram, 0);
+        cpu.pc.write(BASE_ADDRESS as usize);
         step(&mut cpu);
         assert_eq!(cpu.csr.read(CYCLE).unwrap(), 1);
         assert_eq!(cpu.csr.read(INSTRET).unwrap(), 1);
@@ -303,9 +306,9 @@ mod tests {
         cpu.csr.guest_write(MSTATUS, 0, CPUMode::M);
         cpu.csr.guest_write(MTVEC, 3, CPUMode::M);
         store_in_mem(&ADD_X3_X1_X2.to_le_bytes(), &mut cpu.bus.ram, 4);
-        cpu.pc.write(4);
+        cpu.pc.write(BASE_ADDRESS as usize + 4);
         step(&mut cpu);
-        assert_eq!(cpu.pc.read(), 8);
+        assert_eq!(cpu.pc.read(), BASE_ADDRESS as usize + 8);
         assert_eq!(cpu.csr.read(MEPC).unwrap(), 0);
         assert_eq!(cpu.csr.read(MCAUSE).unwrap(), 0);
         assert_eq!(cpu.register.read(3), 7);
@@ -321,9 +324,9 @@ mod tests {
         cpu.csr.guest_write(MSTATUS, GLOBAL_MIE, CPUMode::M);
         cpu.csr.guest_write(MTVEC, 3, CPUMode::M);
         store_in_mem(&ADD_X3_X1_X2.to_le_bytes(), &mut cpu.bus.ram, 4);
-        cpu.pc.write(4);
+        cpu.pc.write(BASE_ADDRESS as usize + 4);
         step(&mut cpu);
-        assert_eq!(cpu.pc.read(), 8);
+        assert_eq!(cpu.pc.read(), BASE_ADDRESS as usize + 8);
         assert_eq!(cpu.csr.read(MEPC).unwrap(), 0);
         assert_eq!(cpu.csr.read(MCAUSE).unwrap(), 0);
         assert_eq!(cpu.register.read(3), 7);
@@ -342,11 +345,11 @@ mod tests {
         cpu.csr.guest_write(MSTATUS, GLOBAL_MIE, CPUMode::M);
         cpu.csr.guest_write(MTVEC, 3, CPUMode::M);
         store_in_mem(&ADD_X3_X1_X2.to_le_bytes(), &mut cpu.bus.ram, 4);
-        cpu.pc.write(4);
+        cpu.pc.write(BASE_ADDRESS as usize + 4);
         cpu.bus.clint.mtime = 1;
         cpu.bus.clint.mtimecmp = 4;
         step(&mut cpu);
-        assert_eq!(cpu.pc.read(), 8);
+        assert_eq!(cpu.pc.read(), BASE_ADDRESS as usize + 8);
         assert_eq!(cpu.csr.read(MEPC).unwrap(), 0);
         assert_eq!(cpu.csr.read(MCAUSE).unwrap(), 0);
         assert_eq!(cpu.register.read(3), 7);

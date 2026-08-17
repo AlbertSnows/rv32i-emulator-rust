@@ -91,7 +91,7 @@ pub fn inst_s_sw(rs1: usize, rs2: usize, imm: i32, bus: &mut BUSState, reg_file:
 mod tests {
     use super::*;
     use crate::definitions::cpu::cpu_definition::{build_register_file, build_pc_state};
-    use crate::definitions::cpu::bus::build_bus_state;
+    use crate::definitions::cpu::bus::{build_bus_state, BASE_ADDRESS};
 
     #[test]
     fn test_parse_s_inst() {
@@ -107,7 +107,7 @@ mod tests {
         let mut bus = build_bus_state();
         let mut reg_file = build_register_file();
         let rs1 = 1;
-        reg_file.write(1, 3);
+        reg_file.write(1, BASE_ADDRESS + 3);
         let rs2 = 0b0101_1010_0101_1010;
         let imm = 7;
         inst_s_sb(rs1, rs2, imm, &mut bus, &reg_file).unwrap();
@@ -119,7 +119,7 @@ mod tests {
         let mut bus = build_bus_state();
         let mut reg_file = build_register_file();
         let rs1 = 1;
-        reg_file.write(1, 3);
+        reg_file.write(1, BASE_ADDRESS + 3);
         let rs2 = 0b1111_0000_1010_0101;
         let imm = 7;
         inst_s_sh(rs1, rs2, imm, &mut bus, &reg_file).unwrap();
@@ -132,7 +132,7 @@ mod tests {
         let mut bus = build_bus_state();
         let mut reg_file = build_register_file();
         let rs1 = 1;
-        reg_file.write(1, 3);
+        reg_file.write(1, BASE_ADDRESS + 3);
         // 12, 34, 56, 78
         // 18, 52, 86, 120
         let rs2 = 0x12345678;

@@ -118,7 +118,7 @@ pub fn inst_i_lhu(rd: usize, rs1: usize, imm_i: i32, bus: &BUSState, reg_file: &
 mod tests {
     use super::*;
     use crate::definitions::cpu::cpu_definition::build_register_file;
-    use crate::definitions::cpu::bus::build_bus_state;
+    use crate::definitions::cpu::bus::{build_bus_state, BASE_ADDRESS};
 
     #[test]
     fn test_parse_load_inst() {
@@ -134,7 +134,7 @@ mod tests {
         let rs1 = 3;
         let imm_i = 6;
         let mut reg_file = build_register_file();
-        reg_file.write(3, 4);
+        reg_file.write(3, BASE_ADDRESS + 4);
         let mut bus = build_bus_state();
         bus.ram.storage[10] = 0b1000_0001;
         inst_i_lb(rd, rs1, imm_i, &bus, &mut reg_file).unwrap();
@@ -147,7 +147,7 @@ mod tests {
         let rs1 = 3;
         let imm_i = 6;
         let mut reg_file = build_register_file();
-        reg_file.write(3, 4);
+        reg_file.write(3, BASE_ADDRESS + 4);
         let mut bus = build_bus_state();
         bus.ram.storage[10] = 0b0000_0001;
         bus.ram.storage[11] = 0b1000_0000;
@@ -161,7 +161,7 @@ mod tests {
         let rs1 = 3;
         let imm_i = 8;
         let mut reg_file = build_register_file();
-        reg_file.write(3, 4);
+        reg_file.write(3, BASE_ADDRESS + 4);
         let mut bus = build_bus_state();
         bus.ram.storage[12] = 0b0000_0001;
         bus.ram.storage[13] = 0b0000_0000;
@@ -193,7 +193,7 @@ mod tests {
         let rs1 = 3;
         let imm_i = 6;
         let mut reg_file = build_register_file();
-        reg_file.write(3, 4);
+        reg_file.write(3, BASE_ADDRESS + 4);
         let mut bus = build_bus_state();
         bus.ram.storage[10] = 0b1000_0001;
         inst_i_lbu(rd, rs1, imm_i, &bus, &mut reg_file).unwrap();
@@ -206,7 +206,7 @@ mod tests {
         let rs1 = 3;
         let imm_i = 6;
         let mut reg_file = build_register_file();
-        reg_file.write(3, 4);
+        reg_file.write(3, BASE_ADDRESS + 4);
         let mut bus = build_bus_state();
         bus.ram.storage[10] = 0b0000_0001;
         bus.ram.storage[11] = 0b1000_0000;

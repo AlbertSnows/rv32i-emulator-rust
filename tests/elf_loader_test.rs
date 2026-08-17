@@ -1,4 +1,5 @@
 use rv32i_emulator::definitions::cpu::cpu_definition::build_cpu_state;
+use rv32i_emulator::definitions::cpu::bus::BASE_ADDRESS;
 use rv32i_emulator::elf::{find_symbol, load_elf};
 
 // A ELF produced by riscv-none-elf-gcc from riscv-tests' rv32ui/add.S.
@@ -29,15 +30,15 @@ fn test_find_symbol_returns_none_for_missing_symbol() {
 fn build_synthetic_elf_with_bss() -> Vec<u8> {
     let mut bytes = vec![0u8; 88];
 
-    bytes[24..28].copy_from_slice(&0x100u32.to_le_bytes()); // e_entry
+    bytes[24..28].copy_from_slice(&BASE_ADDRESS.to_le_bytes()); // e_entry
     bytes[28..32].copy_from_slice(&52u32.to_le_bytes()); // e_phoff
     bytes[42..44].copy_from_slice(&32u16.to_le_bytes()); // e_phentsize
     bytes[44..46].copy_from_slice(&1u16.to_le_bytes()); // e_phnum
 
     bytes[52..56].copy_from_slice(&1u32.to_le_bytes()); // p_type = PT_LOAD
     bytes[56..60].copy_from_slice(&84u32.to_le_bytes()); // p_offset
-    bytes[60..64].copy_from_slice(&0x100u32.to_le_bytes()); // p_vaddr
-    bytes[64..68].copy_from_slice(&0x100u32.to_le_bytes()); // p_paddr
+    bytes[60..64].copy_from_slice(&BASE_ADDRESS.to_le_bytes()); // p_vaddr
+    bytes[64..68].copy_from_slice(&BASE_ADDRESS.to_le_bytes()); // p_paddr
     bytes[68..72].copy_from_slice(&4u32.to_le_bytes()); // p_filesz
     bytes[72..76].copy_from_slice(&8u32.to_le_bytes()); // p_memsz -- 4 bytes bigger than p_filesz
 
@@ -51,7 +52,7 @@ fn test_load_elf_sets_pc_to_entry() {
     let mut cpu = build_cpu_state();
     let elf_bytes = build_synthetic_elf_with_bss();
     load_elf(&elf_bytes, &mut cpu).expect("load_elf should succeed");
-    assert_eq!(cpu.pc.read(), 0x100);
+    assert_eq!(cpu.pc.read(), BASE_ADDRESS as usize);
 }
 
 #[test]
@@ -59,7 +60,7 @@ fn test_load_elf_copies_segment_bytes_into_memory() {
     let mut cpu = build_cpu_state();
     let elf_bytes = build_synthetic_elf_with_bss();
     load_elf(&elf_bytes, &mut cpu).expect("load_elf should succeed");
-    assert_eq!(cpu.bus.direct_read(0x100, 4).unwrap(), 0x44332211);
+    assert_eq!(cpu.bus.direct_read(BASE_ADDRESS as usize, 4).unwrap(), 0x44332211);
 }
 
 #[test]
@@ -67,5 +68,5 @@ fn test_load_elf_zero_fills_bss_gap() {
     let mut cpu = build_cpu_state();
     let elf_bytes = build_synthetic_elf_with_bss();
     load_elf(&elf_bytes, &mut cpu).expect("load_elf should succeed");
-    assert_eq!(cpu.bus.direct_read(0x104, 4).unwrap(), 0);
+    assert_eq!(cpu.bus.direct_read(BASE_ADDRESS as usize + 4, 4).unwrap(), 0);
 }
