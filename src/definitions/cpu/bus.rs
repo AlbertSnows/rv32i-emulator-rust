@@ -3,6 +3,16 @@ use crate::definitions::trap_cause::{TrapCause};
 use crate::definitions::addresses::{MTIME, MTIMECMP, MTIME_END, MTIMECMP_END};
 use crate::utility::types::{ ByteType, as_byte_type };
 use crate::utility::bit_operations::{ as_window, extract_sub_bytes };
+// every riscv-tests binary links at exactly this address. 
+// The low half of the 32-bit address
+// space is reserved for boot ROM and memory-mapped
+// peripherals e.g. CLINT (mtime/mtimecmp). 
+// mem.storage is only FULL_MEM_SIZE bytes, nowhere near big enough to
+// use 0x80000000 directly as an array index, so BUSState translates:
+// any address >= BASE_ADDRESS gets BASE_ADDRESS subtracted before it
+// reaches self.ram. MemoryState itself never sees this
+// constant.
+pub const BASE_ADDRESS: u32 = 0x8000_0000;
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct BUSState {
@@ -22,41 +32,38 @@ impl BUSState {
         match address {
             // X..=Y means range X to Y, inclusive Y
             MTIME..=MTIME_END => {
-                let offset = address - MTIME;
-                let width = as_byte_type(num_bytes).ok_or(TrapCause::LoadAccessFault { address })?;
-                let sub_bytes = extract_sub_bytes(self.clint.mtime, offset, width);
-                Ok(sub_bytes as u32)
+                let mtime_offset = address - MTIME;
+                self.clint.read_mtime(mtime_offset, num_bytes)
             },
             MTIMECMP..=MTIMECMP_END => {
-                let offset = address - MTIMECMP;
-                let width = as_byte_type(num_bytes).ok_or(TrapCause::LoadAccessFault { address })?;
-                let sub_bytes = extract_sub_bytes(self.clint.mtimecmp, offset, width);
-                Ok(sub_bytes as u32)            },
+                let mtimecmp_offset = address - MTIMECMP;
+                self.clint.read_mtimecmp(mtimecmp_offset, num_bytes)
+            },
             _ => {
-                self.ram.read_bytes(address, num_bytes)
+                if address < BASE_ADDRESS as usize {
+                    return Err(TrapCause::LoadAccessFault { address });
+                }
+                let real_index = address - BASE_ADDRESS as usize;
+                self.ram.read_bytes(real_index, num_bytes)
             }
         }
     }
     pub fn direct_write(&mut self, address: usize, bytes: &[u8]) -> Result<(), TrapCause> {
         match address {
             MTIME..=MTIME_END => {
-                let offset = address - MTIME;
-                let mut mtime_bytes = self.clint.mtime.to_le_bytes();
-                let update_range = offset..(offset + bytes.len());
-                mtime_bytes[update_range].copy_from_slice(bytes);
-                self.clint.mtime = u64::from_le_bytes(mtime_bytes);
-                Ok(())
+                let mtime_offset = address - MTIME;
+                self.clint.write_mtime(mtime_offset, bytes)
             },
             MTIMECMP..=MTIMECMP_END => {
-                let offset = address - MTIMECMP;
-                let mut mtimecmp_bytes = self.clint.mtimecmp.to_le_bytes();
-                let update_range = offset..(offset + bytes.len());
-                mtimecmp_bytes[update_range].copy_from_slice(bytes);
-                self.clint.mtimecmp = u64::from_le_bytes(mtimecmp_bytes);
-                Ok(())
+                let mtimecmp_offset = address - MTIMECMP;
+                self.clint.write_mtimecmp(mtimecmp_offset, bytes)
             },
             _ => {
-                self.ram.write_bytes(address, bytes)
+                if address < BASE_ADDRESS as usize {
+                    return Err(TrapCause::LoadAccessFault { address });
+                }
+                let real_index = address - BASE_ADDRESS as usize;
+                self.ram.write_bytes(real_index, bytes)
             }
         }
     }
@@ -71,6 +78,46 @@ pub struct ClintState {
 impl ClintState {
     pub fn update_time(&mut self) {
         self.mtime += 1;
+    }
+
+    pub fn read_mtime(&self, offset: usize, num_bytes: usize) -> Result<u32, TrapCause> {
+        Self::read_register(self.mtime, offset, num_bytes)
+    }
+
+    pub fn read_mtimecmp(&self, offset: usize, num_bytes: usize) -> Result<u32, TrapCause> {
+        Self::read_register(self.mtimecmp, offset, num_bytes)
+    }
+
+    pub fn write_mtime(&mut self, offset: usize, bytes: &[u8]) -> Result<(), TrapCause> {
+        self.mtime = Self::write_register(self.mtime, offset, bytes)?;
+        Ok(())
+    }
+
+    pub fn write_mtimecmp(&mut self, offset: usize, bytes: &[u8]) -> Result<(), TrapCause> {
+        self.mtimecmp = Self::write_register(self.mtimecmp, offset, bytes)?;
+        Ok(())
+    }
+
+    // mtime/mtimecmp are each exactly 8 real bytes (DoubleWord) 
+    // offset + num_bytes has to stay within that, or extract_sub_bytes would
+    // read past the end of a fixed 8-byte array and panic instead of
+    // returning a clean error.
+    fn read_register(register_value: u64, offset: usize, num_bytes: usize) -> Result<u32, TrapCause> {
+        if offset + num_bytes > 8 {
+            return Err(TrapCause::LoadAccessFault { address: offset });
+        }
+        let width = as_byte_type(num_bytes).ok_or(TrapCause::LoadAccessFault { address: offset })?;
+        Ok(extract_sub_bytes(register_value, offset, width) as u32)
+    }
+
+    fn write_register(register_value: u64, offset: usize, bytes: &[u8]) -> Result<u64, TrapCause> {
+        if offset + bytes.len() > 8 {
+            return Err(TrapCause::StoreAccessFault { address: offset });
+        }
+        let mut value_bytes = register_value.to_le_bytes();
+        let update_range = offset..(offset + bytes.len());
+        value_bytes[update_range].copy_from_slice(bytes);
+        Ok(u64::from_le_bytes(value_bytes))
     }
 }
 

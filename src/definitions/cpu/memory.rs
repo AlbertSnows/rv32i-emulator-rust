@@ -2,7 +2,6 @@ use crate::definitions::trap_cause::TrapCause;
 
 const TEST_MEM_SIZE: usize = 4096;
 pub const FULL_MEM_SIZE: usize = 65536;
-pub const BASE_ADDRESS: u32 = 0x8000_0000;
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct MemoryState {

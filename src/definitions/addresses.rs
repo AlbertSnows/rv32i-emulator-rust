@@ -57,7 +57,15 @@ pub const MIE: usize = 0x304;
 // mip is about what's currently interrupting/what's pending
 pub const MIP: usize = 0x344;
 
-// Memory addresses
+// mtime/mtimecmp are memory-mapped
+// registers. read/written via ordinary loads/stores like any
+// other address. Owned by CLINT ("Core-Local Interruptor"). 
+// mtime is a free-running counter; mtimecmp is
+// the compare value. once mtime >= mtimecmp, a machine timer
+// interrupt becomes pending. Both are 64-bit
+// despite this being an RV32 (32-bit) emulator --
+// a 32-bit CPU accesses them via two separate 32-bit loads/stores (low
+// word, then high word)
 pub const MTIME: usize = 0x0200BFF8;
 pub const MTIMECMP: usize = 0x02004000;
 pub const MTIME_END: usize = MTIME + ByteType::DoubleWord.as_num() - 1;

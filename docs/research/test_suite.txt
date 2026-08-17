@@ -129,23 +129,24 @@ routes a CPU-visible address to a small physical RAM chip mapped
 starting at that address -- not a workaround, a software model of how
 real hardware already does this.
 
-Where the translation needs to happen (checked directly, not assumed):
-- MemoryState::write_bytes / read_bytes (memory.rs), in the `_` fallthrough
+Superseded by a bigger decision (see "done: introduced BusState" below):
+address translation doesn't belong inside MemoryState at all -- it
+belongs in a real Bus layer, mirroring how a CPU core never knows how
+its own memory controller is wired, it just issues an address. Where
+the translation still needs to happen, now that BusState exists:
+- BUSState::direct_read / direct_write (bus.rs), in the `_` fallthrough
   branch only -- NOT the MTIME/MTIMECMP arms, which use their own fixed,
   much smaller addresses and must keep checking the untranslated address.
-  The bounds check needs to move into that same branch too, checking the
-  translated index against storage.len(), not the raw address.
-- fetch_word_from_memory (fetcher.rs) -- bypasses read_bytes entirely
-  right now, indexes mem.storage[pc_value] directly. This is what
-  perform_step() actually calls every instruction cycle, so it needs
-  fixing too or instruction fetch stays broken even after write_bytes/
-  read_bytes are fixed. Cleanest fix: make it call mem.read_bytes(...)
-  instead of touching storage directly, same as every load/store
-  instruction already does -- collapses the translation back down to one
-  real place (inside MemoryState's own methods) instead of two.
-- store_in_mem (bit_operations.rs) also indexes storage directly, but
-  it's a test/demo-only helper, not part of load_elf's real path --
-  doesn't need to change for this.
+  Translate (real_index = address - BASE_ADDRESS) before delegating to
+  self.ram.read_bytes/write_bytes -- MemoryState itself stays completely
+  unaware of BASE_ADDRESS, just a bounds-checked local array.
+  Needs a lower-bound guard too: if address < BASE_ADDRESS (and it's not
+  MTIME/MTIMECMP either), the subtraction would underflow (usize, panics)
+  -- that case needs to return a clean TrapCause, not attempt the
+  subtraction.
+- Not fetch_word_from_memory anymore -- already routes through
+  bus.direct_read (done, see below), so it gets this for free once the
+  above lands. Nothing else needs touching.
 
 Not yet done: growing storage further wasn't the answer either -- see
 "why not just make memory larger" reasoning below, which is also why
@@ -168,6 +169,34 @@ Removed `Copy` from both derives (kept `Clone`). Turned out completely
 painless -- cargo check --all-targets and the full test suite both stayed
 clean with zero changes needed elsewhere, since nearly everything already
 takes &CPUState/&mut CPUState by reference rather than by value.
+
+--- done: introduced BusState (real bus/device separation) ---
+
+Bigger call than just fixing the address gap: CPUState no longer holds
+MemoryState directly. It holds BusState, which owns two devices --
+ram: MemoryState (now just a bounds-checked byte array, no address-range
+knowledge at all) and clint: ClintState (mtime/mtimecmp + update_time(),
+moved out of MemoryState -- they're a separate device, CLINT, "Core-
+Local Interruptor," the real SiFive/QEMU-virt hardware name, not
+invented for this project). BUSState::direct_read/direct_write do the
+address-range routing (MTIME/MTIMECMP vs RAM) that used to live inside
+MemoryState's own read_bytes/write_bytes.
+
+Why: address decoding is a bus/interconnect responsibility on real
+hardware, not something the CPU core or the RAM chip itself knows about
+-- modeling it as its own layer now, rather than patching BASE_ADDRESS
+into MemoryState directly, means MemoryState can stay genuinely dumb
+(no knowledge of any of this), and adding a third memory-mapped device
+later (UART, PLIC, disk -- already on the distant-goal peripherals list)
+means adding a device + a routing arm, not touching every existing one.
+
+fetch_word_from_memory (fetcher.rs) now routes through bus.direct_read
+instead of indexing storage directly -- this was a real fix, not
+optional, since it's what perform_step() calls every instruction cycle;
+BUSState doesn't expose a bare storage field the way MemoryState did.
+Every load/store instruction, load_elf, and store_in_mem's callers
+updated to go through cpu.bus instead of cpu.mem. Full sweep, all
+161+1+5 tests still pass.
 
 --- outline of steps, in dependency order ---
 
