@@ -1,20 +1,13 @@
 #![allow(unused)]
-mod decoder;
-mod fetcher;
-mod instructions;
-mod definitions;
-mod utility;
-mod programs;
-mod core;
-mod elf;
-use crate::definitions::cpu::cpu_definition::build_cpu_state;
-use decoder::decode_word_to_instruction;
-use fetcher::{InstructionWord, fetch_word_from_memory};
-use utility::bit_operations::store_in_mem;
-use programs::helpers::basic_addition;
-use crate::definitions::codes::ExecutionSignal;
-use crate::instructions::pc::advance_pc;
-use core::step;
+
+use rv32i_emulator::definitions::cpu::cpu_definition::build_cpu_state;
+use rv32i_emulator::decoder::decode_word_to_instruction;
+use rv32i_emulator::fetcher::{InstructionWord, fetch_word_from_memory};
+use rv32i_emulator::utility::bit_operations::store_in_mem;
+use rv32i_emulator::programs::helpers::basic_addition;
+use rv32i_emulator::definitions::codes::ExecutionSignal;
+use rv32i_emulator::instructions::pc::advance_pc;
+use rv32i_emulator::core::step;
 
 fn main() {
     println!("Hello, welcome to my emulation!");
