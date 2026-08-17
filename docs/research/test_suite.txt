@@ -1,0 +1,180 @@
+test suite adoption (item #9) -- toolchain, ELF loader, tohost signaling
+
+--- why ---
+
+Everything tested so far is hand-written: store_in_mem pokes raw
+instruction bytes into memory directly from Rust test code. That's fine
+for the specific behaviors this project has built deliberately, but it
+means instruction coverage is only as broad as whatever's been thought
+to write a test for. riscv-tests is a real, established suite covering
+every RV32I instruction; running it is a much stronger correctness signal
+than continuing to hand-roll coverage one instruction at a time.
+
+--- 1. cross-compiler toolchain ---
+
+Need a RISC-V compiler capable of building riscv-tests' assembly sources
+into ELF binaries. Two real options, and one real pitfall.
+
+Build from source: riscv-gnu-toolchain
+(github.com/riscv-collab/riscv-gnu-toolchain) is the canonical source.
+
+--- 1a. toolchain: installed locally (done) ---
+
+refer to guide doc
+
+--- 2. minimal ELF32 loading ---
+
+riscv-tests binaries are simple, statically-linked, non-relocatable RV32
+ELFs. A minimal loader for this specific case needs:
+
+- ELF header: e_entry (the initial pc -- _start's address), e_phoff
+  (byte offset to the program header table), e_phnum (how many entries),
+  e_phentsize (size of each entry).
+- Program header table: walk e_phnum entries starting at e_phoff. For
+  each entry where p_type == PT_LOAD, that segment needs loading: read
+  p_filesz bytes from the file at p_offset, write them into the
+  emulator's memory starting at p_vaddr.
+- p_memsz vs p_filesz: p_memsz can be *larger* than p_filesz. The extra
+  bytes (p_memsz - p_filesz) must be zero-filled in memory but aren't
+  present in the file at all -- this is .bss (uninitialized global/static
+  data), doesn't need file space since it's all zeros anyway.
+- Setting the initial pc: after loading every PT_LOAD segment, set
+  cpu.pc to e_entry before starting execution.
+
+Whole minimal path: parse header -> find PT_LOAD segments -> copy file
+bytes to p_vaddr, zero-pad to p_memsz -> set pc = e_entry. No relocation,
+no dynamic linking, no symbol resolution needed for loading itself, these
+are static, position-fixed binaries. (Symbol table lookup IS still needed
+separately, for finding tohost's address -- see below.)
+
+--- 3. the tohost/fromhost signaling convention ---
+
+Verified directly from source: riscv/riscv-test-env, p/riscv_test.h
+(github.com/riscv/riscv-test-env/blob/master/p/riscv_test.h). More
+layered than "just a memory write":
+
+- gp (x3) is repurposed as TESTNUM, a running test counter
+  (#define TESTNUM gp).
+- RVTEST_PASS: sets TESTNUM = 1, then does
+  `li a7, 93; li a0, 0; ecall` -- an ecall with syscall number 93 (the
+  exit syscall convention) and exit code 0.
+- RVTEST_FAIL: TESTNUM = (TESTNUM << 1) | 1 (encodes which numbered test
+  failed as an odd number), then the same ecall pattern with a0=TESTNUM.
+- The ecall gets caught by the test's own trap_vector (installed at boot
+  via `csrw mtvec, t0`): checks mcause against the three ecall causes
+  (CAUSE_USER_ECALL / SUPERVISOR_ECALL / MACHINE_ECALL) and, if matched,
+  jumps to write_tohost.
+- write_tohost:
+  `sw TESTNUM, tohost, t5; sw zero, tohost+4, t5; j write_tohost` --
+  writes TESTNUM (1 for pass, the odd encoded value for fail) into the
+  tohost symbol, zeroes the upper 32 bits, then spins forever.
+- tohost/fromhost themselves: declared as 8-byte (.dword), 64-byte-
+  aligned symbols in a dedicated .tohost linker section (the
+  RVTEST_DATA_BEGIN macro). Their actual runtime address is wherever the
+  linker script places that section -- not a fixed constant in the
+  header -- so a loader needs to resolve tohost's address from the
+  compiled ELF's *symbol table*, not assume a hardcoded number.
+
+Important simplification: this does NOT need special in-CPU
+memory-mapped device logic the way mtime/mtimecmp did. The sw
+instructions writing to tohost are ordinary memory writes from the CPU's
+perspective -- nothing needs special-casing in read_bytes/write_bytes.
+The "specialness" lives entirely in the external test harness: after
+each step() (or every N steps), the harness reads memory at tohost's
+address and checks if it's become nonzero -- if so, the test finished
+(the odd/even encoding indicates pass vs. which numbered test failed).
+The test binary itself just writes and spins forever; watching for that
+is the harness's job, not the CPU's.
+
+--- 3a. confirmed by actually building one test (done) ---
+
+Goal: produce one real ELF from riscv-tests, so the loader work in "2"
+and "outline" steps 3-4 has an actual file to check assumptions against
+instead of just the format spec. Steps actually taken:
+
+1. Picked a source file to build: riscv-tests/isa/rv32ui/add.S. Read it
+   first -- it's not real assembly, just
+     #include "riscv_test.h"
+     #undef RVTEST_RV64U
+     #define RVTEST_RV64U RVTEST_RV32U
+     #include "../rv64ui/add.S"
+   riscv-tests shares one source per instruction across rv32/rv64 via
+   this macro-redefine-and-include trick; the actual TEST_RR_OP test
+   cases live in rv64ui/add.S.
+
+2. Tried to build it the "proper" way, via riscv-tests/isa/Makefile, and
+   read enough of it to find the real compile line (the `compile_template`
+   macro, called for rv32ui as
+   `-march=rv32g -mabi=ilp32 -static -mcmodel=medany -fvisibility=hidden
+   -nostdlib -nostartfiles -I<src>/../env/p -I<src>/macros/scalar
+   -T<src>/../env/p/link.ld`). Didn't actually invoke `make` itself,
+   though -- its default RISCV_PREFIX is `riscv$(XLEN)-unknown-elf-`
+   (i.e. it looks for a binary literally named riscv32-unknown-elf-gcc),
+   which doesn't match the installed riscv-none-elf-gcc name. Simpler to
+   take the flags found above and invoke the compiler directly.
+
+3. That compile line depends on riscv-tests/env (riscv_test.h,
+   env/p/link.ld) -- checked `git submodule status` inside the
+   riscv-tests clone and found it uninitialized (leading `-` on the env
+   line). Fetched it:
+     git submodule update --init env
+   (from inside the riscv-tests clone; env is declared in .gitmodules,
+   pointing at github.com/riscv/riscv-test-env.git).
+
+4. Compiled directly with the flags found in step 2, swapping in
+   riscv-none-elf-gcc for the Makefile's unmatched prefix:
+     riscv-none-elf-gcc -march=rv32g -mabi=ilp32 -static -mcmodel=medany \
+       -fvisibility=hidden -nostdlib -nostartfiles \
+       -Iriscv-tests/env/p -Iriscv-tests/isa/macros/scalar \
+       -Triscv-tests/env/p/link.ld \
+       riscv-tests/isa/rv32ui/add.S -o add-p-add
+   Exit 0, produced a 10116-byte ELF (built in scratch space, not the
+   repo -- $CLAUDE_JOB_DIR/tmp/elf_test/, not committed anywhere).
+
+5. Inspected the result instead of just trusting a clean exit code:
+     riscv-none-elf-readelf -h add-p-add   # ELF header
+     riscv-none-elf-readelf -l add-p-add   # program headers
+     riscv-none-elf-readelf -s add-p-add | grep -i tohost  # symbol table
+   Findings, and what each confirms or adds to "2"/"3" above:
+   - e_entry = 0x80000000 -- link.ld's load base, not 0. Confirms a
+     loader must actually read e_entry, never assume 0.
+   - 3 program header entries, but only 2 are PT_LOAD (.text.init at
+     0x80000000, the .tohost segment at 0x80001000). The 3rd is type
+     RISCV_ATTRIBUT (build metadata, MemSiz 0). New information not in
+     the format-spec reading above: a real loader must check
+     p_type == PT_LOAD and skip anything else, not just walk all
+     e_phnum entries unconditionally assuming they're all loadable.
+   - tohost resolves via the symbol table exactly as predicted: global
+     symbol, value 0x80001000, size 8 (matching its .dword declaration).
+     Confirms symbol-table lookup is the right approach, not a
+     hardcoded address.
+
+--- outline of steps, in dependency order ---
+
+1. [x] Get a bare-metal toolchain (xPack's riscv-none-elf-gcc prebuilt
+   binaries, installed and verified working -- see "1a" above) and
+   confirm it actually builds a real riscv-tests ELF (see "3a" above --
+   done, rv32ui/add.S compiled and inspected).
+2. Restructure the crate so it has a library target, not just a binary:
+   add src/lib.rs declaring the modules (pub where needed), turn
+   main.rs into a thin wrapper that uses the library instead of
+   declaring `mod X;` itself. Needed because the empty tests/ directory
+   already sitting in this project (Rust's convention for integration
+   tests, as opposed to the #[cfg(test)] mod tests unit tests scattered
+   through src/) can only import from a library crate, not a
+   binary-only one.
+3. Build a minimal ELF32 parser/loader as its own module, src/elf.rs,
+   sibling to core.rs/fetcher.rs/decoder.rs: read the header, walk
+   program headers *filtering on p_type == PT_LOAD* (a real build has
+   non-LOAD entries too, e.g. RISCV_ATTRIBUT -- see "3a"), copy bytes
+   into cpu.mem at p_vaddr (zero-padding to p_memsz), set cpu.pc =
+   e_entry.
+4. Add symbol table parsing (or a simpler stopgap: read tohost's address
+   out of the ELF's symbol table specifically, since it's not a fixed
+   constant), so the harness knows where to watch.
+5. Write the external test-harness loop, in tests/: load a test ELF,
+   run step() in a loop (with some iteration cap to avoid hanging on a
+   genuinely broken test), poll the tohost address each iteration,
+   report pass/fail based on what gets written there.
+6. Start with a small handful of rv32ui-p-* tests (e.g. add, addi, beq)
+   to prove the whole pipeline end to end before running the full suite.

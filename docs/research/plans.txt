@@ -11,7 +11,39 @@ components:
 - decode
 - execute
 
-[ ] 9. Refactor CSRState -- attempt after item #8 is done. Motivation:
+[ ] 9. Adopt an external RISC-V test suite, instead of only hand-written
+    Rust unit tests, for much broader instruction coverage. Two candidates,
+    ideally both eventually, starting with the first:
+    - riscv-tests (github.com/riscv-software-src/riscv-tests) -- the
+      classic per-instruction suite, one small assembly program per
+      instruction (rv32ui-* = RV32 user integer). Good near-term fit:
+      the base rv32ui subset explicitly excludes SYSTEM-opcode
+      instructions (syscall, break, rdcycle, rdtime, rdinstret), so it
+      only needs the arithmetic/logic/branch/load/store instructions
+      already implemented, not CSR/trap correctness.
+    - riscv-arch-test (github.com/riscv/riscv-arch-test) -- the official,
+      more formal RISC-V International conformance suite, run through a
+      Python framework (RISCOF) that compares output against a reference
+      model's "signature." More rigorous, more setup, worth adopting
+      after riscv-tests proves the basics out.
+    Neither is a drop-in, though -- both ship as RISC-V assembly compiled
+    to ELF binaries. Real prerequisites before either can run here:
+    - a RISC-V cross-compiler toolchain (or prebuilt test binaries), to
+      produce the ELFs in the first place
+    - an actual ELF loader in this codebase -- everything so far uses
+      store_in_mem to poke raw instruction bytes in by hand; nothing
+      parses .text/.data segments or sets the initial pc from a real
+      binary yet
+    - handling the pass/fail signaling convention the tests use
+      (riscv-tests traditionally writes a result code to a fixed
+      "tohost" memory address) -- same category of thing as the
+      mtime/mtimecmp memory-mapped work, a fixed address with special
+      read/write behavior, just for reporting a test result instead of
+      timing
+    See docs/research/test_suite.txt for details on the toolchain, the
+    ELF loader, and the signaling convention.
+
+[ ] 10. Refactor CSRState -- attempt after item #8 is done. Motivation:
     building mip surfaced how much side-effect/special-case behavior
     CSRState::write has accumulated (address-level read-only vs.
     field-level read-only within an otherwise-writable register, internal
