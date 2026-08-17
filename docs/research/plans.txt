@@ -11,4 +11,36 @@ components:
 - decode
 - execute
 
---- remaining work ---
+[ ] 9. Refactor CSRState -- attempt after item #8 is done. Motivation:
+    building mip surfaced how much side-effect/special-case behavior
+    CSRState::write has accumulated (address-level read-only vs.
+    field-level read-only within an otherwise-writable register, internal
+    bypass paths for cycle/instret/mip that never go through write() at
+    all, per-CSR exceptions like MIP's no-op case). Worth revisiting the
+    whole read/write/field_for design once interrupts exposes the full
+    shape of what it actually needs to handle, rather than guessing now.
+
+--- beyond CPU emulation: peripherals / BIOS / OS (distant goal, see
+    project_goal_boot_linux.md -- not near-term architecture, just a list
+    for later) ---
+
+    Peripherals:
+    - memory-mapped I/O device model (UART/console minimum)
+    - external interrupt support (mip.MEIP/SEIP, PLIC-style or simplified)
+    - a block/disk device model (if a real root filesystem is ever needed)
+
+    BIOS / firmware:
+    - binary/firmware image loader
+    - full S-mode CSR set (sepc, scause, stval, stvec, sstatus, sie, sip)
+    - SRET and S-mode environment calls
+    - medeleg/mideleg (trap delegation M->S)
+    - SBI call surface
+
+    OS (Linux):
+    - Sv32 virtual memory (satp, page-table walker/translation) -- needed
+      for instruction/load/store page faults (Table 16 codes 12/13/15,
+      Chapter 12.3, p.129); Linux relies on virtual memory pervasively
+      (per-process address spaces, demand paging, copy-on-write)
+    - full U/S/M three-mode operation
+    - timer-driven preemption (mtime/mtimecmp)
+    - console + disk drivers matching whatever device model above

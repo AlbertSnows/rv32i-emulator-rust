@@ -1,4 +1,4 @@
-
+// Masks are sequences of bits used to separate bits from one another. 
 
 const SEVEN_TO_ELEVEN: u32 = 0b1111_1000_0000;
 
@@ -14,7 +14,7 @@ const TWENTY_TO_THIRTY_ONE: u32 = 0b1111_1111_1111_0000_0000_0000_0000_0000;
 
 const TWENTY_TO_TWENTY_FOUR: u32 = 0b0001_1111_0000_0000_0000_0000_0000;
 const TWENTY_FIVE_TO_THIRTY_ONE: u32 = 0b1111_1110_0000_0000_0000_0000_0000_0000;
-
+const TWELVE_AND_ELEVEN: u32 = 0b1_1000_0000_0000;
 
 // 0xB3 = 1011 0011
 // mask = 0111 1111 <- 7 bits
@@ -37,3 +37,10 @@ pub const I_TYPE_ALU_IMM: u32 = TWENTY_TO_THIRTY_ONE;
 pub const I_TYPE_LOAD: u32 = TWENTY_TO_THIRTY_ONE;
 pub const BIT_TWENTY: u32 = 0b1_0000_0000_0000_0000_0000;
 pub const CSR_ADDRESS: u32 = TWENTY_TO_THIRTY_ONE;
+pub const MPP: u32 = TWELVE_AND_ELEVEN;
+pub const MPIE: u32 = 0b1000_0000;
+pub const GLOBAL_MIE: u32 = 0b1000;
+pub const MCAUSE_INTERRUPT: u32 = 0x8000_0000;
+pub const MTI: u32 = 0b1000_0000;
+pub const MTIP: u32 = MTI;
+pub const MTIE: u32 = MTI;

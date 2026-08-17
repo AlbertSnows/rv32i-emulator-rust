@@ -9,14 +9,13 @@
 // e.g. add, sub, and, or, xor, sll, srl, sra, slt, sltu
 // rs is an index
 
-use crate::definitions::cpu_definition::build_register_file;
-use crate::definitions::cpu_definition::RegisterFile;
-use crate::definitions::op_codes;
-use crate::definitions::masks;
+use crate::definitions::cpu::cpu_definition::{build_register_file, RegisterFile};
+use crate::definitions::{op_codes, masks};
 use crate::fetcher::InstructionWord;
 use crate::instructions::Format;
 use crate::utility::bit_operations::mask_and_shift;
 use crate::definitions::codes::ExecutionSignal;
+use crate::definitions::trap_cause::TrapCause;
 
 #[derive(Debug, PartialEq)]
 pub enum AluOp {
@@ -32,7 +31,7 @@ pub enum AluOp {
     And
 }
 
-pub fn parse_r_inst(raw_word: InstructionWord) -> Result<Format, String> {
+pub fn parse_r_inst(raw_word: InstructionWord) -> Result<Format, TrapCause> {
     let content = raw_word.0;
     let reg_dest = mask_and_shift(content, masks::REG_DESTINATION);
     let funct_three = mask_and_shift(content, masks::FUNCT_THREE);
@@ -50,7 +49,7 @@ pub fn parse_r_inst(raw_word: InstructionWord) -> Result<Format, String> {
         (0b0100000, 0b101) => Ok(AluOp::Sra),
         (0b0000000, 0b110) => Ok(AluOp::Or),
         (0b0000000, 0b111) => Ok(AluOp::And),
-        _ => Err(format!("undefined R type"))
+        _ => Err(TrapCause::IllegalInstruction { instruction: Some(content) })
     }?;
     Ok(Format::RType { 
         op: instruction_name, 
@@ -60,21 +59,20 @@ pub fn parse_r_inst(raw_word: InstructionWord) -> Result<Format, String> {
     })
 }
 
-pub fn execute_r_type(op: &AluOp, rd: usize, rs1: usize, rs2: usize, reg_file: &mut RegisterFile) -> Result<ExecutionSignal, String> {
-    match op {
-        AluOp::Add => {
-            inst_r_add(rd, rs1, rs2, reg_file);
-        },
-        AluOp::Sub => inst_r_sub(rd, rs1, rs2, reg_file),
-        AluOp::Sll => inst_r_sll(rd, rs1, rs2, reg_file),
-        AluOp::Slt => inst_r_slt(rd, rs1, rs2, reg_file),
-        AluOp::Sltu => inst_r_sltu(rd, rs1, rs2, reg_file),
-        AluOp::Xor => inst_r_xor(rd, rs1, rs2, reg_file),
-        AluOp::Srl => inst_r_srl(rd, rs1, rs2, reg_file),
-        AluOp::Sra => inst_r_sra(rd, rs1, rs2, reg_file),
-        AluOp::Or => inst_r_or(rd, rs1, rs2, reg_file),
-        AluOp::And => inst_r_and(rd, rs1, rs2, reg_file),
-    }
+pub fn execute_r_type(op: &AluOp, rd: usize, rs1: usize, rs2: usize, reg_file: &mut RegisterFile) -> Result<ExecutionSignal, TrapCause> {
+    let inst_fn = match op {
+        AluOp::Add => inst_r_add,
+        AluOp::Sub => inst_r_sub,
+        AluOp::Sll => inst_r_sll,
+        AluOp::Slt => inst_r_slt,
+        AluOp::Sltu => inst_r_sltu,
+        AluOp::Xor => inst_r_xor,
+        AluOp::Srl => inst_r_srl,
+        AluOp::Sra => inst_r_sra,
+        AluOp::Or => inst_r_or,
+        AluOp::And => inst_r_and,
+    };
+    inst_fn(rd, rs1, rs2, reg_file);
     Ok(ExecutionSignal::Continue)
 }
 

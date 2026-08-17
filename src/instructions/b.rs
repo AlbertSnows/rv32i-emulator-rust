@@ -11,12 +11,11 @@
 // e.g. beq, bne, blt, bge, bltu, bgeu
 use crate::instructions::Format;
 use crate::fetcher::InstructionWord;
-use crate::definitions::cpu_definition::RegisterFile;
+use crate::definitions::cpu::cpu_definition::RegisterFile;
 use crate::definitions::codes::ExecutionSignal;
-use crate::utility::bit_operations::mask_and_shift;
-use crate::utility::bit_operations::merge_bits;
-use crate::utility::bit_operations::shake_to_signed;
+use crate::utility::bit_operations::{mask_and_shift, merge_bits, shake_to_signed};
 use crate::definitions::masks;
+use crate::definitions::trap_cause::TrapCause;
 
 #[derive(Debug, PartialEq)]
 pub enum BOp {
@@ -40,7 +39,7 @@ pub enum BOp {
 // 1     1     1    1    1    1    1
 // imm12 imm10 imm9 imm8 imm7 imm6 imm5
 
-pub fn parse_b_inst(raw_word: InstructionWord) -> Result<Format, String> {
+pub fn parse_b_inst(raw_word: InstructionWord) -> Result<Format, TrapCause> {
     let content = raw_word.0;
     let reg_source_one = mask_and_shift(content, masks::REG_SOURCE_ONE);
     let reg_source_two = mask_and_shift(content, masks::REG_SOURCE_TWO);
@@ -80,7 +79,7 @@ pub fn parse_b_inst(raw_word: InstructionWord) -> Result<Format, String> {
         0b101 => Ok(BOp::Bge),
         0b110 => Ok(BOp::Bltu),
         0b111 => Ok(BOp::Bgeu),
-        _ => Err(format!("undefined b type detected"))
+        _ => Err(TrapCause::IllegalInstruction { instruction: Some(content) })
     }?;
     Ok(Format::BType { 
         op: instruction_name,
@@ -90,7 +89,7 @@ pub fn parse_b_inst(raw_word: InstructionWord) -> Result<Format, String> {
     })
 }
 
-pub fn execute_b_type(op: &BOp, imm: i32, rs1: usize, rs2: usize, register: &mut RegisterFile) -> Result<ExecutionSignal, String> {
+pub fn execute_b_type(op: &BOp, imm: i32, rs1: usize, rs2: usize, register: &mut RegisterFile) -> Result<ExecutionSignal, TrapCause> {
     // B Type only modifies PC, which is handled in the advance_pc step
     // This execution is a no op
     Ok(ExecutionSignal::Continue)

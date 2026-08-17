@@ -12,13 +12,12 @@
 // e.g. lui, auipc
 use crate::instructions::Format;
 use crate::fetcher::InstructionWord;
-use crate::definitions::cpu_definition::RegisterFile;
-use crate::definitions::cpu_definition::PCState;
+use crate::definitions::cpu::cpu_definition::{RegisterFile, PCState};
 use crate::instructions::i::system::SystemOp;
 use crate::definitions::codes::ExecutionSignal;
 use crate::utility::bit_operations::mask_and_shift;
-use crate::definitions::masks;
-use crate::definitions::op_codes;
+use crate::definitions::{masks, op_codes};
+use crate::definitions::trap_cause::TrapCause;
 
 #[derive(Debug, PartialEq)]
 pub enum UOp {
@@ -26,14 +25,14 @@ pub enum UOp {
     Auipc
 }
 
-pub fn parse_u_inst(raw_word: InstructionWord, opcode: u32) -> Result<Format, String> {
+pub fn parse_u_inst(raw_word: InstructionWord, opcode: u32) -> Result<Format, TrapCause> {
     let content = raw_word.0;
     let reg_dest = mask_and_shift(content, masks::REG_DESTINATION);
     let imm_as_upper_bits = (content & masks::U_TYPE_IMM) as i32;
     let instruction_name = match opcode {
         op_codes::LUI => Ok(UOp::Lui),
         op_codes::AUIPC => Ok(UOp::Auipc),
-        _ => Err(format!("Unrecognized U type"))
+        _ => Err(TrapCause::IllegalInstruction { instruction: Some(content) })
     }?;
     Ok(Format::UType { 
         op: instruction_name,
@@ -42,7 +41,7 @@ pub fn parse_u_inst(raw_word: InstructionWord, opcode: u32) -> Result<Format, St
     })
 }
 
-pub fn execute_u_type(op: &UOp, rd: usize, imm_upper: i32, register: &mut RegisterFile, pc: &PCState) -> Result<ExecutionSignal, String> {
+pub fn execute_u_type(op: &UOp, rd: usize, imm_upper: i32, register: &mut RegisterFile, pc: &PCState) -> Result<ExecutionSignal, TrapCause> {
     match op {
         UOp::Lui => inst_u_lui(rd, imm_upper, register),
         UOp::Auipc => inst_u_auipc(rd, imm_upper, pc, register),
@@ -63,8 +62,7 @@ pub fn inst_u_auipc(rd: usize, imm_upper: i32, pc: &PCState, register: &mut Regi
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::cpu_definition::build_pc_state;
-    use crate::cpu_definition::build_register_file;
+    use crate::definitions::cpu::cpu_definition::{build_pc_state, build_register_file};
 
     #[test]
     fn test_parse_u_inst_lui() {

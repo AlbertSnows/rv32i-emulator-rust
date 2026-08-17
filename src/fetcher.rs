@@ -1,14 +1,14 @@
 
-use crate::cpu_definition::PCState;
-use crate::cpu_definition::MemoryState;
-use crate::cpu_definition::build_memory_state;
-use crate::cpu_definition::build_pc_state;
+use crate::definitions::cpu::cpu_definition::{PCState, build_pc_state};
+use crate::definitions::cpu::memory::{MemoryState, build_memory_state};
+use crate::definitions::trap_cause::TrapCause;
 // word in this context refers to the fixed-sized chunk of data to interface with
 // words for us are 32bits of data that we'll have to decode later, for now it's just raw bits
+#[derive(Debug, PartialEq, Copy, Clone)]
 pub struct InstructionWord(pub u32);
 
 // This version is instructional, meant to show how you would manually construct the instruction word
-pub fn fetch_word_from_memory_instructional(pc: &PCState, mem: &MemoryState) -> Result<InstructionWord, String> {
+pub fn fetch_word_from_memory_instructional(pc: &PCState, mem: &MemoryState) -> Result<InstructionWord, TrapCause> {
     // RV32I does little endian by default. that means that even though bytes are stored first->last
     // the 32 bit int needs to be set up in the form last<-first
     // so, we have the range pc, pc+1, ...
@@ -16,7 +16,7 @@ pub fn fetch_word_from_memory_instructional(pc: &PCState, mem: &MemoryState) -> 
     // then we get little endian ordering by default, which makes constructing the word a bit easier.
     let pc_value = pc.read();
     if pc_value + 3 >= mem.storage.len() {
-        return Err(format!("fetch out of bounds: pc={} exceeds memory size {}", pc_value, mem.storage.len()));
+        return Err(TrapCause::InstructionAccessFault { address: pc_value });
     }
     let pc_byte_range = (pc_value..(pc_value+4)).rev(); // Rev<Range<usize>>
     let byte_values_from_mem = pc_byte_range.map(|byte_index: usize| {
@@ -44,10 +44,10 @@ pub fn fetch_word_from_memory_instructional(pc: &PCState, mem: &MemoryState) -> 
 // out little-endian (storage[pc] is the least-significant byte)
 // The four bytes can be handed to from_le_bytes in forward order
 // Does not require shifting
-pub fn fetch_word_from_memory(pc: &PCState, mem: &MemoryState) -> Result<InstructionWord, String> {
+pub fn fetch_word_from_memory(pc: &PCState, mem: &MemoryState) -> Result<InstructionWord, TrapCause> {
     let pc_value = pc.read();
     if pc_value + 3 >= mem.storage.len() {
-        return Err(format!("fetch out of bounds: pc={} exceeds memory size {}", pc_value, mem.storage.len()));
+        return Err(TrapCause::InstructionAccessFault { address: pc_value });
     }
     let bytes = [
         mem.storage[pc_value],

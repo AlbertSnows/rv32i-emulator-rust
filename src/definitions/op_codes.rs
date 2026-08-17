@@ -22,3 +22,5 @@ pub const B: u32 = 0b1100011; // B-type: beq, bne, blt, bge, bltu, bgeu
 pub const LUI: u32 = 0b0110111; // U-type: lui
 pub const AUIPC: u32 = 0b0010111; // U-type: auipc
 pub const J: u32 = 0b1101111; // J-type: jal
+pub const MISC_MEM: u32 = 0b000_1111;
+pub const FENCE: u32 = MISC_MEM;

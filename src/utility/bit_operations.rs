@@ -1,15 +1,58 @@
-use crate::definitions::cpu_definition::MemoryState;
+use crate::definitions::cpu::memory::MemoryState;
+use crate::utility::types::ByteType;
+
+// words are bit terminology; a word is a 32bit number
+pub const WORD: usize = 4;
+pub const DOUBLEWORD: usize = 8;
+
+// construct a new bit number, byte by byte
+pub const fn extract_sub_bytes(bit_range: u64, offset: usize, width: ByteType)-> u64 {
+    let byte_range = bit_range.to_le_bytes();
+    let num_bytes = width.as_num();
+    let mut result: u64 = 0;
+    let mut i = 0;
+    while i < num_bytes {
+        let byte_at_index = byte_range[offset + i] as u64;
+        let shift_amount = i * ByteType::DoubleWord.as_num();
+        let positioned_byte = byte_at_index << shift_amount;
+        result |= positioned_byte;
+        i += 1;
+    }
+    result
+}
+
+// given an address, gives you a range from adr..addr+width-1 of numbers
+pub const fn as_window(base: usize, width: ByteType) -> std::ops::RangeInclusive<usize> {
+    base..=(base + width.as_num() - 1)
+}
+
+pub const fn set_bit_range(original_bits: u32, new_bits: u32, width: usize, shift: usize) -> u32 {
+    let bits_to_update = ((1u32 << width) -1 ) << shift;
+    let bits_to_preserve = original_bits & !bits_to_update;
+    let positioned_new_bits = (new_bits << shift) & bits_to_update;
+    bits_to_preserve | positioned_new_bits
+}
+
 
 // The width will be 31 - position + 1
-pub fn shake_to_signed(unsigned_bits: u32, width: u32) -> i32 {
+pub const fn shake_to_signed(unsigned_bits: u32, width: u32) -> i32 {
     let shift_distance = 32 - width;
     ((unsigned_bits << shift_distance) as i32) >> shift_distance
 }
 
-pub fn merge_bits(bit_list: &[(u32, u32)]) -> u32 {
-    bit_list.iter().fold(0, |acc_bit, &(value, shift)|{
-        acc_bit | (value << shift)
-    })
+pub const fn merge_bits(bit_list: &[(u32, u32)]) -> u32 {
+    // equivalent
+    // bit_list.iter().fold(0, |acc_bit, &(value, shift)|{
+    //     acc_bit | (value << shift)
+    // })
+    let mut acc_bit = 0;
+    let mut i = 0;
+    while i < bit_list.len() {
+        let (value, shift) = bit_list[i];
+        acc_bit |= value << shift;
+        i += 1;
+    }
+    acc_bit
 }
 
 pub fn store_in_mem(data: &[u8], mem: &mut MemoryState, location: usize) {
@@ -17,21 +60,21 @@ pub fn store_in_mem(data: &[u8], mem: &mut MemoryState, location: usize) {
     let placement_range = location..(location+data.len());
     // copy from slice takes every element from a source slice and copies it
     // in order into the slice you call it on
-    // example: 
-    // mem.storage is  [0, 0, 0, 0, 0, 0, 0, 0] 
+    // example:
+    // mem.storage is  [0, 0, 0, 0, 0, 0, 0, 0]
     // data is [0xB3, 0x81, 0x20, 0x00]
     // Call mem.storage[0..4].copy_from_slice(data)
-    // mem.storage is now [0xB3, 0x81, 0x20, 0x00, 0, 0, 0, 0] 
+    // mem.storage is now [0xB3, 0x81, 0x20, 0x00, 0, 0, 0, 0]
     mem.storage[placement_range].copy_from_slice(data)
 }
 
 // A bit "mask" is a sequence of bits used to separate other bits from one another
 // It's called a mask from the term masking tape. mask over that which you don't want changed.
-pub fn mask(maskee: u32, masker: u32) -> u32 {
+pub const fn mask(maskee: u32, masker: u32) -> u32 {
     maskee & masker
 }
 
-pub fn mask_and_shift(maskee: u32, masker: u32) -> u32 {
+pub const fn mask_and_shift(maskee: u32, masker: u32) -> u32 {
     let unmoved_output = mask(maskee, masker);
     let final_masking = unmoved_output >> masker.trailing_zeros();
     final_masking
@@ -64,14 +107,14 @@ mod tests {
 
     #[test]
     fn test_store_in_mem() {
-        let mut mem = crate::definitions::cpu_definition::build_memory_state();
+        let mut mem = crate::definitions::cpu::memory::build_memory_state();
         store_in_mem(&[0xB3, 0x81, 0x20, 0x00], &mut mem, 0);
         assert_eq!(mem.storage[0..4], [0xB3, 0x81, 0x20, 0x00]);
     }
 
     #[test]
     fn test_store_in_mem_at_offset() {
-        let mut mem = crate::definitions::cpu_definition::build_memory_state();
+        let mut mem = crate::definitions::cpu::memory::build_memory_state();
         store_in_mem(&[0xAA, 0xBB], &mut mem, 10);
         assert_eq!(mem.storage[10..12], [0xAA, 0xBB]);
         // untouched neighbors stay zero
@@ -89,6 +132,17 @@ mod tests {
     #[test]
     fn test_merge_bits_empty_is_zero() {
         assert_eq!(merge_bits(&[]), 0);
+    }
+
+    #[test]
+    fn test_set_bit_range() {
+        // Worked by hand: mask = 0b011100; be & !mask = 0b00001;
+        // (nb << 2) & mask = 0b00100; 0b00001 | 0b00100 = 0b00101.
+        let be = 0b10001;
+        let nb = 0b001;
+        let width = 3;
+        let shift = 2;
+        assert_eq!(set_bit_range(be, nb, width, shift), 0b00101);
     }
 
     #[test]

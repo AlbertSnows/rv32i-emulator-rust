@@ -1,16 +1,15 @@
-use crate::definitions::cpu_definition::RegisterFile;
-use crate::definitions::cpu_definition::PCState;
+use crate::definitions::cpu::cpu_definition::{RegisterFile, PCState};
 use crate::fetcher::InstructionWord;
 use crate::instructions::Format;
 use crate::definitions::codes::ExecutionSignal;
-use crate::utility::bit_operations::mask_and_shift;
+use crate::utility::bit_operations::{mask_and_shift, shake_to_signed};
 use crate::definitions::masks;
-use crate::utility::bit_operations::shake_to_signed;
+use crate::definitions::trap_cause::TrapCause;
 
 // jalr -- the only instruction under its opcode, so no op enum needed
 // (same reasoning as JType). Not yet implemented.
 
-pub fn parse_jalr_inst(raw_word: InstructionWord) -> Result<Format, String> {
+pub fn parse_jalr_inst(raw_word: InstructionWord) -> Result<Format, TrapCause> {
     let content = raw_word.0;
     let reg_dest = mask_and_shift(content, masks::REG_DESTINATION);
     let imm_unsigned = mask_and_shift(content, masks::I_TYPE_JALR);
@@ -23,7 +22,7 @@ pub fn parse_jalr_inst(raw_word: InstructionWord) -> Result<Format, String> {
     })
 }
 
-pub fn execute_i_jalr_type(rd: usize, rs1: usize, imm: i32, register: &mut RegisterFile, pc: &PCState) -> Result<ExecutionSignal, String> {
+pub fn execute_i_jalr_type(rd: usize, rs1: usize, imm: i32, register: &mut RegisterFile, pc: &PCState) -> Result<ExecutionSignal, TrapCause> {
     register.write(rd, (pc.read().wrapping_add(4)) as u32);
     Ok(ExecutionSignal::Continue)
 }
@@ -32,9 +31,8 @@ pub fn execute_i_jalr_type(rd: usize, rs1: usize, imm: i32, register: &mut Regis
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::cpu_definition::build_pc_state;
-    use crate::cpu_definition::build_register_file;
-    use crate::cpu_definition::build_memory_state;
+    use crate::definitions::cpu::cpu_definition::{build_pc_state, build_register_file};
+    use crate::definitions::cpu::memory::build_memory_state;
 
     #[test]
     fn test_parse_jalr_inst() {
