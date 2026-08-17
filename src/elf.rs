@@ -63,8 +63,8 @@ pub fn load_elf(elf_bytes: &[u8], cpu: &mut CPUState) -> Result<(), TrapCause> {
 pub fn find_symbol(elf_bytes: &[u8], symbol_name: &str) -> Option<u32> {
     // find the section header table (e_shoff, e_shnum, e_shentsize)
     let e_shoff = read_u32(elf_bytes, 32); // where file starts
-    let e_shnum = read_u16(elf_bytes, 46); // how many sections are in the list
-    let e_shentsize = read_u16(elf_bytes, 48); // how big the entry iss
+    let e_shnum = read_u16(elf_bytes, 48); // how many sections are in the list
+    let e_shentsize = read_u16(elf_bytes, 46); // how big the entry iss
 
     // symtab is the name=>address table
     // this loop iterates through the section header table, looking for the start of 

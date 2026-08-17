@@ -4,17 +4,17 @@ use crate::utility::bit_operations::{ as_window, extract_sub_bytes };
 use crate::utility::types::{ ByteType, as_byte_type };
 
 const TEST_MEM_SIZE: usize = 4096;
-const FULL_MEM_SIZE: usize = 65536;
+pub const FULL_MEM_SIZE: usize = 65536;
 #[derive(Debug, Copy, PartialEq, Clone)]
 pub struct MemoryState {
-    pub storage: [u8; TEST_MEM_SIZE],
+    pub storage: [u8; FULL_MEM_SIZE],
     pub mtime: u64,
     pub mtimecmp: u64,
 }
 
 pub fn build_memory_state() -> MemoryState {
     MemoryState { 
-        storage: [0; TEST_MEM_SIZE],
+        storage: [0; FULL_MEM_SIZE],
         mtime: 0,
         mtimecmp: 0
     }
@@ -131,7 +131,7 @@ mod tests {
     fn test_write_bytes_out_of_bounds_returns_err() {
         let mut mem = build_memory_state();
         let test_value: u32 = 0x12345678;
-        let outcome = mem.write_bytes(TEST_MEM_SIZE - 2, &test_value.to_le_bytes());
+        let outcome = mem.write_bytes(FULL_MEM_SIZE - 2, &test_value.to_le_bytes());
         assert!(outcome.is_err());
     }
 
@@ -163,7 +163,7 @@ mod tests {
     #[test]
     fn test_read_bytes_out_of_bounds_returns_err() {
         let mem = build_memory_state();
-        let outcome = mem.read_bytes(TEST_MEM_SIZE - 2, 4);
+        let outcome = mem.read_bytes(FULL_MEM_SIZE - 2, 4);
         assert!(outcome.is_err());
     }
 }

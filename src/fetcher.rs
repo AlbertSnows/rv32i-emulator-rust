@@ -1,6 +1,6 @@
 
 use crate::definitions::cpu::cpu_definition::{PCState, build_pc_state};
-use crate::definitions::cpu::memory::{MemoryState, build_memory_state};
+use crate::definitions::cpu::memory::{MemoryState, build_memory_state, FULL_MEM_SIZE};
 use crate::definitions::trap_cause::TrapCause;
 // word in this context refers to the fixed-sized chunk of data to interface with
 // words for us are 32bits of data that we'll have to decode later, for now it's just raw bits
@@ -92,9 +92,10 @@ mod tests {
     fn test_fetch_word_from_memory_out_of_bounds_returns_err() {
         let mut pc = build_pc_state();
         let mem = build_memory_state();
-        // mem.storage is 4096 bytes (indices 0..4095); pc=4094 means pc+3=4097,
-        // which reaches past the last valid index -- should hit the bounds check.
-        pc.write(4094);
+        // pc = FULL_MEM_SIZE - 2 means pc+3 reaches one past the last valid
+        // index -- should hit the bounds check regardless of how big
+        // mem.storage actually is.
+        pc.write(FULL_MEM_SIZE - 2);
         let outcome = fetch_word_from_memory(&pc, &mem);
         assert!(outcome.is_err());
     }
