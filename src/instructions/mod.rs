@@ -53,7 +53,7 @@ impl Format {
             Format::AluImmType { op, rd, rs1, imm }
                 => i::alu_imm_or_shift::execute_i_alu_imm_type(op, *rd, *rs1, *imm, &mut cpu_state.register),
             Format::JalrType { rd, rs1, imm }
-                => i::jalr::execute_i_jalr_type(*rd, *rs1, *imm, &mut cpu_state.register, &cpu_state.pc),
+                => i::jalr::execute_i_jalr_type(*rd, *rs1, *imm, &mut cpu_state.register, &mut cpu_state.pc),
             Format::IShiftType { op, rd, rs1, shamt } 
                 => i::shift::execute_i_shift_type(op, *rd, *rs1, *shamt, &mut cpu_state.register),
             Format::SystemType { op }

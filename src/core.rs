@@ -164,6 +164,7 @@ mod tests {
     use crate::utility::bit_operations::{store_in_mem, mask_and_shift};
     use crate::programs::instructions::ADD_X3_X1_X2;
     use crate::programs::instructions::NO_OP;
+    use crate::programs::instructions::JALR_X1_X1_0;
     use crate::definitions::masks;
     use crate::definitions::addresses::{CYCLE, INSTRET};
 
@@ -179,6 +180,26 @@ mod tests {
         assert_eq!(outcome, Ok(ExecutionSignal::Continue));
         assert_eq!(cpu.register.read(3), 17);
         assert_eq!(cpu.pc.read(), BASE_ADDRESS as usize + 4);
+    }
+
+    #[test]
+    fn test_step_jalr_reads_rs1_before_execute_clobbers_it_when_rd_equals_rs1() {
+        // jalr x1, x1, 0 
+        // rd and rs1 are the same register. execute()
+        // writes rd = pc+4 (the link address); advance_pc() separately
+        // reads rs1 to compute the jump target. If execute() runs first,
+        // by the time advance_pc() reads rs1 it's already been overwritten
+        // with the link address, and the cpu jumps to the wrong place.
+        let mut cpu = build_cpu_state();
+        cpu.register.write(1, BASE_ADDRESS as usize as u32 + 40);
+        store_in_mem(&JALR_X1_X1_0.to_le_bytes(), &mut cpu.bus.ram, 0);
+        cpu.pc.write(BASE_ADDRESS as usize);
+        let outcome = step(&mut cpu);
+        assert_eq!(outcome, Ok(ExecutionSignal::Continue));
+        // jumped to rs1's original value, not the just-written link address
+        assert_eq!(cpu.pc.read(), BASE_ADDRESS as usize + 40);
+        // link address still landed correctly in rd
+        assert_eq!(cpu.register.read(1), BASE_ADDRESS + 4);
     }
 
     #[test]

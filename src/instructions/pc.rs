@@ -7,16 +7,8 @@ use crate::instructions::i::system::{SystemOp};
 
 pub fn advance_pc(pc: &mut PCState, instruction: &Format, reg_file: &RegisterFile) -> Result<usize, TrapCause> {
     let pc_value = pc.read() as u32;
-
     let new_value = match instruction {
         Format::JType { op, rd, imm } => pc_value.wrapping_add(*imm as u32),
-        Format::JalrType { rd, rs1, imm } => {
-            let rs1_val = reg_file.read(*rs1);
-            // 1 = ..001, !1 = ..110
-            // (combine rs1 and imm) -> and with !1 which means keep all bits in (rs1 + imm) but force it to be even (rounded down)
-            let new_value = (rs1_val.wrapping_add(*imm as u32)) & !1;
-            new_value
-        },
         Format::BType { op, imm, rs1, rs2 } => {
             let rs1_val = reg_file.read(*rs1);
             let rs2_val = reg_file.read(*rs2);
@@ -30,6 +22,7 @@ pub fn advance_pc(pc: &mut PCState, instruction: &Format, reg_file: &RegisterFil
                 BOp::Bge => if (rs1_val as i32) >= (rs2_val as i32) { pc_value.wrapping_add(imm_val) } else { pc_value.wrapping_add(4) }
             }
         },
+        Format::JalrType { rd, rs1, imm } => pc_value,
         Format::SystemType { op: SystemOp::MRet } => pc_value,
         _ => pc_value.wrapping_add(4)
     };
@@ -67,6 +60,7 @@ mod tests {
 
     #[test]
     fn test_advance_pc_jalrtype_wraps_at_i32_max() {
+        // jalr is a no op now
         let mut pc = build_pc_state();
         let mut reg_file = build_register_file();
         // i32::MAX = 0x7FFF_FFFF = 0b0111_1111_1111_1111_1111_1111_1111_1111
@@ -74,7 +68,7 @@ mod tests {
         let instruction = Format::JalrType { rd: 1, rs1: 2, imm: 1 };
         let result = advance_pc(&mut pc, &instruction, &reg_file);
         // = i32::MIN, and & !1 leaves it unchanged since bit 0 is already 0
-        assert_eq!(result.unwrap() as i32, i32::MIN);
+        assert_eq!(result.unwrap() as i32, 0);
     }
 
     #[test]
