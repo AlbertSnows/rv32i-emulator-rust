@@ -56,6 +56,13 @@ separately, for finding tohost's address -- see below.)
   exit syscall convention) and exit code 0.
 - RVTEST_FAIL: TESTNUM = (TESTNUM << 1) | 1 (encodes which numbered test
   failed as an odd number), then the same ecall pattern with a0=TESTNUM.
+  The harness reverses this to recover which sub-test failed:
+  tohost_value >> 1 (>> discards whatever bit falls off the end, so it
+  doesn't matter that | 1 forced that bit to 1 -- >> 1 and << 1 are exact
+  inverses of each other otherwise). This is also why TEST_RR_OP numbering
+  in files like add.S starts at 2, not 0 or 1 -- (0 << 1) | 1 == 1, the
+  exact same value RVTEST_PASS writes on success, so sub-test 0 failing
+  would be indistinguishable from the whole file passing.
 - The ecall gets caught by the test's own trap_vector (installed at boot
   via `csrw mtvec, t0`): checks mcause against the three ecall causes
   (CAUSE_USER_ECALL / SUPERVISOR_ECALL / MACHINE_ECALL) and, if matched,
@@ -198,14 +205,74 @@ Every load/store instruction, load_elf, and store_in_mem's callers
 updated to go through cpu.bus instead of cpu.mem. Full sweep, all
 161+1+5 tests still pass.
 
+--- done: BASE_ADDRESS actually wired in, plus a real bug it exposed ---
+
+BUSState::direct_read/direct_write's `_` arms now guard (address must be
+>= BASE_ADDRESS, else a clean TrapCause instead of a usize underflow
+panic) and translate before delegating to self.ram. ClintState got its
+own read_mtime/read_mtimecmp/write_mtime/write_mtimecmp, with the
+offset+width bounds check that direct_read/direct_write's inline
+MTIME/MTIMECMP handling never had (offset + num_bytes > 8 now returns
+Err instead of extract_sub_bytes/a byte-slice panicking past the real
+8-byte register).
+
+This forced every test exercising a real memory access (load/store
+instructions, fetcher, core::step()) to move off small hand-picked
+addresses (0, 4, 10...) onto real BASE_ADDRESS-relative ones -- a
+deliberate call, not a compromise: BUSState now always translates, with
+no small-address passthrough special-cased for test convenience, since
+that would have meant production code quietly behaving differently
+depending on what looked like "a test's address" vs "a real one."
+
+That sweep surfaced a real, previously-invisible bug: advance_pc
+(instructions/pc.rs) cast pc to i32 for signed immediate arithmetic.
+0x80000000 (BASE_ADDRESS) is exactly i32::MIN's bit pattern, so every
+real pc value started reading as a huge negative number the moment
+real addresses were used -- invisible before now because every pc value
+in every test was always small enough to stay positive as i32. Fixed by
+keeping pc arithmetic in u32 throughout (RV32 addresses are unsigned by
+definition; overflow correctly wraps at 2^32, not something to avoid)
+and bit-reinterpreting the signed immediate into u32 before adding
+(`imm as u32`, then always wrapping_add -- two's complement means this
+produces the identical result a signed subtraction would, no branching
+on sign needed).
+
+Verified end to end: load_elf against the real add-p-add fixture now
+succeeds -- pc lands at 0x80000000, tohost resolves to 0x80001000
+(matching readelf from way back), real nonzero instruction bytes sit at
+the entry point. This is the thing that's been blocked the whole time
+outline steps 5-6 needed.
+
+--- backlog: mhartid CSR needed for real riscv-tests boot code ---
+
+Discovered running tests/harness.rs's run_tests against add-p-add for
+real: it hangs (TimedOut), not a harness bug -- traced with temporary
+debug prints (same pattern as always, reverted after). Real riscv-tests
+boot code (reset_vector, confirmed directly via objdump -d) reads
+mhartid ("hart ID", CSR 0xF14) very early -- `csrr a0, mhartid; bnez a0,
+<spin forever>` -- standard "am I hart 0" multi-hart boot check, done
+*before* the test installs its own trap vector (csrw mtvec comes right
+after). CSRState doesn't map mhartid at all, so this read traps as
+IllegalInstruction with nowhere valid to go yet (mtvec is still its
+default 0), landing pc at 0 -- which itself immediately faults on the
+next fetch (0 is below BASE_ADDRESS), hitting the double-trap Halt
+permanently. Confirmed via debug prints: pc runs cleanly through the
+register-zeroing loop (0x80000050 through 0x800000c8), then the very
+next instruction (0x800000cc, csrr a0,mhartid) is where it breaks --
+pc reads 0 immediately after.
+
+Fix: add mhartid (0xF14) to CSRState's mapped CSRs, read-only, always
+returning 0 (single-hart emulator, hart 0 is the only correct answer).
+Blocks outline step 6 -- no real riscv-tests binary can boot without
+this, not just add specifically.
+
 --- outline of steps, in dependency order ---
 
-
-5. Write the external test-harness loop, in tests/: load a test ELF,
-   run step() in a loop (with some iteration cap to avoid hanging on a
-   genuinely broken test), poll the tohost address each iteration,
-   report pass/fail based on what gets written there. Blocked on the
-   base address remapping backlog item above -- load_elf can't actually
-   load a real riscv-tests binary yet.
+5. [x] Write the external test-harness loop -- done, tests/harness.rs
+   (run_tests: loads via load_elf, resolves tohost via find_symbol, runs
+   step() in a bounded loop, polls tohost, decodes pass/fail/timeout).
+   Logic confirmed correct; blocked from actually passing by the
+   mhartid gap above, not a harness bug.
 6. Start with a small handful of rv32ui-p-* tests (e.g. add, addi, beq)
    to prove the whole pipeline end to end before running the full suite.
+   Blocked on the mhartid backlog item above.

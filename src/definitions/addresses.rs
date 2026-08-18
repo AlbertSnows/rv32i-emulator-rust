@@ -70,3 +70,4 @@ pub const MTIME: usize = 0x0200BFF8;
 pub const MTIMECMP: usize = 0x02004000;
 pub const MTIME_END: usize = MTIME + ByteType::DoubleWord.as_num() - 1;
 pub const MTIMECMP_END: usize = MTIMECMP + ByteType::DoubleWord.as_num() - 1;
+pub const MHARTID: usize = 0xF14;

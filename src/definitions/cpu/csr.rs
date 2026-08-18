@@ -1,7 +1,7 @@
 use crate::definitions::trap_cause::TrapCause;
 use crate::definitions::cpu::cpu_definition::CPUMode;
 use crate::definitions::addresses::{
-    MSTATUS, MTVEC, MEPC, MCAUSE, MTVAL, MCYCLE, MINSTRET, CYCLE, TIME, INSTRET, MIP, MIE
+    MSTATUS, MTVEC, MEPC, MCAUSE, MTVAL, MCYCLE, MINSTRET, CYCLE, TIME, INSTRET, MIP, MIE, MHARTID
 };
 use crate::utility::bit_operations::{mask_and_shift, set_bit_range};
 use crate::definitions::masks;
@@ -44,7 +44,10 @@ pub struct CSRState {
     mcycle: u32,
     minstret: u32,
     mie: u32,
-    mip: u32
+    mip: u32,
+    // hart: hardware thread; a term for one independent instruction execution unit, aka a core
+    // mhartid: u32 // machine hart id
+
 }
 
 // Which interrupt-pending bit in mip is being updated. Only MTI exists for
@@ -82,6 +85,7 @@ impl CSRState {
             MINSTRET | INSTRET => Ok(self.minstret),
             MIP => Ok(self.mip),
             MIE => Ok(self.mie),
+            MHARTID => Ok(0),
             _ => Err(TrapCause::IllegalInstruction { instruction: None }),
         }
     }

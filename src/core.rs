@@ -121,9 +121,6 @@ fn set_mpie(cpu: &mut CPUState) {
 // - why the trap was proc'd
 // - the address of the instruction that caused the failure
 pub fn handle_trap(cpu: &mut CPUState, trap_cause: TrapCause) -> ExecutionSignal {
-    if cpu.flags.in_trap {
-        return ExecutionSignal::Halt;
-    }
     cpu.flags.in_trap = true;
     set_mepc(cpu); // store pc
     set_mpp(cpu); // save the mode to mstatus
@@ -146,7 +143,7 @@ pub fn step(cpu: &mut CPUState) -> Result<ExecutionSignal, TrapCause> {
     let interrupt_detected = mask_and_shift(cpu.csr.read(MSTATUS).expect("MSTATUS defined"), GLOBAL_MIE) == 1 &&
                              mask_and_shift(cpu.csr.read(MIP).expect("MIP defined"), MTIP) == 1 &&
                              mask_and_shift(cpu.csr.read(MIE).expect("MIE defined"), MTIE) == 1;
-    if interrupt_detected {
+    if interrupt_detected && !cpu.flags.in_trap {
         Ok(handle_trap(cpu, TrapCause::MachineTimerInterrupt))
     } else {
         match perform_step(cpu) {
