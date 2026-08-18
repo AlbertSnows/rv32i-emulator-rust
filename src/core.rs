@@ -247,15 +247,23 @@ mod tests {
     }
 
     #[test]
-    fn test_handle_trap_returns_halt_on_double_trap() {
+    fn test_handle_trap_allows_nested_synchronous_traps() {
+        // Real hardware allows synchronous exceptions to nest freely 
+        // mepc/mcause/mtval get overwritten by whichever trap fires
+        // most recently. Preserving earlier trap state, if software cares,
+        // is software's own responsibility (e.g. saving to a stack before
+        // doing anything risky), not something the CPU blocks on. 
+        // riscv-tests boot code relies on exactly this: it deliberately
+        // traps to probe for optional CSRs, points mtvec at the very next
+        // instruction, and never runs MRET in between probes.
         let mut cpu = build_cpu_state();
         cpu.csr.guest_write(MTVEC, 4, CPUMode::M);
-        // first trap enters the handler normally
         let first = handle_trap(&mut cpu, TrapCause::IllegalInstruction { instruction: Some(1) });
         assert_eq!(first, ExecutionSignal::Continue);
-        // a second trap, before MRET clears in_trap, is a double trap
         let second = handle_trap(&mut cpu, TrapCause::IllegalInstruction { instruction: Some(2) });
-        assert_eq!(second, ExecutionSignal::Halt);
+        assert_eq!(second, ExecutionSignal::Continue);
+        // the second trap's info overwrote the first's
+        assert_eq!(cpu.csr.read(MTVAL).unwrap(), 2);
     }
 
     #[test]
@@ -391,15 +399,26 @@ mod tests {
     }
 
     #[test]
-    fn test_interrupt_arriving_while_already_in_trap_halts() {
+    fn test_step_defers_interrupt_while_already_in_trap() {
         // cpu.flags.in_trap already true, then conditions for a timer
-        // interrupt become true -- should hit the existing double-trap
-        // path (Halt), not enter the handler again.
+        // interrupt become true 
+        // step() must not re-fire the interrupt
+        // (that would clobber mepc/mcause and starve whatever handler is
+        // already running of the chance to execute even one instruction).
+        // It should run the next instruction normally, same as if no
+        // interrupt were pending at all. The interrupt stays pending and
+        // will correctly fire once in_trap goes back to false via MRET.
         let mut cpu = build_cpu_state();
         cpu.flags.in_trap = true;
         cpu.csr.guest_write(MIE, MTIE, CPUMode::M);
         cpu.csr.guest_write(MSTATUS, GLOBAL_MIE, CPUMode::M);
+        cpu.register.write(1, 4);
+        cpu.register.write(2, 3);
+        store_in_mem(&ADD_X3_X1_X2.to_le_bytes(), &mut cpu.bus.ram, 4);
+        cpu.pc.write(BASE_ADDRESS as usize + 4);
         let outcome = step(&mut cpu);
-        assert_eq!(outcome, Ok(ExecutionSignal::Halt));
+        assert_eq!(outcome, Ok(ExecutionSignal::Continue));
+        assert_eq!(cpu.register.read(3), 7); 
+        assert_eq!(cpu.pc.read(), BASE_ADDRESS as usize + 8); // advanced normally, not jumped to mtvec
     }
 }
