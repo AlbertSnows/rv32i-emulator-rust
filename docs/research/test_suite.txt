@@ -243,36 +243,89 @@ succeeds -- pc lands at 0x80000000, tohost resolves to 0x80001000
 the entry point. This is the thing that's been blocked the whole time
 outline steps 5-6 needed.
 
---- backlog: mhartid CSR needed for real riscv-tests boot code ---
+--- done: rv32ui-p-add passes for real (four real bugs found and fixed) ---
 
-Discovered running tests/harness.rs's run_tests against add-p-add for
-real: it hangs (TimedOut), not a harness bug -- traced with temporary
-debug prints (same pattern as always, reverted after). Real riscv-tests
-boot code (reset_vector, confirmed directly via objdump -d) reads
-mhartid ("hart ID", CSR 0xF14) very early -- `csrr a0, mhartid; bnez a0,
-<spin forever>` -- standard "am I hart 0" multi-hart boot check, done
-*before* the test installs its own trap vector (csrw mtvec comes right
-after). CSRState doesn't map mhartid at all, so this read traps as
-IllegalInstruction with nowhere valid to go yet (mtvec is still its
-default 0), landing pc at 0 -- which itself immediately faults on the
-next fetch (0 is below BASE_ADDRESS), hitting the double-trap Halt
-permanently. Confirmed via debug prints: pc runs cleanly through the
-register-zeroing loop (0x80000050 through 0x800000c8), then the very
-next instruction (0x800000cc, csrr a0,mhartid) is where it breaks --
-pc reads 0 immediately after.
+tests/harness.rs's test_rv32ui_p_add_passes (a real, permanent test, not
+scratch -- kept deliberately red until fixed, per "why don't we just
+write an actual test that'll keep failing" a while back) now genuinely
+passes. Getting there surfaced four separate, previously-invisible bugs
+in a row, each found by tracing a real riscv-tests binary with temporary
+debug prints (same pattern every time, reverted after each diagnosis):
 
-Fix: add mhartid (0xF14) to CSRState's mapped CSRs, read-only, always
-returning 0 (single-hart emulator, hart 0 is the only correct answer).
-Blocks outline step 6 -- no real riscv-tests binary can boot without
-this, not just add specifically.
+1. mhartid (CSR 0xF14) unmapped. Real boot code reads it immediately
+   after zeroing registers (`csrr a0,mhartid; bnez a0,<spin>` -- "am I
+   hart 0" multi-hart check), *before* installing its own trap vector --
+   the resulting trap had nowhere valid to go, landing pc at 0. Fixed:
+   added to CSRState, read-only, always 0 (single-hart emulator).
+
+2. The in_trap double-trap design itself was too broad (see the
+   "backlog: mhartid" section this replaced, and the design discussion
+   around it) -- real boot code deliberately traps to probe optional
+   CSRs (mnstatus, satp, pmpaddr0, pmpcfg0) without ever running MRET,
+   which the old "any second trap halts" rule couldn't tell apart from
+   a genuine double-fault. Fixed: step()'s interrupt check gained
+   `&& !cpu.flags.in_trap` (defer the interrupt, don't refire it);
+   handle_trap lost its blanket in_trap check entirely (synchronous
+   traps now nest freely, matching real hardware -- overwriting
+   mepc/mcause is fine, preserving it is software's job). Two existing
+   tests had their *expectations* deliberately changed to match the
+   corrected model, not just their setup: test_handle_trap_returns_halt_on_double_trap
+   -> test_handle_trap_allows_nested_synchronous_traps (now expects
+   Continue + overwritten mtval, not Halt); test_interrupt_arriving_while_already_in_trap_halts
+   -> test_step_defers_interrupt_while_already_in_trap (now expects a
+   real instruction to execute, not Halt).
+
+3. MRET's own pc write was being silently overwritten. perform_step()
+   calls advance_pc() unconditionally after every instruction; MRET sets
+   pc directly (to mepc) inside its own execute(), but advance_pc's
+   default case then added 4 on top, since MRET isn't one of its
+   special-cased Format variants (JType/JalrType/BType). Landed on
+   mepc+4 instead of mepc every time -- skipped the first instruction of
+   wherever MRET returned to. Invisible before now because no earlier
+   test checked pc's value after a real MRET. Fixed: added
+   `Format::SystemType { op: SystemOp::MRet } => pc_value` (no
+   addition) to advance_pc's match, same pattern as the other three.
+
+4. inst_s_sb/sh/sw (s.rs) wrote rs2 -- the *register index* -- directly,
+   instead of reg_file.read(rs2) -- the register's actual *value*. Real,
+   pervasive bug in every store instruction, invisible until now because
+   the existing unit tests shared the identical wrong assumption (they
+   passed rs2 as if it were already a value, e.g. `let rs2 = 0x12345678`,
+   rather than a register index with a value written into it first) --
+   implementation and its own tests agreed with each other, so nothing
+   caught it. This is exactly the failure mode adopting riscv-tests was
+   meant to catch: an independently-authored suite has no way to inherit
+   a codebase's own blind spot. Fixed both the implementation and all 7
+   affected tests in s.rs.
+
+--- done: riscv_test! macro, added a real fixture per rv32ui test file ---
+
+tests/harness.rs's three near-identical #[test] functions (add/addi/beq)
+turned into one macro_rules! (riscv_test!(test_name, fixture_path)) that
+expands to the same #[test] fn -- still individually named/reported in
+cargo test output, just without retyping the boilerplate per file. All
+remaining rv32ui/*.S files (39 of them) compiled the same way add.S was
+(same flags, see "1a"/"3a" above), added to tests/fixtures/, and wired
+up with one riscv_test! line each -- 42 real riscv-tests binaries total
+now running through this emulator.
+
+Result: 40/42 pass. Two real, likely genuine bugs, not test issues:
+- jalr: Fail(3). Same class of risk flagged when advance_pc's pc_value
+  cast got fixed from i32 to u32 -- JalrType's arm does
+  `(rs1_val as i32).wrapping_add(*imm)`, its own separate signed cast
+  that may need the identical bit-reinterpretation treatment
+  (rs1_val.wrapping_add(*imm as u32), no `as i32` at all) rather than
+  the same fix having been applied there too. Not yet confirmed --
+  worth checking directly rather than assuming.
+- ma_data: Fail(668). Misaligned-access behavior -- flagged earlier
+  (see the 42-file listing note above) as needing a real decision about
+  how this emulator handles unaligned loads/stores, not necessarily
+  a small bug.
 
 --- outline of steps, in dependency order ---
 
 5. [x] Write the external test-harness loop -- done, tests/harness.rs
    (run_tests: loads via load_elf, resolves tohost via find_symbol, runs
    step() in a bounded loop, polls tohost, decodes pass/fail/timeout).
-   Logic confirmed correct; blocked from actually passing by the
-   mhartid gap above, not a harness bug.
-6. Start with a small handful of rv32ui-p-* tests (e.g. add, addi, beq)
-   to prove the whole pipeline end to end before running the full suite.
-   Blocked on the mhartid backlog item above.
+6. [x] Full rv32ui suite wired up and running (42/42 binaries, 40
+   passing). jalr and ma_data still failing -- see above.
