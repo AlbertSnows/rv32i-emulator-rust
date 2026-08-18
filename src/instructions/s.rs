@@ -73,9 +73,6 @@ pub fn inst_s_sh(rs1: usize, rs2: usize, imm: i32, bus: &mut BUSState, reg_file:
     let rs1_val = reg_file.read(rs1);
     let rs2_val = reg_file.read(rs2);
     let mem_address = rs1_val.wrapping_add(imm as u32);
-    if mem_address % 2 != 0 {
-        return Err(TrapCause::StoreAddressMisaligned { address: mem_address as usize });
-    }
     bus.direct_write(mem_address as usize, &(rs2_val as u16).to_le_bytes())
 }
 
@@ -84,9 +81,6 @@ pub fn inst_s_sw(rs1: usize, rs2: usize, imm: i32, bus: &mut BUSState, reg_file:
     let rs1_val = reg_file.read(rs1);
     let rs2_val = reg_file.read(rs2);
     let mem_address = rs1_val.wrapping_add(imm as u32);
-    if mem_address % 4 != 0 {
-        return Err(TrapCause::StoreAddressMisaligned { address: mem_address as usize });
-    }
     bus.direct_write(mem_address as usize, &(rs2_val as u32).to_le_bytes())
 }
 
@@ -151,18 +145,26 @@ mod tests {
     }
 
     #[test]
-    fn test_inst_s_sw_bad_addr() {
+    fn test_inst_s_sw_misaligned_writes_correct_value() {
+        // address = BASE_ADDRESS + 3 + 8 = BASE_ADDRESS + 11 
+        //  not a multiple of 4, straddling the word boundary between
+        // storage[8..12] and storage[12..16]. Misaligned data accesses
+        // are implementation-defined per the ISA (unlike misaligned
+        // instruction fetches, which are always rejected), and this
+        // emulator chooses to support them directly, so this should
+        // succeed and write the correct bytes.
         let mut bus = build_bus_state();
         let mut reg_file = build_register_file();
         let rs1 = 1;
-        reg_file.write(1, 3);
-        // 12, 34, 56, 78
-        // 18, 52, 86, 120
+        reg_file.write(1, BASE_ADDRESS + 3);
         let rs2 = 2;
         reg_file.write(2, 0x12345678);
-        let imm = 7;
-        let outcome = inst_s_sw(rs1, rs2, imm, &mut bus, &reg_file);
-        assert_eq!(outcome, Err(TrapCause::StoreAddressMisaligned { address: 10 }));
+        let imm = 8;
+        inst_s_sw(rs1, rs2, imm, &mut bus, &reg_file).unwrap();
+        assert_eq!(bus.ram.storage[11], 0x78);
+        assert_eq!(bus.ram.storage[12], 0x56);
+        assert_eq!(bus.ram.storage[13], 0x34);
+        assert_eq!(bus.ram.storage[14], 0x12);
     }
 
     // --- boundary tests ---

@@ -67,10 +67,6 @@ pub fn inst_i_lh(rd: usize, rs1: usize, imm_i: i32, bus: &BUSState, reg_file: &m
     // rd <- sext(m16(rs1 + imm_i))
     let val = reg_file.read(rs1);
     let address = val.wrapping_add(imm_i as u32) as usize;
-    let is_valid_address = address % 2 == 0;
-    if !is_valid_address {
-        return Err(TrapCause::LoadAddressMisaligned { address: address });
-    }
     let num = bus.direct_read(address, 2)?;
     let sext_num = shake_to_signed(num, 16);
     reg_file.write(rd, sext_num as u32);
@@ -81,10 +77,6 @@ pub fn inst_i_lw(rd: usize, rs1: usize, imm_i: i32, bus: &BUSState, reg_file: &m
     // rd <- sext(m32(rs1 + imm_i))
     let val = reg_file.read(rs1);
     let address = val.wrapping_add(imm_i as u32) as usize;
-    let is_valid_address = address % 4 == 0;
-    if !is_valid_address {
-        return Err(TrapCause::LoadAddressMisaligned { address: address });
-    }
     let num = bus.direct_read(address, 4)?;
     let sext_num = shake_to_signed(num, 32);
     reg_file.write(rd, sext_num as u32);
@@ -105,10 +97,6 @@ pub fn inst_i_lhu(rd: usize, rs1: usize, imm_i: i32, bus: &BUSState, reg_file: &
     // rd <- zext(m16(rs1 + imm_i))
     let val = reg_file.read(rs1);
     let address = val.wrapping_add(imm_i as u32) as usize;
-    let is_valid_address = address % 2 == 0;
-    if !is_valid_address {
-        return Err(TrapCause::LoadAddressMisaligned { address: address });
-    }
     let num = bus.direct_read(address, 2)?;
     reg_file.write(rd, num);
     Ok(())
@@ -171,20 +159,28 @@ mod tests {
         assert_eq!(reg_file.read(1) as i32, -2147483647);
     }
 
-        #[test]
-    fn test_inst_i_lw_bad_addr() {
+    #[test]
+    fn test_inst_i_lw_misaligned_reads_correct_value() {
+        // address = BASE_ADDRESS + 4 + 9 = BASE_ADDRESS + 13 
+        //  not a multiple of 4, and straddles the word boundary between
+        // storage[12..16] and storage[16..20]. Misaligned data accesses
+        // are implementation-defined per the ISA (unlike misaligned
+        // instruction fetches, which are always rejected), and this
+        // emulator chooses to support them directly,  this should
+        // succeed and read the correct value.
         let rd = 1;
         let rs1 = 3;
-        let imm_i = 6;
+        let imm_i = 9;
         let mut reg_file = build_register_file();
-        reg_file.write(3, 4);
+        reg_file.write(3, BASE_ADDRESS + 4);
         let mut bus = build_bus_state();
-        bus.ram.storage[10] = 0b0000_0001;
-        bus.ram.storage[11] = 0b0000_0000;
-        bus.ram.storage[12] = 0b0000_0000;
-        bus.ram.storage[13] = 0b1000_0000;
-        let outcome = inst_i_lw(rd, rs1, imm_i, &bus, &mut reg_file); //.unwrap();
-        assert_eq!(outcome, Err(TrapCause::LoadAddressMisaligned { address: 10 }));
+        bus.ram.storage[13] = 0b0000_0001;
+        bus.ram.storage[14] = 0b0000_0000;
+        bus.ram.storage[15] = 0b0000_0000;
+        bus.ram.storage[16] = 0b1000_0000;
+        let outcome = inst_i_lw(rd, rs1, imm_i, &bus, &mut reg_file);
+        assert_eq!(outcome, Ok(()));
+        assert_eq!(reg_file.read(1) as i32, -2147483647);
     }
 
     #[test]
