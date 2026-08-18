@@ -11,7 +11,32 @@ components:
 - decode
 - execute
 
-[ ] 9. Adopt an external RISC-V test suite, instead of only hand-written
+[ ] 9. M extension (multiply/divide): MUL, MULH, MULHSU, MULHU, DIV,
+    DIVU, REM, REMU -- new opcode/decode/execute cases on top of the
+    existing R-type machinery, no deep architectural dependencies.
+    Effectively required for the boot-Linux goal (see
+    project_goal_boot_linux.md), not an optional extra -- standard
+    compiled toolchain output assumes this exists, so ordinary C code
+    (array indexing, loop math) traps almost immediately without it.
+
+[ ] 10. A extension (atomics): LR.W, SC.W, AMOSWAP.W, AMOADD.W, AMOXOR.W,
+    AMOAND.W, AMOOR.W, AMOMIN.W, AMOMAX.W, AMOMINU.W, AMOMAXU.W.
+    Semantically simple for a single-hart emulator -- nothing else can
+    interleave, so "atomic" is trivially satisfied; the work is mostly
+    decode + read-modify-write execute logic. Linux's riscv port
+    hardcodes atomics into low-level primitives (atomic.h, bitops)
+    unconditionally, even for single-hart/non-SMP builds, so this isn't
+    skippable either.
+
+[ ] 11. Privileged mode / CSR conformance: extend and harden the
+    existing trap/CSR machinery (built out during interrupts work) --
+    more CSR coverage, trap edge cases, mode-transition correctness.
+    Builds directly on what's already there rather than new
+    architecture, and is the most foundational of items #9-11 for
+    actually booting anything above M-mode (an S-mode kernel under an
+    M-mode firmware runs on nothing else).
+
+[ ] 12. Adopt an external RISC-V test suite, instead of only hand-written
     Rust unit tests, for much broader instruction coverage. Two candidates,
     ideally both eventually, starting with the first:
     - riscv-tests (github.com/riscv-software-src/riscv-tests) -- the
@@ -40,10 +65,13 @@ components:
       mtime/mtimecmp memory-mapped work, a fixed address with special
       read/write behavior, just for reporting a test result instead of
       timing
-    See docs/research/test_suite.txt for details on the toolchain, the
-    ELF loader, and the signaling convention.
+    See docs/plans/test_suite.txt for details on the toolchain, the
+    ELF loader, and the signaling convention. rv32ui coverage (42/42
+    tests) is done via tests/harness.rs; once items #9-11 above land,
+    extend the harness the same way for rv32um-p-*, rv32ua-p-*,
+    rv32mi-p-*, and rv32si-p-*.
 
-[ ] 10. Refactor CSRState -- attempt after item #8 is done. Motivation:
+[ ] 13. Refactor CSRState -- attempt after item #8 is done. Motivation:
     building mip surfaced how much side-effect/special-case behavior
     CSRState::write has accumulated (address-level read-only vs.
     field-level read-only within an otherwise-writable register, internal

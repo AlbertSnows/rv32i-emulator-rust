@@ -16,6 +16,8 @@ use crate::instructions::Format;
 use crate::utility::bit_operations::mask_and_shift;
 use crate::definitions::codes::ExecutionSignal;
 use crate::definitions::trap_cause::TrapCause;
+use crate::utility::bit_operations::{extract_sub_bytes};
+use crate::utility::types::{ByteType};
 
 #[derive(Debug, PartialEq)]
 pub enum AluOp {
@@ -28,7 +30,15 @@ pub enum AluOp {
     Srl, 
     Sra, 
     Or, 
-    And
+    And,
+    Mul,
+    Mulh,
+    Mulhsu,
+    Mulhu,
+    Div,
+    Divu,
+    Rem,
+    Remu
 }
 
 pub fn parse_r_inst(raw_word: InstructionWord) -> Result<Format, TrapCause> {
@@ -49,6 +59,15 @@ pub fn parse_r_inst(raw_word: InstructionWord) -> Result<Format, TrapCause> {
         (0b0100000, 0b101) => Ok(AluOp::Sra),
         (0b0000000, 0b110) => Ok(AluOp::Or),
         (0b0000000, 0b111) => Ok(AluOp::And),
+
+        (0b0000001, 0b000) => Ok(AluOp::Mul),
+        (0b0000001, 0b001) => Ok(AluOp::Mulh),
+        (0b0000001, 0b010) => Ok(AluOp::Mulhsu),
+        (0b0000001, 0b011) => Ok(AluOp::Mulhu),
+        (0b0000001, 0b100) => Ok(AluOp::Div),
+        (0b0000001, 0b101) => Ok(AluOp::Divu),
+        (0b0000001, 0b110) => Ok(AluOp::Rem),
+        (0b0000001, 0b111) => Ok(AluOp::Remu),
         _ => Err(TrapCause::IllegalInstruction { instruction: Some(content) })
     }?;
     Ok(Format::RType { 
@@ -71,6 +90,14 @@ pub fn execute_r_type(op: &AluOp, rd: usize, rs1: usize, rs2: usize, reg_file: &
         AluOp::Sra => inst_r_sra,
         AluOp::Or => inst_r_or,
         AluOp::And => inst_r_and,
+        AluOp::Mul => inst_r_mul,
+        AluOp::Mulh => inst_r_mulh,
+        AluOp::Mulhsu => inst_r_mulsu,
+        AluOp::Mulhu => inst_r_mulhu,
+        AluOp::Div => inst_r_div,
+        AluOp::Divu => inst_r_divu,
+        AluOp::Rem => inst_r_rem,
+        AluOp::Remu => inst_r_remu
     };
     inst_fn(rd, rs1, rs2, reg_file);
     Ok(ExecutionSignal::Continue)
@@ -164,6 +191,111 @@ pub fn inst_r_add(rd: usize, rs1: usize, rs2: usize, reg_file: &mut RegisterFile
     // using RISC-V branches"
     let sum = left.wrapping_add(right);
     reg_file.write(rd, sum);
+}
+
+pub fn inst_r_mul(rd: usize, rs1: usize, rs2: usize, reg_file: &mut RegisterFile) {
+    // rd <- (rs1 * rs2)[31:0] -- low 32 bits of the full product.
+    // Overflow (the product not fitting in 32 bits) is ignored, same as
+    // ADD/SUB -- only the low bits are kept regardless of sign.
+    let rs1_val = reg_file.read(rs1);
+    let rs2_val = reg_file.read(rs2);
+    let mult_val = rs1_val.wrapping_mul(rs2_val);
+    reg_file.write(rd, mult_val);
+}
+
+pub fn inst_r_mulh(rd: usize, rs1: usize, rs2: usize, reg_file: &mut RegisterFile) {
+    // rd <- (rs1 * rs2)[63:32] -- upper 32 bits of the full 64-bit
+    // product, both operands treated as signed.
+    let rs1_val = reg_file.read(rs1) as i64;
+    let rs2_val = reg_file.read(rs2) as i64;
+    let mult_val = (rs1_val.wrapping_mul(rs2_val));
+    let high_of_mult = extract_sub_bytes(mult_val as u64, 64, ByteType::Word);
+    reg_file.write(rd, high_of_mult as u32);
+}
+
+pub fn inst_r_mulsu(rd: usize, rs1: usize, rs2: usize, reg_file: &mut RegisterFile) {
+    // rd <- (rs1 * rs2)[63:32] -- upper 32 bits of the full 64-bit
+    // product, rs1 treated as signed, rs2 treated as unsigned.
+    let rs1_val = reg_file.read(rs1) as i32;
+    let rs2_val = reg_file.read(rs2) as u32;
+    let mult_val = (rs1_val.wrapping_mul(rs2_val as i32)) as i32;
+    // what size are rs1 and rs2? 31:0 is the whole u32 no?, what's low 32bits mean?
+    let high_of_mult = extract_sub_bytes(mult_val as u64, 64, ByteType::Word);
+    reg_file.write(rd, high_of_mult as u32);
+}
+
+pub fn inst_r_mulhu(rd: usize, rs1: usize, rs2: usize, reg_file: &mut RegisterFile) {
+    // rd <- (rs1 * rs2)[63:32] -- upper 32 bits of the full 64-bit
+    // product, both operands treated as unsigned.
+    let rs1_val = reg_file.read(rs1) as u32;
+    let rs2_val = reg_file.read(rs2) as u32;
+    let mult_val = (rs1_val.wrapping_mul(rs2_val)) as u32;
+    // what size are rs1 and rs2? 31:0 is the whole u32 no?, what's low 32bits mean?
+    let high_of_mult = extract_sub_bytes(mult_val as u64, 64, ByteType::Word);
+    reg_file.write(rd, high_of_mult as u32);
+}
+
+pub fn inst_r_div(rd: usize, rs1: usize, rs2: usize, reg_file: &mut RegisterFile) {
+    // rd <- rs1 / rs2, signed, rounding toward zero (not floor).
+    // Never traps, fully-defined results for the degenerate cases:
+    //   rs2 == 0            -> rd = -1 (all bits set)
+    //   rs1 == i32::MIN &&
+    //   rs2 == -1 (overflow) -> rd = i32::MIN (the dividend, unchanged)
+    let rs1_val = reg_file.read(rs1) as i32;
+    let rs2_val = reg_file.read(rs2) as i32;
+    let div_val = if rs2_val == 0 {
+        -1
+    } else if rs1_val == i32::MIN && rs2_val == -1 {
+        i32::MIN
+    } else {
+        (rs1_val / rs2_val) as i32
+    };
+    reg_file.write(rd, div_val as u32);
+}
+
+pub fn inst_r_divu(rd: usize, rs1: usize, rs2: usize, reg_file: &mut RegisterFile) {
+    // rd <- rs1 / rs2, unsigned. Never traps:
+    //   rs2 == 0 -> rd = u32::MAX (all bits set)
+    // No overflow case exists for unsigned division.
+    let rs1_val = reg_file.read(rs1) as u32;
+    let rs2_val = reg_file.read(rs2) as u32;
+    let div_val = if rs2_val == 0 {
+        u32::MAX
+    } else {
+        (rs1_val / rs2_val) as u32
+    };
+    reg_file.write(rd, div_val as u32);
+}
+
+pub fn inst_r_rem(rd: usize, rs1: usize, rs2: usize, reg_file: &mut RegisterFile) {
+    // rd <- rs1 % rs2, signed. Sign of a nonzero result matches the
+    // dividend (rs1), not the divisor. Never traps:
+    //   rs2 == 0             -> rd = rs1 (the dividend, unchanged)
+    //   rs1 == i32::MIN &&
+    //   rs2 == -1 (overflow) -> rd = 0
+    let rs1_val = reg_file.read(rs1) as i32;
+    let rs2_val = reg_file.read(rs2) as i32;
+    let mod_val = if rs2_val == 0 {
+        rs1_val
+    } else if rs1_val == i32::MIN && rs2_val == -1 {
+        0
+    } else {
+        (rs1_val % rs2_val) as i32
+    };
+    reg_file.write(rd, mod_val as u32);
+}
+
+pub fn inst_r_remu(rd: usize, rs1: usize, rs2: usize, reg_file: &mut RegisterFile) {
+    // rd <- rs1 % rs2, unsigned. Never traps:
+    //   rs2 == 0 -> rd = rs1 (the dividend, unchanged)
+    let rs1_val = reg_file.read(rs1) as u32;
+    let rs2_val = reg_file.read(rs2) as u32;
+    let mod_val = if rs2_val == 0 {
+        rs1_val
+    } else {
+        (rs1_val % rs2_val) as u32
+    };
+    reg_file.write(rd, mod_val as u32);
 }
 
 #[cfg(test)]
