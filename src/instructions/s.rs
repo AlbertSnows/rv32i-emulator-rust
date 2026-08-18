@@ -62,29 +62,32 @@ pub fn execute_s_type(op: &SOp, imm: i32, rs1: usize, rs2: usize, register: &Reg
 
 pub fn inst_s_sb(rs1: usize, rs2: usize, imm: i32, bus: &mut BUSState, reg_file: &RegisterFile) -> Result<(), TrapCause> {
     // m8(rs1+imm_s) ← rs2[7:0]
-    let val = reg_file.read(rs1);
-    let mem_address = val.wrapping_add(imm as u32);
-    bus.direct_write(mem_address as usize, &(rs2 as u8).to_le_bytes())
+    let rs1_val = reg_file.read(rs1);
+    let rs2_val = reg_file.read(rs2);
+    let mem_address = rs1_val.wrapping_add(imm as u32);
+    bus.direct_write(mem_address as usize, &(rs2_val as u8).to_le_bytes())
 }
 
 pub fn inst_s_sh(rs1: usize, rs2: usize, imm: i32, bus: &mut BUSState, reg_file: &RegisterFile) -> Result<(), TrapCause> {
     // m16(rs1+imm_s) <- rs2[15:0]
-    let val = reg_file.read(rs1);
-    let mem_address = val.wrapping_add(imm as u32);
+    let rs1_val = reg_file.read(rs1);
+    let rs2_val = reg_file.read(rs2);
+    let mem_address = rs1_val.wrapping_add(imm as u32);
     if mem_address % 2 != 0 {
         return Err(TrapCause::StoreAddressMisaligned { address: mem_address as usize });
     }
-    bus.direct_write(mem_address as usize, &(rs2 as u16).to_le_bytes())
+    bus.direct_write(mem_address as usize, &(rs2_val as u16).to_le_bytes())
 }
 
 pub fn inst_s_sw(rs1: usize, rs2: usize, imm: i32, bus: &mut BUSState, reg_file: &RegisterFile) -> Result<(), TrapCause> {
     // m32(rs1+imm_s) <- rs2[31:0]
-    let val = reg_file.read(rs1);
-    let mem_address = val.wrapping_add(imm as u32);
+    let rs1_val = reg_file.read(rs1);
+    let rs2_val = reg_file.read(rs2);
+    let mem_address = rs1_val.wrapping_add(imm as u32);
     if mem_address % 4 != 0 {
         return Err(TrapCause::StoreAddressMisaligned { address: mem_address as usize });
     }
-    bus.direct_write(mem_address as usize, &(rs2 as u32).to_le_bytes())
+    bus.direct_write(mem_address as usize, &(rs2_val as u32).to_le_bytes())
 }
 
 #[cfg(test)]
@@ -108,7 +111,8 @@ mod tests {
         let mut reg_file = build_register_file();
         let rs1 = 1;
         reg_file.write(1, BASE_ADDRESS + 3);
-        let rs2 = 0b0101_1010_0101_1010;
+        let rs2 = 2;
+        reg_file.write(2, 0b0101_1010_0101_1010);
         let imm = 7;
         inst_s_sb(rs1, rs2, imm, &mut bus, &reg_file).unwrap();
         assert_eq!(bus.ram.storage[3 + 7], 0b0101_1010);
@@ -120,7 +124,8 @@ mod tests {
         let mut reg_file = build_register_file();
         let rs1 = 1;
         reg_file.write(1, BASE_ADDRESS + 3);
-        let rs2 = 0b1111_0000_1010_0101;
+        let rs2 = 2;
+        reg_file.write(2, 0b1111_0000_1010_0101);
         let imm = 7;
         inst_s_sh(rs1, rs2, imm, &mut bus, &reg_file).unwrap();
         assert_eq!(bus.ram.storage[3 + 7], 0b1010_0101);
@@ -135,7 +140,8 @@ mod tests {
         reg_file.write(1, BASE_ADDRESS + 3);
         // 12, 34, 56, 78
         // 18, 52, 86, 120
-        let rs2 = 0x12345678;
+        let rs2 = 2;
+        reg_file.write(2, 0x12345678);
         let imm = 9;
         inst_s_sw(rs1, rs2, imm, &mut bus, &reg_file).unwrap();
         assert_eq!(bus.ram.storage[12], 0x78);
@@ -152,7 +158,8 @@ mod tests {
         reg_file.write(1, 3);
         // 12, 34, 56, 78
         // 18, 52, 86, 120
-        let rs2 = 0x12345678;
+        let rs2 = 2;
+        reg_file.write(2, 0x12345678);
         let imm = 7;
         let outcome = inst_s_sw(rs1, rs2, imm, &mut bus, &reg_file);
         assert_eq!(outcome, Err(TrapCause::StoreAddressMisaligned { address: 10 }));
@@ -166,7 +173,8 @@ mod tests {
         let mut reg_file = build_register_file();
         reg_file.write(1, u32::MAX);
         let rs1 = 1;
-        let rs2 = 0xAA; // 0b1010_1010
+        let rs2 = 2; // register index; value doesn't matter for this bounds check
+        reg_file.write(2, 0xAA); // 0b1010_1010
         let imm = bus.ram.storage.len() as i32 + 1;
         let outcome = inst_s_sb(rs1, rs2, imm, &mut bus, &reg_file);
         assert!(outcome.is_err());
@@ -178,7 +186,8 @@ mod tests {
         let mut reg_file = build_register_file();
         reg_file.write(1, u32::MAX);
         let rs1 = 1;
-        let rs2 = 0xAABB; // 0b1010_1010_1011_1011
+        let rs2 = 2; // register index; value doesn't matter for this bounds check
+        reg_file.write(2, 0xAABB); // 0b1010_1010_1011_1011
         let imm = bus.ram.storage.len() as i32 + 1;
         let outcome = inst_s_sh(rs1, rs2, imm, &mut bus, &reg_file);
         assert!(outcome.is_err());
@@ -190,7 +199,8 @@ mod tests {
         let mut reg_file = build_register_file();
         reg_file.write(1, u32::MAX);
         let rs1 = 1;
-        let rs2 = 0x12345678; // 0b0001_0010_0011_0100_0101_0110_0111_1000
+        let rs2 = 2; // register index; value doesn't matter for this bounds check
+        reg_file.write(2, 0x12345678); // 0b0001_0010_0011_0100_0101_0110_0111_1000
         let imm = bus.ram.storage.len() as i32 + 1;
         let outcome = inst_s_sw(rs1, rs2, imm, &mut bus, &reg_file);
         assert!(outcome.is_err());

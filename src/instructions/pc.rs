@@ -3,6 +3,7 @@ use crate::instructions::Format;
 use crate::instructions::b::BOp;
 use crate::definitions::trap_cause::TrapCause;
 use crate::instructions::r::AluOp;
+use crate::instructions::i::system::{SystemOp};
 
 pub fn advance_pc(pc: &mut PCState, instruction: &Format, reg_file: &RegisterFile) -> Result<usize, TrapCause> {
     let pc_value = pc.read() as u32;
@@ -29,6 +30,7 @@ pub fn advance_pc(pc: &mut PCState, instruction: &Format, reg_file: &RegisterFil
                 BOp::Bge => if (rs1_val as i32) >= (rs2_val as i32) { pc_value.wrapping_add(imm_val) } else { pc_value.wrapping_add(4) }
             }
         },
+        Format::SystemType { op: SystemOp::MRet } => pc_value,
         _ => pc_value.wrapping_add(4)
     };
     let is_invalid_pc_state = new_value % 4 != 0;
