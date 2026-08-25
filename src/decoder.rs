@@ -16,6 +16,7 @@ use crate::instructions::fence::parse_fence_inst;
 use crate::utility::bit_operations::mask;
 use crate::fetcher::InstructionWord;
 use crate::definitions::trap_cause::TrapCause;
+use crate::instructions::a::parse_a_inst;
 
 pub fn decode_word_to_instruction(raw_word: InstructionWord) -> Result<Format, TrapCause> {
     // op code is 7 bits wide.
@@ -34,6 +35,7 @@ pub fn decode_word_to_instruction(raw_word: InstructionWord) -> Result<Format, T
         op_codes::AUIPC => parse_u_inst(raw_word, op_codes::AUIPC),
         op_codes::J => parse_j_inst(raw_word),
         op_codes::FENCE => parse_fence_inst(raw_word),
+        op_codes::A => parse_a_inst(raw_word),
         _ => Err(TrapCause::IllegalInstruction { instruction: Some(instruction_bits) })
     }
 }

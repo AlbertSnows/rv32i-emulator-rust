@@ -6,6 +6,9 @@ pub mod s;
 pub mod u;
 pub mod pc;
 pub mod fence;
+pub mod a;
+
+use a::AOp;
 use r::AluOp;
 use u::UOp;
 use j::JOp;
@@ -21,6 +24,7 @@ use crate::definitions::trap_cause::TrapCause;
 
 #[derive(Debug, PartialEq)]
 pub enum Format {
+    AType { op: AOp, rd: usize, rs1: usize, rs2: usize, rl: usize, aq: usize },
     UType { op: UOp, rd: usize, imm_upper: i32 },
     JType { op: JOp, rd: usize, imm: i32 },
     BType { op: BOp, imm: i32, rs1: usize, rs2: usize },
@@ -61,7 +65,8 @@ impl Format {
             Format::CsrType { op, rd, rs1_or_uimm, csr, cpu_mode }
                 => i::csr::execute_i_csr_type(op, *rd, *rs1_or_uimm, *csr, &mut cpu_state.register, &mut cpu_state.csr, cpu_mode),
             Format::FENCEType => fence::execute_fence_type(),
-
+            Format::AType { op, rd, rs1, rs2, rl, aq }
+                => a::execute_a_type(op, *rd, *rs1, *rs2, *rl, *aq, &mut cpu_state.register, &mut cpu_state.bus, &mut cpu_state.reservation_address)
             }
     }
 }

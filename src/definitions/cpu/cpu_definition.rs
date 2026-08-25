@@ -12,7 +12,8 @@ pub struct CPUState {
     pub bus: BUSState,
     pub csr: CSRState,
     pub mode: CPUMode,
-    pub flags: CPUFlags
+    pub flags: CPUFlags,
+    pub reservation_address: Option<u32>
 }
 
 #[derive(Debug, Copy, Clone, PartialEq)]
@@ -49,7 +50,8 @@ pub fn build_cpu_state() -> CPUState {
         mode: CPUMode::M,
         flags: CPUFlags {
             in_trap: false
-        }
+        },
+        reservation_address: None
     }
 }
 
