@@ -83,6 +83,8 @@ impl CSRState {
             addresses::MINSTRET | addresses::INSTRET => Ok(&mut self.minstret),
             addresses::MIP | addresses::SIP => Ok(&mut self.mip),
             addresses::MIE | addresses::SIE => Ok(&mut self.mie),
+            addresses::MIDELEG => Ok(&mut self.mideleg),
+            addresses::MEDELEG => Ok(&mut self.mideleg),
             _ => Err(TrapCause::IllegalInstruction { instruction: None }),
         }
     }
@@ -102,6 +104,8 @@ impl CSRState {
             addresses::SSTATUS => Ok(self.mstatus & masks::SSTATUS),
             addresses::SIP => Ok(self.mip & masks::SIP),
             addresses::SIE => Ok(self.mie & masks::PER_SOURCE_SIE),
+            addresses::MIDELEG => Ok(self.mideleg),
+            addresses::MEDELEG => Ok(self.mideleg),
             _ => Err(TrapCause::IllegalInstruction { instruction: None }),
         }
     }

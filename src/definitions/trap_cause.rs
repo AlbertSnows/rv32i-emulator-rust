@@ -1,7 +1,21 @@
-use crate::definitions::masks::{MCAUSE_INTERRUPT};
+use crate::definitions::addresses::{MCAUSE, MEPC, MTVAL, MTVEC, SCAUSE, SEPC, STVAL, STVEC};
+use crate::definitions::cpu::cpu_definition::CPUMode;
+use crate::definitions::masks;
+use crate::definitions::masks::{MCAUSE_INTERRUPT, MPIE};
 
 // Traps are about transferring control
-// To transfer control, you will want to overwirte the pc with an address (source?)
+// To transfer control, you will want to overwrite the pc with an address (source?)
+
+pub(crate) struct TrapDestination {
+    pub epc: usize,
+    pub cause: usize,
+    pub tval: usize,
+    pub tvec: usize,
+    pub pp_mask: u32,
+    pub ie_mask: u32,
+    pub pie_mask: u32,
+    pub mode: CPUMode
+}
 
 #[derive(Debug, PartialEq)]
 pub enum TrapCause {

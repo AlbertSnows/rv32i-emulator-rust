@@ -148,11 +148,7 @@ current_mode != U).
 
 --- 5. what needs to change in this codebase ---
 
-- src/definitions/cpu/csr.rs: add real storage fields for stvec,
-  sscratch, sepc, scause, stval, medeleg, mideleg to `CSRState`
-  (initialized to 0 in build_csr_state); add sstatus/sie/sip
-  read/write as masked-accessor methods over mstatus/mie/mip rather
-  than new fields (see section 1).
+
 - src/core.rs (wherever handle_trap currently lives): branch on
   medeleg/mideleg + trapping mode before choosing the M-mode vs
   S-mode trap-entry sequence (section 3 above).

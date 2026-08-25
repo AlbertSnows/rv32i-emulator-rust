@@ -1,13 +1,13 @@
 use crate::definitions::cpu::cpu_definition::{CPUState, CPUMode};
 use crate::definitions::codes::ExecutionSignal;
-use crate::definitions::addresses::{MTVEC, MEPC, MCAUSE, MTVAL, MSTATUS, MIE, MIP};
+use crate::definitions::addresses;
 use crate::fetcher::fetch_word_from_memory;
 use crate::decoder::decode_word_to_instruction;
 use crate::instructions::pc::advance_pc;
-use crate::definitions::trap_cause::TrapCause;
+use crate::definitions::trap_cause::{TrapCause, TrapDestination};
 use crate::utility::bit_operations::{set_bit_range, mask_and_shift};
 use crate::definitions::cpu::csr::{CPUCycles, MIPBits};
-use crate::definitions::masks::{GLOBAL_MIE, MPIE, MTIP, MTIE};
+use crate::definitions::masks::{GLOBAL_MIE, MPIE, MTIP, MTIE, MTI, MPP, SPP, GLOBAL_SIE, SPIE};
 use crate::instructions::i::system::{inst_i_mret};
 
 fn perform_step(cpu: &mut CPUState) -> Result<ExecutionSignal, TrapCause> {
@@ -28,17 +28,17 @@ fn perform_step(cpu: &mut CPUState) -> Result<ExecutionSignal, TrapCause> {
 // "When a trap is taken into M-mode, mepc is written with the virtual
 // address of the instruction that was interrupted or that encountered
 // the exception."
-fn set_mepc(cpu: &mut CPUState) {
+fn set_epc(cpu: &mut CPUState, dest: &TrapDestination) {
     let pc_value = cpu.pc.read();
-    cpu.csr.guest_write(MEPC, pc_value as u32, CPUMode::M)
+    cpu.csr.guest_write(dest.epc, pc_value as u32, dest.mode)
         .expect("MEPC is 0b00_11, mode is M, MEPC is matched");
 }
 
 // mcause ("Machine Cause") -- MRW, address 0x342.
 // "When a trap is taken into M-mode, mcause is written with a code
 // indicating the event that caused the trap."
-fn set_mcause(cpu: &mut CPUState, cause_code: u32) {
-    cpu.csr.guest_write(MCAUSE, cause_code, CPUMode::M)
+fn set_cause(cpu: &mut CPUState, dest: &TrapDestination, cause_code: u32) {
+    cpu.csr.guest_write(dest.cause, cause_code, dest.mode)
         .expect("MCAUSE is 0b00_11, mode is M, MCAUSE is matched");
 }
 
@@ -48,21 +48,21 @@ fn set_mcause(cpu: &mut CPUState, cause_code: u32) {
 // handling the trap." For address-related exceptions, that's the
 // faulting virtual address; for IllegalInstruction, optionally the
 // faulting instruction bits; otherwise zero.
-fn set_mtval(cpu: &mut CPUState, trap_cause: &TrapCause) {
+fn set_tval(cpu: &mut CPUState, dest: &TrapDestination, trap_cause: &TrapCause) {
     let trap_val = match trap_cause {
-        TrapCause::InstructionAddressMisaligned { address } |   
-        TrapCause::InstructionAccessFault { address } |   
-        TrapCause::LoadAddressMisaligned { address } |  
+        TrapCause::InstructionAddressMisaligned { address } |
+        TrapCause::InstructionAccessFault { address } |
+        TrapCause::LoadAddressMisaligned { address } |
         TrapCause::LoadAccessFault { address } |
-        TrapCause::StoreAddressMisaligned { address } |  
+        TrapCause::StoreAddressMisaligned { address } |
         TrapCause::StoreAccessFault { address } => *address as u32,
-        TrapCause::IllegalInstruction { instruction } => instruction.unwrap_or(0), 
-        TrapCause::Breakpoint | TrapCause::EnvironmentCallFromMMode | 
+        TrapCause::IllegalInstruction { instruction } => instruction.unwrap_or(0),
+        TrapCause::Breakpoint | TrapCause::EnvironmentCallFromMMode |
         TrapCause::EnvironmentCallFromSMode | TrapCause::EnvironmentCallFromUMode |
         TrapCause::MachineTimerInterrupt
             => 0
     };
-    cpu.csr.guest_write(MTVAL, trap_val, CPUMode::M)
+    cpu.csr.guest_write(dest.tval, trap_val, dest.mode)
         .expect("MTVAL is 0b00_11, mode is M, MTVAL is matched");
 }
 
@@ -74,16 +74,27 @@ fn set_mtval(cpu: &mut CPUState, trap_cause: &TrapCause) {
 // Vectored mode's per-cause offsets have nothing to apply to).
 // docs/research/riscv_privleged.pdf, 3.1.7 "Machine Trap-Vector
 // Base-Address (mtvec) Register", p.41.
-fn jump_to_trap_handler(cpu: &mut CPUState) {
+fn jump_to_trap_handler(cpu: &mut CPUState, dest: &TrapDestination) {
     // MTVEC is a real, always-implemented address -- this read cannot fail.
-    cpu.pc.write(cpu.csr.read(MTVEC).expect("MTVEC is matched") as usize);
+    cpu.pc.write(cpu.csr.read(dest.tvec).expect("MTVEC is matched") as usize);
 }
 
-fn set_mpp(cpu: &mut CPUState) {
-    let mstatus_state = cpu.csr.read(MSTATUS).expect("MSTATUS is matched");
+// mstatus is deliberately not part of TrapDestination and never varies by
+// dest: it's the one physical register regardless of whether this trap
+// enters M or S. sstatus is only a masked *view* of this same storage,
+// used by guest CSR instructions (csrrw sstatus, ...) -- this function is
+// the CPU's own internal bookkeeping, not a guest CSR access, so it
+// always reads/writes the real register directly via MSTATUS. What
+// varies per-destination is only *which bits* of mstatus get touched --
+// that's what dest.pp_mask (below) and dest.ie_mask/pie_mask (in
+// set_pie) capture.
+fn set_pp(cpu: &mut CPUState, dest: &TrapDestination) {
+    let mstatus_state = cpu.csr.read(addresses::MSTATUS).expect("MSTATUS is matched");
     let privilege_level = cpu.mode.as_privilege_level();
-    let updated_mstatus = set_bit_range(mstatus_state, privilege_level, 2, 11);
-    cpu.csr.guest_write(MSTATUS, updated_mstatus, CPUMode::M)
+    let width = dest.pp_mask.count_ones() as usize;
+    let position = dest.pp_mask.trailing_zeros() as usize;
+    let updated_mstatus = set_bit_range(mstatus_state, privilege_level, width, position);
+    cpu.csr.guest_write(addresses::MSTATUS, updated_mstatus, CPUMode::M)
         .expect("MSTATUS is 0b00_11, mode is M, MSTATUS is matched");
 
 }
@@ -93,12 +104,14 @@ fn set_mpp(cpu: &mut CPUState) {
 // current global interrupt-enable (MIE) into MPIE, then clears MIE, so
 // no further interrupts fire while this trap handler is running. MRET's
 // existing restore step (MIE=MPIE, MPIE=1) is the mirror image of this.
-fn set_mpie(cpu: &mut CPUState) {
-    let mstatus = cpu.csr.read(MSTATUS).expect("MSTATUS is defined");
-    let mie = mask_and_shift(mstatus, GLOBAL_MIE);
-    let mstatus_after_mie = set_bit_range(mstatus, 0, 1, GLOBAL_MIE.trailing_zeros() as usize);
-    let mstatus_after_mpie = set_bit_range(mstatus_after_mie, mie, 1, MPIE.trailing_zeros() as usize);
-    cpu.csr.guest_write(MSTATUS, mstatus_after_mpie, CPUMode::M).expect("Writing to MSTATUS is safe.");
+fn set_pie(cpu: &mut CPUState, dest: &TrapDestination) {
+    let mstatus = cpu.csr.read(addresses::MSTATUS).expect("MSTATUS is defined");
+    let mie = mask_and_shift(mstatus, dest.ie_mask);
+    let global_ie = if dest.mode == CPUMode::S { GLOBAL_SIE } else { GLOBAL_MIE };
+    let pie = if dest.mode == CPUMode::S { SPIE } else { MPIE };
+    let mstatus_after_mie = set_bit_range(mstatus, 0, 1, global_ie.trailing_zeros() as usize);
+    let mstatus_after_mpie = set_bit_range(mstatus_after_mie, mie, 1, pie.trailing_zeros() as usize);
+    cpu.csr.guest_write(addresses::MSTATUS, mstatus_after_mpie, CPUMode::M).expect("Writing to MSTATUS is safe.");
 }
 
 // Here we want to transfer control.
@@ -122,27 +135,70 @@ fn set_mpie(cpu: &mut CPUState) {
 // - the address of the instruction that caused the failure
 pub fn handle_trap(cpu: &mut CPUState, trap_cause: TrapCause) -> ExecutionSignal {
     cpu.flags.in_trap = true;
-    set_mepc(cpu); // store pc
-    set_mpp(cpu); // save the mode to mstatus
-    cpu.mode = CPUMode::M;
-    set_mcause(cpu, trap_cause.mcause_code()); // store why the trap happened for guest function
-    set_mtval(cpu, &trap_cause); // set info about where it failed/which address
-    set_mpie(cpu); // capture MIE into MPIE, then clear MIE
+    let trapping_mode = cpu.mode;
+    // to delegate refers to whether we handle it at the m or s/u level
+    let mode_can_delegate = matches!(trapping_mode, CPUMode::S | CPUMode::U);
+    // the legs are used to indicate a trap wishes to be handled in a different mode
+    // typically signaled by the os. interrupt => mideleg, exceptions => medeleg
+    // both are bit fields. each bit represents a different trap code
+    let register_value = match trap_cause {
+        TrapCause::MachineTimerInterrupt => cpu.csr.read(addresses::MIDELEG),
+        _ => cpu.csr.read(addresses::MEDELEG),
+    }.expect("mideleg and medeleg are defined");
+    // the mcause code is the location in its corresponding leg
+    // in the case of interrupts, the 31st bit is the tag bit, to distinguish them, so we need to
+    // strip the tag bit
+    let corresponding_mask = match trap_cause {
+        TrapCause::MachineTimerInterrupt => MTI,
+        _ => 1 << trap_cause.mcause_code(),
+    };
+    let relevant_bit_set = mask_and_shift(register_value, corresponding_mask) == 1;
+    let is_s_mode = mode_can_delegate && relevant_bit_set;
+    let dest = if is_s_mode { &S_TRAP } else { &M_TRAP };
+    set_epc(cpu, dest); // store pc
+    set_pp(cpu, dest); // save the mode to mstatus
+    cpu.mode = dest.mode;
+    set_cause(cpu, dest, trap_cause.mcause_code()); // store why the trap happened for guest function
+    set_tval(cpu, dest, &trap_cause); // set info about where it failed/which address
+    set_pie(cpu, dest); // capture MIE into MPIE, then clear MIE
     // "If mtval is written with a nonzero value when
-    // a breakpoint, address-misaligned, access-fault, page-fault, or hardware-error exception occurs 
-    // on an instruction fetch, load, or store, 
+    // a breakpoint, address-misaligned, access-fault, page-fault, or hardware-error exception occurs
+    // on an instruction fetch, load, or store,
     // then mtval will contain the faulting virtual address.
-    jump_to_trap_handler(cpu); // write the trap handler address to pc to go there
+    jump_to_trap_handler(cpu, dest); // write the trap handler address to pc to go there
     ExecutionSignal::Continue
 }
+
+const M_TRAP: TrapDestination = TrapDestination {
+    epc: addresses::MEPC,
+    cause: addresses::MCAUSE,
+    tval: addresses::MTVAL,
+    tvec: addresses::MTVEC,
+    pp_mask: MPP,
+    ie_mask: GLOBAL_MIE,
+    pie_mask: MPIE,
+    mode: CPUMode::M
+};
+
+const S_TRAP: TrapDestination = TrapDestination {
+    epc: addresses::SEPC,
+    cause: addresses::SCAUSE,
+    tval: addresses::STVAL,
+    tvec: addresses::STVEC,
+    pp_mask: SPP,
+    ie_mask: GLOBAL_SIE,
+    pie_mask: SPIE,
+    mode: CPUMode::S
+};
+
 
 pub fn step(cpu: &mut CPUState) -> Result<ExecutionSignal, TrapCause> {
     cpu.csr.update_cycle(CPUCycles::Cycle);
     cpu.bus.clint.update_time();
     cpu.csr.update_mip_pending_bit(MIPBits::MTI, (cpu.bus.clint.mtime >= cpu.bus.clint.mtimecmp) as u32);
-    let interrupt_detected = mask_and_shift(cpu.csr.read(MSTATUS).expect("MSTATUS defined"), GLOBAL_MIE) == 1 &&
-                             mask_and_shift(cpu.csr.read(MIP).expect("MIP defined"), MTIP) == 1 &&
-                             mask_and_shift(cpu.csr.read(MIE).expect("MIE defined"), MTIE) == 1;
+    let interrupt_detected = mask_and_shift(cpu.csr.read(addresses::MSTATUS).expect("MSTATUS defined"), GLOBAL_MIE) == 1 &&
+                             mask_and_shift(cpu.csr.read(addresses::MIP).expect("MIP defined"), MTIP) == 1 &&
+                             mask_and_shift(cpu.csr.read(addresses::MIE).expect("MIE defined"), MTIE) == 1;
     if interrupt_detected && !cpu.flags.in_trap {
         Ok(handle_trap(cpu, TrapCause::MachineTimerInterrupt))
     } else {
@@ -239,9 +295,9 @@ mod tests {
         let mut cpu = build_cpu_state();
         cpu.mode = CPUMode::S;
         cpu.pc.write(7);
-        cpu.csr.guest_write(MTVEC, 4, CPUMode::M);
+        cpu.csr.guest_write(addresses::MTVEC, 4, CPUMode::M);
         handle_trap(&mut cpu, TrapCause::IllegalInstruction { instruction: Some(33) });
-        let mpp = mask_and_shift(cpu.csr.read(MSTATUS).unwrap(), masks::MPP);
+        let mpp = mask_and_shift(cpu.csr.read(addresses::MSTATUS).unwrap(), masks::MPP);
         assert_eq!(mpp, CPUMode::S.as_privilege_level());
         assert_eq!(cpu.mode, CPUMode::M);
     }
@@ -250,18 +306,18 @@ mod tests {
     fn test_handle_trap_changes_correct_values() {
         let mut cpu = build_cpu_state();
         cpu.pc.write(7);
-        cpu.csr.guest_write(MTVEC, 4, CPUMode::M);
+        cpu.csr.guest_write(addresses::MTVEC, 4, CPUMode::M);
         let outcome = handle_trap(&mut cpu, TrapCause::IllegalInstruction { instruction: Some(33)});
         assert_eq!(cpu.pc.read(), 4); // check MTVEC
-        assert_eq!(cpu.csr.read(MEPC).unwrap(), 7); // mepc
-        assert_eq!(cpu.csr.read(MCAUSE).unwrap(), 2); // mcause
-        assert_eq!(cpu.csr.read(MTVAL).unwrap(), 33); // mtval
+        assert_eq!(cpu.csr.read(addresses::MEPC).unwrap(), 7); // mepc
+        assert_eq!(cpu.csr.read(addresses::MCAUSE).unwrap(), 2); // mcause
+        assert_eq!(cpu.csr.read(addresses::MTVAL).unwrap(), 33); // mtval
     }
 
     #[test]
     fn test_handle_trap_sets_in_trap_flag() {
         let mut cpu = build_cpu_state();
-        cpu.csr.guest_write(MTVEC, 4, CPUMode::M);
+        cpu.csr.guest_write(addresses::MTVEC, 4, CPUMode::M);
         assert_eq!(cpu.flags.in_trap, false);
         handle_trap(&mut cpu, TrapCause::IllegalInstruction { instruction: Some(33) });
         assert_eq!(cpu.flags.in_trap, true);
@@ -278,13 +334,13 @@ mod tests {
         // traps to probe for optional CSRs, points mtvec at the very next
         // instruction, and never runs MRET in between probes.
         let mut cpu = build_cpu_state();
-        cpu.csr.guest_write(MTVEC, 4, CPUMode::M);
+        cpu.csr.guest_write(addresses::MTVEC, 4, CPUMode::M);
         let first = handle_trap(&mut cpu, TrapCause::IllegalInstruction { instruction: Some(1) });
         assert_eq!(first, ExecutionSignal::Continue);
         let second = handle_trap(&mut cpu, TrapCause::IllegalInstruction { instruction: Some(2) });
         assert_eq!(second, ExecutionSignal::Continue);
         // the second trap's info overwrote the first's
-        assert_eq!(cpu.csr.read(MTVAL).unwrap(), 2);
+        assert_eq!(cpu.csr.read(addresses::MTVAL).unwrap(), 2);
     }
 
     #[test]
@@ -298,11 +354,11 @@ mod tests {
         cpu.register.write(1, 1);
         // mie = per-bit interrupt
         // mtie = bit 7 of mie, allows machine timer interrupt
-        cpu.csr.guest_write(MIE, MTIE, CPUMode::M);
+        cpu.csr.guest_write(addresses::MIE, MTIE, CPUMode::M);
         // mstatus mie = global interrupt enable
-        cpu.csr.guest_write(MSTATUS, GLOBAL_MIE, CPUMode::M);
+        cpu.csr.guest_write(addresses::MSTATUS, GLOBAL_MIE, CPUMode::M);
         // mtvec = trap handler location
-        cpu.csr.guest_write(MTVEC, 3, CPUMode::M);
+        cpu.csr.guest_write(addresses::MTVEC, 3, CPUMode::M);
         store_in_mem(&ADD_X3_X1_X2.to_le_bytes(), &mut cpu.bus.ram, 1);
         cpu.pc.write(1);
         step(&mut cpu);
@@ -314,8 +370,8 @@ mod tests {
         // mcause == 0x8000_0007. 
         // Confirm the instruction that would've run didn't.
         assert_eq!(cpu.pc.read(), 3);
-        assert_eq!(cpu.csr.read(MEPC).unwrap(), 1);
-        assert_eq!(cpu.csr.read(MCAUSE).unwrap(), 0x8000_0007);
+        assert_eq!(cpu.csr.read(addresses::MEPC).unwrap(), 1);
+        assert_eq!(cpu.csr.read(addresses::MCAUSE).unwrap(), 0x8000_0007);
         assert_eq!(cpu.register.read(3), 0);
     }
 
@@ -328,15 +384,15 @@ mod tests {
         cpu.register.write(1, 4);
         // mie = per-bit interrupt
         // mtie = bit 7 of mie, allows machine timer interrupt if set
-        cpu.csr.guest_write(MIE, MTIE, CPUMode::M);
-        cpu.csr.guest_write(MSTATUS, 0, CPUMode::M);
-        cpu.csr.guest_write(MTVEC, 3, CPUMode::M);
+        cpu.csr.guest_write(addresses::MIE, MTIE, CPUMode::M);
+        cpu.csr.guest_write(addresses::MSTATUS, 0, CPUMode::M);
+        cpu.csr.guest_write(addresses::MTVEC, 3, CPUMode::M);
         store_in_mem(&ADD_X3_X1_X2.to_le_bytes(), &mut cpu.bus.ram, 4);
         cpu.pc.write(BASE_ADDRESS as usize + 4);
         step(&mut cpu);
         assert_eq!(cpu.pc.read(), BASE_ADDRESS as usize + 8);
-        assert_eq!(cpu.csr.read(MEPC).unwrap(), 0);
-        assert_eq!(cpu.csr.read(MCAUSE).unwrap(), 0);
+        assert_eq!(cpu.csr.read(addresses::MEPC).unwrap(), 0);
+        assert_eq!(cpu.csr.read(addresses::MCAUSE).unwrap(), 0);
         assert_eq!(cpu.register.read(3), 7);
     }
 
@@ -346,15 +402,15 @@ mod tests {
         let mut cpu = build_cpu_state();
         cpu.register.write(2, 4);
         cpu.register.write(1, 3);
-        cpu.csr.guest_write(MIE, 0, CPUMode::M);
-        cpu.csr.guest_write(MSTATUS, GLOBAL_MIE, CPUMode::M);
-        cpu.csr.guest_write(MTVEC, 3, CPUMode::M);
+        cpu.csr.guest_write(addresses::MIE, 0, CPUMode::M);
+        cpu.csr.guest_write(addresses::MSTATUS, GLOBAL_MIE, CPUMode::M);
+        cpu.csr.guest_write(addresses::MTVEC, 3, CPUMode::M);
         store_in_mem(&ADD_X3_X1_X2.to_le_bytes(), &mut cpu.bus.ram, 4);
         cpu.pc.write(BASE_ADDRESS as usize + 4);
         step(&mut cpu);
         assert_eq!(cpu.pc.read(), BASE_ADDRESS as usize + 8);
-        assert_eq!(cpu.csr.read(MEPC).unwrap(), 0);
-        assert_eq!(cpu.csr.read(MCAUSE).unwrap(), 0);
+        assert_eq!(cpu.csr.read(addresses::MEPC).unwrap(), 0);
+        assert_eq!(cpu.csr.read(addresses::MCAUSE).unwrap(), 0);
         assert_eq!(cpu.register.read(3), 7);
     }
 
@@ -367,17 +423,17 @@ mod tests {
         let mut cpu = build_cpu_state();
         cpu.register.write(2, 4);
         cpu.register.write(1, 3);
-        cpu.csr.guest_write(MIE, MTIE, CPUMode::M);
-        cpu.csr.guest_write(MSTATUS, GLOBAL_MIE, CPUMode::M);
-        cpu.csr.guest_write(MTVEC, 3, CPUMode::M);
+        cpu.csr.guest_write(addresses::MIE, MTIE, CPUMode::M);
+        cpu.csr.guest_write(addresses::MSTATUS, GLOBAL_MIE, CPUMode::M);
+        cpu.csr.guest_write(addresses::MTVEC, 3, CPUMode::M);
         store_in_mem(&ADD_X3_X1_X2.to_le_bytes(), &mut cpu.bus.ram, 4);
         cpu.pc.write(BASE_ADDRESS as usize + 4);
         cpu.bus.clint.mtime = 1;
         cpu.bus.clint.mtimecmp = 4;
         step(&mut cpu);
         assert_eq!(cpu.pc.read(), BASE_ADDRESS as usize + 8);
-        assert_eq!(cpu.csr.read(MEPC).unwrap(), 0);
-        assert_eq!(cpu.csr.read(MCAUSE).unwrap(), 0);
+        assert_eq!(cpu.csr.read(addresses::MEPC).unwrap(), 0);
+        assert_eq!(cpu.csr.read(addresses::MCAUSE).unwrap(), 0);
         assert_eq!(cpu.register.read(3), 7);
     }
 
@@ -388,17 +444,17 @@ mod tests {
         let mut cpu = build_cpu_state();
         cpu.register.write(2, 4);
         cpu.register.write(1, 3);
-        cpu.csr.guest_write(MIE, MTIE, CPUMode::M);
-        cpu.csr.guest_write(MSTATUS, GLOBAL_MIE, CPUMode::M);
-        cpu.csr.guest_write(MTVEC, 3, CPUMode::M);
+        cpu.csr.guest_write(addresses::MIE, MTIE, CPUMode::M);
+        cpu.csr.guest_write(addresses::MSTATUS, GLOBAL_MIE, CPUMode::M);
+        cpu.csr.guest_write(addresses::MTVEC, 3, CPUMode::M);
         store_in_mem(&ADD_X3_X1_X2.to_le_bytes(), &mut cpu.bus.ram, 4);
         cpu.pc.write(4);
-        cpu.csr.guest_write(MTVAL, 999, CPUMode::M);
+        cpu.csr.guest_write(addresses::MTVAL, 999, CPUMode::M);
         step(&mut cpu);
         assert_eq!(cpu.pc.read(), 3);
-        assert_eq!(cpu.csr.read(MEPC).unwrap(), 4);
-        assert_eq!(cpu.csr.read(MCAUSE).unwrap(), 0x8000_0007);
-        assert_eq!(cpu.csr.read(MTVAL).unwrap(), 0);
+        assert_eq!(cpu.csr.read(addresses::MEPC).unwrap(), 4);
+        assert_eq!(cpu.csr.read(addresses::MCAUSE).unwrap(), 0x8000_0007);
+        assert_eq!(cpu.csr.read(addresses::MTVAL).unwrap(), 0);
         assert_eq!(cpu.register.read(3), 0);
     }
 
@@ -409,14 +465,14 @@ mod tests {
         // back as 1 -- proves entry's MPIE=MIE capture and MRET's
         // MIE=MPIE restore round-trip a real value now, not stale data.
         let mut cpu = build_cpu_state();
-        cpu.csr.guest_write(MSTATUS, GLOBAL_MIE, CPUMode::M);
-        assert_eq!(mask_and_shift(cpu.csr.read(MSTATUS).unwrap(), GLOBAL_MIE), 1);
+        cpu.csr.guest_write(addresses::MSTATUS, GLOBAL_MIE, CPUMode::M);
+        assert_eq!(mask_and_shift(cpu.csr.read(addresses::MSTATUS).unwrap(), GLOBAL_MIE), 1);
         handle_trap(&mut cpu, TrapCause::IllegalInstruction { instruction: Some(0x1234) });
-        let mstatus_after_trap = cpu.csr.read(MSTATUS).unwrap();
+        let mstatus_after_trap = cpu.csr.read(addresses::MSTATUS).unwrap();
         assert_eq!(mask_and_shift(mstatus_after_trap, MPIE), 1);
         assert_eq!(mask_and_shift(mstatus_after_trap, GLOBAL_MIE), 0);
         inst_i_mret(&mut cpu);
-        assert_eq!(mask_and_shift(cpu.csr.read(MSTATUS).unwrap(), GLOBAL_MIE), 1);
+        assert_eq!(mask_and_shift(cpu.csr.read(addresses::MSTATUS).unwrap(), GLOBAL_MIE), 1);
     }
 
     #[test]
@@ -431,8 +487,8 @@ mod tests {
         // will correctly fire once in_trap goes back to false via MRET.
         let mut cpu = build_cpu_state();
         cpu.flags.in_trap = true;
-        cpu.csr.guest_write(MIE, MTIE, CPUMode::M);
-        cpu.csr.guest_write(MSTATUS, GLOBAL_MIE, CPUMode::M);
+        cpu.csr.guest_write(addresses::MIE, MTIE, CPUMode::M);
+        cpu.csr.guest_write(addresses::MSTATUS, GLOBAL_MIE, CPUMode::M);
         cpu.register.write(1, 4);
         cpu.register.write(2, 3);
         store_in_mem(&ADD_X3_X1_X2.to_le_bytes(), &mut cpu.bus.ram, 4);
