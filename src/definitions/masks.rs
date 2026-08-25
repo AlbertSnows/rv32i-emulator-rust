@@ -49,3 +49,24 @@ pub const MTIE: u32 = MTI;
 pub const FUNCT_FIVE: u32 = TWENTY_SEVEN_TO_THIRTY_ONE;
 pub const ACQUIRE: u32 = 0b0000_0100_0000_0000_0000_0000_0000_0000;
 pub const RELEASE: u32 = 0b0000_0010_0000_0000_0000_0000_0000_0000;
+
+pub const ONE: u32 = 0b10;
+pub const FIVE: u32 = 0b10_0000;
+pub const EIGHT: u32 = 0b1_0000_0000;
+pub const NINE: u32 = 0b10_0000_0000;
+
+pub const SSTATUS: u32 = ONE | FIVE | EIGHT;
+pub const PER_SOURCE_SIE: u32 = ONE | FIVE | NINE;
+pub const SIP: u32 = PER_SOURCE_SIE;
+
+pub const GLOBAL_SIE: u32 = ONE;
+pub const SSIE: u32 = ONE;
+pub const SSIP: u32 = ONE;
+pub const SPIE: u32 = FIVE;
+pub const STIE: u32 = FIVE;
+pub const STIP: u32 = FIVE;
+
+pub const SPP: u32 = EIGHT;
+pub const SEIE: u32 = NINE;
+pub const SEIP: u32 = NINE;
+

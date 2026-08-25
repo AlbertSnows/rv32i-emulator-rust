@@ -1,8 +1,6 @@
 use crate::definitions::trap_cause::TrapCause;
 use crate::definitions::cpu::cpu_definition::CPUMode;
-use crate::definitions::addresses::{
-    MSTATUS, MTVEC, MEPC, MCAUSE, MTVAL, MCYCLE, MINSTRET, CYCLE, TIME, INSTRET, MIP, MIE, MHARTID
-};
+use crate::definitions::addresses;
 use crate::utility::bit_operations::{mask_and_shift, set_bit_range};
 use crate::definitions::masks;
 
@@ -27,7 +25,15 @@ pub fn build_csr_state() -> CSRState {
         mcycle: 0,
         minstret: 0,
         mie: 0,
-        mip: 0
+        mip: 0,
+        //
+        stvec: 0,
+        sscratch: 0,
+        sepc: 0,
+        scause: 0,
+        stval: 0,
+        medeleg: 0,
+        mideleg: 0,
      }
 }
 
@@ -47,6 +53,13 @@ pub struct CSRState {
     mip: u32,
     // hart: hardware thread; a term for one independent instruction execution unit, aka a core
     // mhartid: u32 // machine hart id
+    stvec: u32,
+    sscratch: u32,
+    sepc: u32,
+    scause: u32,
+    stval: u32,
+    medeleg: u32,
+    mideleg: u32,
 
 }
 
@@ -61,31 +74,34 @@ impl CSRState {
 
     fn field_for(&mut self, address: usize) -> Result<&mut u32, TrapCause> {
         match address {
-            MSTATUS => Ok(&mut self.mstatus),
-            MTVEC => Ok(&mut self.mtvec),
-            MEPC => Ok(&mut self.mepc),
-            MCAUSE => Ok(&mut self.mcause),
-            MTVAL => Ok(&mut self.mtval),
-            MCYCLE | CYCLE | TIME => Ok(&mut self.mcycle),
-            MINSTRET | INSTRET => Ok(&mut self.minstret),
-            MIP => Ok(&mut self.mip),
-            MIE => Ok(&mut self.mie),
+            addresses::MSTATUS | addresses::SSTATUS => Ok(&mut self.mstatus),
+            addresses::MTVEC => Ok(&mut self.mtvec),
+            addresses::MEPC => Ok(&mut self.mepc),
+            addresses::MCAUSE => Ok(&mut self.mcause),
+            addresses::MTVAL => Ok(&mut self.mtval),
+            addresses::MCYCLE | addresses::CYCLE | addresses::TIME => Ok(&mut self.mcycle),
+            addresses::MINSTRET | addresses::INSTRET => Ok(&mut self.minstret),
+            addresses::MIP | addresses::SIP => Ok(&mut self.mip),
+            addresses::MIE | addresses::SIE => Ok(&mut self.mie),
             _ => Err(TrapCause::IllegalInstruction { instruction: None }),
         }
     }
 
     pub fn read(&self, address: usize) -> Result<u32, TrapCause> {
         match address {
-            MSTATUS => Ok(self.mstatus),
-            MTVEC => Ok(self.mtvec),
-            MEPC => Ok(self.mepc),
-            MCAUSE => Ok(self.mcause),
-            MTVAL => Ok(self.mtval),
-            MCYCLE | CYCLE | TIME => Ok(self.mcycle),
-            MINSTRET | INSTRET => Ok(self.minstret),
-            MIP => Ok(self.mip),
-            MIE => Ok(self.mie),
-            MHARTID => Ok(0),
+            addresses::MSTATUS => Ok(self.mstatus),
+            addresses::MTVEC => Ok(self.mtvec),
+            addresses::MEPC => Ok(self.mepc),
+            addresses::MCAUSE => Ok(self.mcause),
+            addresses::MTVAL => Ok(self.mtval),
+            addresses::MCYCLE | addresses::CYCLE | addresses::TIME => Ok(self.mcycle),
+            addresses::MINSTRET | addresses::INSTRET => Ok(self.minstret),
+            addresses::MIP => Ok(self.mip),
+            addresses::MIE => Ok(self.mie),
+            addresses::MHARTID => Ok(0),
+            addresses::SSTATUS => Ok(self.mstatus & masks::SSTATUS),
+            addresses::SIP => Ok(self.mip & masks::SIP),
+            addresses::SIE => Ok(self.mie & masks::PER_SOURCE_SIE),
             _ => Err(TrapCause::IllegalInstruction { instruction: None }),
         }
     }
@@ -110,7 +126,22 @@ impl CSRState {
         let property = self.field_for(address)?;
 
         match address {
-            MIP => Ok(*property),
+            addresses::MIP => Ok(*property),
+            addresses::SIP => Ok(*property & masks::SIP),
+            addresses::SSTATUS => {
+                let bits_to_write = value & masks::SSTATUS;
+                let bits_minus_sstatus = *property & !masks::SSTATUS;
+                let updated_mstatus = bits_minus_sstatus | bits_to_write;
+                *property = updated_mstatus;
+                Ok(*property & masks::SSTATUS)
+            },
+            addresses::SIE => {
+                let bits_to_write = value & masks::PER_SOURCE_SIE;
+                let bits_minus_sie = *property & !masks::PER_SOURCE_SIE;
+                let updated_sie = bits_minus_sie | bits_to_write;
+                *property = updated_sie;
+                Ok(*property & masks::PER_SOURCE_SIE)
+            },
             _ => {
                 *property = value;
                 Ok(value)
@@ -147,8 +178,8 @@ mod tests {
     fn test_update_cycle_increments_cycle_and_time_together() {
         let mut csr = build_csr_state();
         csr.update_cycle(CPUCycles::Cycle);
-        assert_eq!(csr.read(CYCLE).unwrap(), 1);
-        assert_eq!(csr.read(TIME).unwrap(), 1);
+        assert_eq!(csr.read(addresses::CYCLE).unwrap(), 1);
+        assert_eq!(csr.read(addresses::TIME).unwrap(), 1);
     }
 
     #[test]
@@ -159,7 +190,7 @@ mod tests {
         csr.update_cycle(CPUCycles::Cycle);
         csr.update_cycle(CPUCycles::Cycle);
         csr.update_cycle(CPUCycles::Instret);
-        assert_eq!(csr.read(INSTRET).unwrap(), 1);
+        assert_eq!(csr.read(addresses::INSTRET).unwrap(), 1);
     }
 
     #[test]

@@ -20,8 +20,8 @@ pub fn run_tests(elf_bytes: &[u8]) -> TestOutcome {
         let _ = step(&mut cpu);
         let tohost_value = cpu.bus.direct_read(tohost_addr, 4).unwrap();
         if tohost_value != 0 {
-            if tohost_value == 1{
-                return TestOutcome::Pass
+            return if tohost_value == 1 {
+                TestOutcome::Pass
             } else {
                 // RVTEST_FAIL wrote (TESTNUM << 1) | 1 
                 //  >> 1 reverses that: 
@@ -30,7 +30,7 @@ pub fn run_tests(elf_bytes: &[u8]) -> TestOutcome {
                 // and >> 1 / << 1 are exact inverses otherwise. Recovers which
                 // TEST_RR_OP-numbered sub-test actually failed.
                 let failing_subtest = tohost_value >> 1;
-                return TestOutcome::Fail(failing_subtest)
+                TestOutcome::Fail(failing_subtest)
             }
         }
     }

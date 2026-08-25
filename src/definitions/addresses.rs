@@ -71,3 +71,17 @@ pub const MTIMECMP: usize = 0x02004000;
 pub const MTIME_END: usize = MTIME + ByteType::DoubleWord.as_num() - 1;
 pub const MTIMECMP_END: usize = MTIMECMP + ByteType::DoubleWord.as_num() - 1;
 pub const MHARTID: usize = 0xF14;
+
+// sstatus is is mstatus, but with only access priv to bits 1, 5, and 8
+pub const SSTATUS: usize = 0x100;
+// SIE is is MIE, but with only access priv to bits 1, 5, and 9
+pub const SIE: usize = 0x104;
+pub const STVEC: usize = 0x105;
+pub const SSCRATCH: usize = 0x140;
+pub const SEPC: usize = 0x141;
+pub const SCAUSE: usize = 0x142;
+pub const STVAL: usize = 0x143;
+// SIP is is MIP, but with only access priv to bits 1, 5, and 9
+pub const SIP: usize = 0x144;
+pub const MEDELEG: usize = 0x302;
+pub const MIDELEG: usize = 0x303;

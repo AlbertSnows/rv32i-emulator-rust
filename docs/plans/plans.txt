@@ -11,22 +11,6 @@ components:
 - decode
 - execute
 
-[ ] 9. M extension (multiply/divide): MUL, MULH, MULHSU, MULHU, DIV,
-    DIVU, REM, REMU -- new opcode/decode/execute cases on top of the
-    existing R-type machinery, no deep architectural dependencies.
-    Effectively required for the boot-Linux goal (see
-    project_goal_boot_linux.md), not an optional extra -- standard
-    compiled toolchain output assumes this exists, so ordinary C code
-    (array indexing, loop math) traps almost immediately without it.
-
-[ ] 10. A extension (atomics): LR.W, SC.W, AMOSWAP.W, AMOADD.W, AMOXOR.W,
-    AMOAND.W, AMOOR.W, AMOMIN.W, AMOMAX.W, AMOMINU.W, AMOMAXU.W.
-    Semantically simple for a single-hart emulator -- nothing else can
-    interleave, so "atomic" is trivially satisfied; the work is mostly
-    decode + read-modify-write execute logic. Linux's riscv port
-    hardcodes atomics into low-level primitives (atomic.h, bitops)
-    unconditionally, even for single-hart/non-SMP builds, so this isn't
-    skippable either.
 
 [ ] 11. Privileged mode / CSR conformance: extend and harden the
     existing trap/CSR machinery (built out during interrupts work) --
