@@ -1,6 +1,7 @@
 use crate::definitions::trap_cause::TrapCause;
 use crate::definitions::cpu::cpu_definition::CPUMode;
 use crate::definitions::addresses;
+use crate::definitions::codes::MISA_STATE;
 use crate::utility::bit_operations::{mask_and_shift, set_bit_range};
 use crate::definitions::masks;
 
@@ -15,6 +16,11 @@ pub enum CPUCycles {
     Time
 }
 
+#[derive(Debug, Copy, PartialEq, Clone)]
+pub struct CSRFlags {
+    pub skip_instret_increment: bool
+}
+
 pub fn build_csr_state() -> CSRState {
     CSRState { 
         mstatus: 0,
@@ -24,6 +30,7 @@ pub fn build_csr_state() -> CSRState {
         mtval: 0,
         mcycle: 0,
         minstret: 0,
+        minstreth: 0,
         mie: 0,
         mip: 0,
         //
@@ -34,6 +41,7 @@ pub fn build_csr_state() -> CSRState {
         stval: 0,
         medeleg: 0,
         mideleg: 0,
+        flags: CSRFlags { skip_instret_increment: false }
      }
 }
 
@@ -43,12 +51,15 @@ pub fn build_csr_state() -> CSRState {
 pub struct CSRState {
     // todo: look into bit flags, bit field, crate
     mstatus: u32,
+    // mtvec has one extra bit, bit 0, that says how it jumps to the address
+    // 0 = direct mode, 1 = vectored mode
     mtvec: u32,
     mepc: u32, 
     mcause: u32,
     mtval: u32,
     mcycle: u32,
     minstret: u32,
+    minstreth: u32,
     mie: u32,
     mip: u32,
     // hart: hardware thread; a term for one independent instruction execution unit, aka a core
@@ -60,7 +71,15 @@ pub struct CSRState {
     stval: u32,
     medeleg: u32,
     mideleg: u32,
+    pub flags: CSRFlags
+}
 
+impl CSRState {
+    pub(crate) fn take_and_reset_instret_state(&mut self) -> bool {
+        let was_set = self.flags.skip_instret_increment;
+        self.flags.skip_instret_increment = false;
+        was_set
+    }
 }
 
 // Which interrupt-pending bit in mip is being updated. Only MTI exists for
@@ -81,6 +100,7 @@ impl CSRState {
             addresses::MTVAL => Ok(&mut self.mtval),
             addresses::MCYCLE | addresses::CYCLE | addresses::TIME => Ok(&mut self.mcycle),
             addresses::MINSTRET | addresses::INSTRET => Ok(&mut self.minstret),
+            addresses::MINSTRETH => Ok(&mut self.minstreth),
             addresses::MIP | addresses::SIP => Ok(&mut self.mip),
             addresses::MIE | addresses::SIE => Ok(&mut self.mie),
             addresses::MIDELEG => Ok(&mut self.mideleg),
@@ -103,6 +123,7 @@ impl CSRState {
             addresses::MTVAL => Ok(self.mtval),
             addresses::MCYCLE | addresses::CYCLE | addresses::TIME => Ok(self.mcycle),
             addresses::MINSTRET | addresses::INSTRET => Ok(self.minstret),
+            addresses::MINSTRETH => Ok(self.minstreth),
             addresses::MIP => Ok(self.mip),
             addresses::MIE => Ok(self.mie),
             addresses::MHARTID => Ok(0),
@@ -118,6 +139,11 @@ impl CSRState {
             addresses::STVEC => Ok(self.stvec),
             addresses::SCAUSE => Ok(self.scause),
 
+            addresses::MISA => Ok(MISA_STATE),
+            addresses::MVENDORID => Ok(0),
+            addresses::MARCHID => Ok(0),
+            addresses::MIMPID => Ok(0),
+            // addresses::MCOUNTINHIBIT => Ok(0),
             _ => Err(TrapCause::IllegalInstruction { instruction: None }),
         }
     }
@@ -139,8 +165,10 @@ impl CSRState {
             // todo: encode more info about the specific trap failure?
             return Err(TrapCause::IllegalInstruction { instruction: None });
         }
+        if address == addresses::MINSTRET || address == addresses::INSTRET {
+            self.flags.skip_instret_increment = true;
+        }
         let property = self.field_for(address)?;
-
         match address {
             addresses::MIP => Ok(*property),
             addresses::SIP => Ok(*property & masks::SIP),
@@ -158,6 +186,10 @@ impl CSRState {
                 *property = updated_sie;
                 Ok(*property & masks::PER_SOURCE_SIE)
             },
+            addresses::STVEC | addresses::MTVEC => {
+                *property = value & !0b11; // becomes 11...1100, forcing out of vectored mode
+                Ok(*property)
+            },
             _ => {
                 *property = value;
                 Ok(value)
@@ -168,10 +200,14 @@ impl CSRState {
     pub fn update_cycle(&mut self, cycle: CPUCycles) {
         match cycle {
             CPUCycles::Cycle | CPUCycles::Time => {
-                self.mcycle += 1;
+                self.mcycle = self.mcycle.wrapping_add(1);
             },
             CPUCycles::Instret => {
-                self.minstret += 1;
+                let (new_val, did_wrap) = self.minstret.overflowing_add(1);
+                self.minstret = new_val;
+                if did_wrap {
+                    self.minstreth = self.minstreth.wrapping_add(1);
+                }
             },
         }
     }

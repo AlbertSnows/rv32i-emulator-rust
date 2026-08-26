@@ -11,16 +11,90 @@ components:
 - decode
 - execute
 
+[ ] 12. Close the rv32mi/rv32si conformance gap (9/22 failing, down from
+    11 -- these fixtures were built as part of item #13 below, adopting
+    the external riscv-tests suite, but the harness only reports whether
+    they pass; getting them all green is this item).
 
-[ ] 11. Privileged mode / CSR conformance: extend and harden the
-    existing trap/CSR machinery (built out during interrupts work) --
-    more CSR coverage, trap edge cases, mode-transition correctness.
-    Builds directly on what's already there rather than new
-    architecture, and is the most foundational of items #9-11 for
-    actually booting anything above M-mode (an S-mode kernel under an
-    M-mode firmware runs on nothing else).
+    Done this session:
+    - misa (0x301), mvendorid (0xF11), marchid (0xF12), mimpid (0xF13):
+      all now implemented as fixed-value read-only CSRs (0x40141101 for
+      misa, documented at src/definitions/codes.rs::MISA_STATE; 0 for the
+      other three, per spec -- 0 explicitly means "non-commercial
+      implementation," which is literally what this project is). Together
+      these fixed test_rv32ui_p_mcsr_passes and (as a side effect)
+      test_rv32ui_p_csr_si_passes.
+    - Found and fixed a real, general bug while chasing this, not
+      specific to any one test: csrrw/csrrs/csrrc all wrote to `rd`
+      *before* reading `rs1` -- corrupts the result whenever `rd == rs1`
+      (e.g. `csrrw t0, mtvec, t0`, a completely ordinary "save old value,
+      install new one" idiom). Fixed in all three (i/instructions/i/csr.rs)
+      by reading rs1 first. Swept every other instruction category
+      (R-type, M-extension, I-type ALU/shift, loads, JALR, AMO) this
+      session to confirm none of them have the same shape of bug --
+      confirmed clean; CSR instructions were the only place it could
+      exist, since they're the only ones that touch a register write and
+      a separate register read as two distinct steps rather than
+      "gather inputs, then write once." This fix alone turned
+      test_rv32ui_p_instret_overflow_passes from a hang into a clean
+      Fail(2) -- see below, not fully fixed yet, but the hang is gone.
+    - Confirmed mcountinhibit is *not* needed for anything: not just for
+      this test suite, but for this project's actual goals generally (it's
+      genuinely optional per spec -- "not implemented" is a first-class
+      supported outcome, not a workaround -- and instret_overflow.S's own
+      mcountinhibit write is already wrapped in the standard safe-probe
+      pattern specifically anticipating it might not exist). Leave it
+      unimplemented; a half-implementation (readable but not writable)
+      wouldn't help anyway, since the one place it's used is a write.
 
-[ ] 12. Adopt an external RISC-V test suite, instead of only hand-written
+    Small, well-understood, concrete fixes remaining:
+    - test_rv32ui_p_instret_overflow_passes (now Fail(2), not a hang):
+      two more things needed, both scoped out this session, neither
+      implemented yet:
+      (a) minstret auto-increment suppression -- step()'s
+          update_cycle(Instret) runs unconditionally after every retired
+          instruction, including a CSR write that just set minstret
+          itself, so `csrwi minstret,0; csrr a0,minstret` reads back 1
+          instead of the expected 0. Fix: give CSRState a
+          suppress_next_instret_increment flag, set it inside guest_write
+          whenever the target address is MINSTRET/INSTRET, and have
+          step() check-and-clear it (a take()-style method) instead of
+          incrementing unconditionally.
+      (b) minstreth: the test's TEST_CASE(3)/(4) also check the upper 32
+          bits of a 64-bit retired-instruction count -- not implemented
+          at all, since minstret is currently just a standalone u32 with
+          no linked high half. Same shape of problem this codebase
+          already solved once for mtime/mtimecmp (a 64-bit value split
+          across two 32-bit CSRs on RV32) -- reuse that pattern rather
+          than inventing a new one.
+
+    Needs its own trace/investigation, unknown scope:
+    - test_rv32ui_p_dirty_si_passes: times out. Exercises the F/D
+      mstatus.FS ("dirty") field, entirely unimplemented -- may be the
+      same class of "we silently accept a bit we should reject" bug MTVEC
+      had, or may be something else. Don't assume; trace it first.
+    - test_rv32ui_p_csr_passes, test_rv32ui_p_ma_fetch_passes / _si,
+      test_rv32ui_p_breakpoint_passes, test_rv32ui_p_zicntr_passes: clean
+      Fail(N)s, not yet traced to a specific cause. Given misa/mvendorid/
+      marchid/mimpid turned out to be exactly this shape of problem for
+      mcsr, check for more unimplemented-but-harmlessly-readable CSRs
+      first before assuming something more exotic.
+
+    Confirmed, larger, deliberately out of scope for now:
+    - test_rv32ui_p_illegal_passes: traced this session (see the `illegal`
+      investigation) down to real subtests 5/6/7 -- sfence.vma and satp,
+      i.e. Sv32 paging support. Neither is implemented, both correctly
+      trap as illegal instructions, but the test isn't built to recover
+      from that the way the earlier subtest (bad2) is. This is the same
+      Sv32 work already listed under "OS (Linux)" below -- don't treat it
+      as a new task, just know that it's *also* what's blocking this
+      conformance test, not only the "boot real Linux" goal.
+    - test_rv32ui_p_pmpaddr_passes: needs PMP (physical memory
+      protection), not implemented and not currently planned anywhere in
+      this doc. Decide explicitly whether PMP is in scope before spending
+      time on it -- it's not a quick CSR add like misa.
+
+[ ] 13. Adopt an external RISC-V test suite, instead of only hand-written
     Rust unit tests, for much broader instruction coverage. Two candidates,
     ideally both eventually, starting with the first:
     - riscv-tests (github.com/riscv-software-src/riscv-tests) -- the
@@ -50,12 +124,12 @@ components:
       read/write behavior, just for reporting a test result instead of
       timing
     See docs/plans/test_suite.txt for details on the toolchain, the
-    ELF loader, and the signaling convention. rv32ui coverage (42/42
-    tests) is done via tests/harness.rs; once items #9-11 above land,
-    extend the harness the same way for rv32um-p-*, rv32ua-p-*,
-    rv32mi-p-*, and rv32si-p-*.
+    ELF loader, and the signaling convention. rv32ui/rv32um/rv32ua
+    coverage (60/60) is done via tests/harness.rs; rv32mi-p-*/rv32si-p-*
+    fixtures are also in now, but only 11/22 pass -- see item #12 for
+    what's blocking the rest.
 
-[ ] 13. Refactor CSRState -- attempt after item #8 is done. Motivation:
+[ ] 14. Refactor CSRState -- attempt after item #8 is done. Motivation:
     building mip surfaced how much side-effect/special-case behavior
     CSRState::write has accumulated (address-level read-only vs.
     field-level read-only within an otherwise-writable register, internal
@@ -75,16 +149,18 @@ components:
 
     BIOS / firmware:
     - binary/firmware image loader
-    - full S-mode CSR set (sepc, scause, stval, stvec, sstatus, sie, sip)
-    - SRET and S-mode environment calls
-    - medeleg/mideleg (trap delegation M->S)
+    - [done, item #11] full S-mode CSR set (sepc, scause, stval, stvec,
+      sstatus, sie, sip), SRET, medeleg/mideleg (trap delegation M->S)
     - SBI call surface
 
     OS (Linux):
     - Sv32 virtual memory (satp, page-table walker/translation) -- needed
       for instruction/load/store page faults (Table 16 codes 12/13/15,
       Chapter 12.3, p.129); Linux relies on virtual memory pervasively
-      (per-process address spaces, demand paging, copy-on-write)
+      (per-process address spaces, demand paging, copy-on-write). Also
+      confirmed (item #12) to be what's blocking test_rv32ui_p_illegal_passes
+      specifically (sfence.vma/satp) -- not just a distant Linux-boot
+      concern, already showing up in near-term conformance testing.
     - full U/S/M three-mode operation
     - timer-driven preemption (mtime/mtimecmp)
     - console + disk drivers matching whatever device model above

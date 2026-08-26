@@ -145,14 +145,3 @@ privilege to use it, i.e. from U-mode, or from S-mode when
 mstatus.TSR=1 (trap-SRET, meant for hypervisor emulation -- out of
 scope here, so treat TSR as hardwired 0 for now and just check
 current_mode != U).
-
---- 5. what needs to change in this codebase ---
-
-
-- src/instructions/i/system.rs: new `SystemOp::SRet` variant, parse
-  arm for funct12=0x102, and `inst_i_sret` alongside the existing
-  `inst_i_mret` -- same shape, S-level fields, plus the
-  current_mode != U legality check MRET doesn't need.
-- src/definitions/trap_cause.rs: no new variants needed -- the
-  existing mcause_code() values are exactly what medeleg's bit indices
-  key off of.

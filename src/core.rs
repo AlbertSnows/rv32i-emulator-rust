@@ -178,16 +178,18 @@ pub fn step(cpu: &mut CPUState) -> Result<ExecutionSignal, TrapCause> {
                              mask_and_shift(cpu.csr.read(addresses::MIP).expect("MIP defined"), MTIP) == 1 &&
                              mask_and_shift(cpu.csr.read(addresses::MIE).expect("MIE defined"), MTIE) == 1;
     if interrupt_detected && !cpu.flags.in_trap {
-        Ok(handle_trap(cpu, TrapCause::MachineTimerInterrupt))
-    } else {
-        match perform_step(cpu) {
-            Ok(signal) => {
-                cpu.csr.update_cycle(CPUCycles::Instret);
-                Ok(signal)
-            },
-            Err(trap_cause) => Ok(handle_trap(cpu, trap_cause))
-        }
+        return Ok(handle_trap(cpu, TrapCause::MachineTimerInterrupt))
     }
+    match perform_step(cpu) {
+        Ok(signal) => {
+            if (!cpu.csr.take_and_reset_instret_state()) {
+                cpu.csr.update_cycle(CPUCycles::Instret);
+            }
+            Ok(signal)
+        },
+        Err(trap_cause) => Ok(handle_trap(cpu, trap_cause))
+    }
+
 }
 
 #[cfg(test)]
@@ -336,7 +338,7 @@ mod tests {
         // mstatus mie = global interrupt enable
         cpu.csr.guest_write(addresses::MSTATUS, GLOBAL_MIE, CPUMode::M);
         // mtvec = trap handler location
-        cpu.csr.guest_write(addresses::MTVEC, 3, CPUMode::M);
+        cpu.csr.guest_write(addresses::MTVEC, 100, CPUMode::M);
         store_in_mem(&ADD_X3_X1_X2.to_le_bytes(), &mut cpu.bus.ram, 1);
         cpu.pc.write(1);
         step(&mut cpu);
@@ -347,7 +349,7 @@ mod tests {
         // bottob bit tranlates trap cause
         // mcause == 0x8000_0007. 
         // Confirm the instruction that would've run didn't.
-        assert_eq!(cpu.pc.read(), 3);
+        assert_eq!(cpu.pc.read(), 100);
         assert_eq!(cpu.csr.read(addresses::MEPC).unwrap(), 1);
         assert_eq!(cpu.csr.read(addresses::MCAUSE).unwrap(), 0x8000_0007);
         assert_eq!(cpu.register.read(3), 0);
@@ -424,12 +426,12 @@ mod tests {
         cpu.register.write(1, 3);
         cpu.csr.guest_write(addresses::MIE, MTIE, CPUMode::M);
         cpu.csr.guest_write(addresses::MSTATUS, GLOBAL_MIE, CPUMode::M);
-        cpu.csr.guest_write(addresses::MTVEC, 3, CPUMode::M);
+        cpu.csr.guest_write(addresses::MTVEC, 100, CPUMode::M);
         store_in_mem(&ADD_X3_X1_X2.to_le_bytes(), &mut cpu.bus.ram, 4);
         cpu.pc.write(4);
         cpu.csr.guest_write(addresses::MTVAL, 999, CPUMode::M);
-        step(&mut cpu);
-        assert_eq!(cpu.pc.read(), 3);
+        let outcome = step(&mut cpu);
+        assert_eq!(cpu.pc.read(), 100);
         assert_eq!(cpu.csr.read(addresses::MEPC).unwrap(), 4);
         assert_eq!(cpu.csr.read(addresses::MCAUSE).unwrap(), 0x8000_0007);
         assert_eq!(cpu.csr.read(addresses::MTVAL).unwrap(), 0);

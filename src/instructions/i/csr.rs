@@ -66,11 +66,11 @@ pub fn inst_i_csrrw(rd: usize, rs1: usize, csr_address: usize, register: &mut Re
     // Per the instructions:
     // "If rd=x0, then the instruction shall not read the CSR and shall not cause any of the side effects that might occur on a CSR read."
     // https://docs.riscv.org/reference/isa/v20260120/unpriv/zicsr.html
+    let rs1_val = register.read(rs1);
     if rd != 0 {
         let old_val = csr.read(csr_address)?;
         register.write(rd, old_val);
     }
-    let rs1_val = register.read(rs1);
     csr.guest_write(csr_address, rs1_val, cpu_mode)?;
     Ok(())
 }
@@ -79,9 +79,9 @@ pub fn inst_i_csrrs(rd: usize, rs1: usize, csr_address: usize, register: &mut Re
     // t = CSR[csr]; CSR[csr] = t | rs1; rd = t
     // "Both CSRRS and CSRRC always read the addressed CSR and cause any read side effects regardless of rs1 and rd fields."
     let old_val = csr.read(csr_address)?;
+    let rs1_val = register.read(rs1);
     register.write(rd, old_val);
     if rs1 != 0 {
-        let rs1_val = register.read(rs1);
         let masked_val = old_val | rs1_val;
         csr.guest_write(csr_address, masked_val, cpu_mode)?;
     }
@@ -92,9 +92,9 @@ pub fn inst_i_csrrc(rd: usize, rs1: usize, csr_address: usize, register: &mut Re
     // t = CSR[csr]; CSR[csr] = t & !rs1; rd = t
     // "Both CSRRS and CSRRC always read the addressed CSR and cause any read side effects regardless of rs1 and rd fields."
     let old_val = csr.read(csr_address)?;
+    let rs1_val = register.read(rs1);
     register.write(rd, old_val);
     if rs1 != 0 {
-        let rs1_val = register.read(rs1);
         let masked_val = old_val & !rs1_val;
         csr.guest_write(csr_address, masked_val, cpu_mode)?;
     }

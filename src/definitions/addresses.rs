@@ -85,3 +85,14 @@ pub const STVAL: usize = 0x143;
 pub const SIP: usize = 0x144;
 pub const MEDELEG: usize = 0x302;
 pub const MIDELEG: usize = 0x303;
+pub const MISA: usize = 0x301;
+
+pub const MCOUNTINHIBIT: usize = 0x320;
+
+// address for who made it
+pub const MVENDORID: usize = 0xF11;
+// address for which architecture is in use
+pub const MARCHID: usize = 0xF12;
+// address of exact version of architecture
+pub const MIMPID: usize = 0xF13;
+pub const MINSTRETH: usize = 0xB82;
