@@ -41,7 +41,8 @@ pub fn build_csr_state() -> CSRState {
         stval: 0,
         medeleg: 0,
         mideleg: 0,
-        flags: CSRFlags { skip_instret_increment: false }
+        flags: CSRFlags { skip_instret_increment: false },
+        mcycleh: 0,
      }
 }
 
@@ -71,7 +72,8 @@ pub struct CSRState {
     stval: u32,
     medeleg: u32,
     mideleg: u32,
-    pub flags: CSRFlags
+    pub flags: CSRFlags,
+    mcycleh: u32,
 }
 
 impl CSRState {
@@ -100,7 +102,7 @@ impl CSRState {
             addresses::MTVAL => Ok(&mut self.mtval),
             addresses::MCYCLE | addresses::CYCLE | addresses::TIME => Ok(&mut self.mcycle),
             addresses::MINSTRET | addresses::INSTRET => Ok(&mut self.minstret),
-            addresses::MINSTRETH => Ok(&mut self.minstreth),
+            addresses::MINSTRETH | addresses::INSTRETH=> Ok(&mut self.minstreth),
             addresses::MIP | addresses::SIP => Ok(&mut self.mip),
             addresses::MIE | addresses::SIE => Ok(&mut self.mie),
             addresses::MIDELEG => Ok(&mut self.mideleg),
@@ -111,6 +113,7 @@ impl CSRState {
             addresses::STVAL => Ok(&mut self.stval),
             addresses::STVEC => Ok(&mut self.stvec),
             _ => Err(TrapCause::IllegalInstruction { instruction: None }),
+            addresses::MCYCLEH | addresses::CYCLEH => Ok(&mut self.mcycleh),
         }
     }
 
@@ -123,7 +126,9 @@ impl CSRState {
             addresses::MTVAL => Ok(self.mtval),
             addresses::MCYCLE | addresses::CYCLE | addresses::TIME => Ok(self.mcycle),
             addresses::MINSTRET | addresses::INSTRET => Ok(self.minstret),
-            addresses::MINSTRETH => Ok(self.minstreth),
+            addresses::MINSTRETH | addresses::INSTRETH => Ok(self.minstreth),
+            addresses::MCYCLEH | addresses::CYCLEH => Ok(self.mcycleh),
+
             addresses::MIP => Ok(self.mip),
             addresses::MIE => Ok(self.mie),
             addresses::MHARTID => Ok(0),
@@ -165,7 +170,11 @@ impl CSRState {
             // todo: encode more info about the specific trap failure?
             return Err(TrapCause::IllegalInstruction { instruction: None });
         }
-        if address == addresses::MINSTRET || address == addresses::INSTRET {
+        let is_instret = address == addresses::MINSTRET
+            || address == addresses::INSTRET
+            || address == addresses::MINSTRETH
+            || address == addresses::INSTRETH;
+        if is_instret {
             self.flags.skip_instret_increment = true;
         }
         let property = self.field_for(address)?;
@@ -200,7 +209,11 @@ impl CSRState {
     pub fn update_cycle(&mut self, cycle: CPUCycles) {
         match cycle {
             CPUCycles::Cycle | CPUCycles::Time => {
-                self.mcycle = self.mcycle.wrapping_add(1);
+                let (new_val, did_wrap) = self.mcycle.overflowing_add(1);
+                self.mcycle = new_val;
+                if did_wrap {
+                    self.mcycleh = self.mcycleh.wrapping_add(1);
+                }
             },
             CPUCycles::Instret => {
                 let (new_val, did_wrap) = self.minstret.overflowing_add(1);

@@ -96,3 +96,6 @@ pub const MARCHID: usize = 0xF12;
 // address of exact version of architecture
 pub const MIMPID: usize = 0xF13;
 pub const MINSTRETH: usize = 0xB82;
+pub const INSTRETH: usize = 0xC82;
+pub const MCYCLEH: usize = 0xB80;
+pub const CYCLEH: usize = 0xC80;
