@@ -149,9 +149,6 @@ current_mode != U).
 --- 5. what needs to change in this codebase ---
 
 
-- src/core.rs (wherever handle_trap currently lives): branch on
-  medeleg/mideleg + trapping mode before choosing the M-mode vs
-  S-mode trap-entry sequence (section 3 above).
 - src/instructions/i/system.rs: new `SystemOp::SRet` variant, parse
   arm for funct12=0x102, and `inst_i_sret` alongside the existing
   `inst_i_mret` -- same shape, S-level fields, plus the

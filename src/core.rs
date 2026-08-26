@@ -8,7 +8,8 @@ use crate::definitions::trap_cause::{TrapCause, TrapDestination};
 use crate::utility::bit_operations::{set_bit_range, mask_and_shift};
 use crate::definitions::cpu::csr::{CPUCycles, MIPBits};
 use crate::definitions::masks::{GLOBAL_MIE, MPIE, MTIP, MTIE, MTI, MPP, SPP, GLOBAL_SIE, SPIE};
-use crate::instructions::i::system::{inst_i_mret};
+use crate::instructions::i::system::{inst_i_xret};
+use crate::definitions::trap_cause::{M_TRAP, S_TRAP};
 
 fn perform_step(cpu: &mut CPUState) -> Result<ExecutionSignal, TrapCause> {
     // mut allows cpu to change in the local scope
@@ -168,29 +169,6 @@ pub fn handle_trap(cpu: &mut CPUState, trap_cause: TrapCause) -> ExecutionSignal
     jump_to_trap_handler(cpu, dest); // write the trap handler address to pc to go there
     ExecutionSignal::Continue
 }
-
-const M_TRAP: TrapDestination = TrapDestination {
-    epc: addresses::MEPC,
-    cause: addresses::MCAUSE,
-    tval: addresses::MTVAL,
-    tvec: addresses::MTVEC,
-    pp_mask: MPP,
-    ie_mask: GLOBAL_MIE,
-    pie_mask: MPIE,
-    mode: CPUMode::M
-};
-
-const S_TRAP: TrapDestination = TrapDestination {
-    epc: addresses::SEPC,
-    cause: addresses::SCAUSE,
-    tval: addresses::STVAL,
-    tvec: addresses::STVEC,
-    pp_mask: SPP,
-    ie_mask: GLOBAL_SIE,
-    pie_mask: SPIE,
-    mode: CPUMode::S
-};
-
 
 pub fn step(cpu: &mut CPUState) -> Result<ExecutionSignal, TrapCause> {
     cpu.csr.update_cycle(CPUCycles::Cycle);
@@ -471,7 +449,7 @@ mod tests {
         let mstatus_after_trap = cpu.csr.read(addresses::MSTATUS).unwrap();
         assert_eq!(mask_and_shift(mstatus_after_trap, MPIE), 1);
         assert_eq!(mask_and_shift(mstatus_after_trap, GLOBAL_MIE), 0);
-        inst_i_mret(&mut cpu);
+        inst_i_xret(&mut cpu, &M_TRAP);
         assert_eq!(mask_and_shift(cpu.csr.read(addresses::MSTATUS).unwrap(), GLOBAL_MIE), 1);
     }
 

@@ -84,7 +84,12 @@ impl CSRState {
             addresses::MIP | addresses::SIP => Ok(&mut self.mip),
             addresses::MIE | addresses::SIE => Ok(&mut self.mie),
             addresses::MIDELEG => Ok(&mut self.mideleg),
-            addresses::MEDELEG => Ok(&mut self.mideleg),
+            addresses::MEDELEG => Ok(&mut self.medeleg),
+            addresses::SEPC => Ok(&mut self.sepc),
+            addresses::SCAUSE => Ok(&mut self.scause),
+            addresses::SSCRATCH => Ok(&mut self.sscratch),
+            addresses::STVAL => Ok(&mut self.stval),
+            addresses::STVEC => Ok(&mut self.stvec),
             _ => Err(TrapCause::IllegalInstruction { instruction: None }),
         }
     }
@@ -101,11 +106,18 @@ impl CSRState {
             addresses::MIP => Ok(self.mip),
             addresses::MIE => Ok(self.mie),
             addresses::MHARTID => Ok(0),
+            addresses::MIDELEG => Ok(self.mideleg),
+            addresses::MEDELEG => Ok(self.medeleg),
+
             addresses::SSTATUS => Ok(self.mstatus & masks::SSTATUS),
             addresses::SIP => Ok(self.mip & masks::SIP),
             addresses::SIE => Ok(self.mie & masks::PER_SOURCE_SIE),
-            addresses::MIDELEG => Ok(self.mideleg),
-            addresses::MEDELEG => Ok(self.mideleg),
+            addresses::SEPC => Ok(self.sepc),
+            addresses::SSCRATCH => Ok(self.sscratch),
+            addresses::STVAL => Ok(self.stval),
+            addresses::STVEC => Ok(self.stvec),
+            addresses::SCAUSE => Ok(self.scause),
+
             _ => Err(TrapCause::IllegalInstruction { instruction: None }),
         }
     }
@@ -210,5 +222,57 @@ mod tests {
         let mut csr = build_csr_state();
         let outcome = csr.guest_write(0x341, 42, CPUMode::M);
         assert!(outcome.is_ok());
+    }
+
+    #[test]
+    fn test_guest_write_sepc_round_trips() {
+        let mut csr = build_csr_state();
+        let outcome = csr.guest_write(addresses::SEPC, 100, CPUMode::M);
+        assert!(outcome.is_ok());
+        assert_eq!(csr.read(addresses::SEPC).unwrap(), 100);
+    }
+
+    #[test]
+    fn test_guest_write_scause_round_trips() {
+        let mut csr = build_csr_state();
+        let outcome = csr.guest_write(addresses::SCAUSE, 2, CPUMode::M);
+        assert!(outcome.is_ok());
+        assert_eq!(csr.read(addresses::SCAUSE).unwrap(), 2);
+    }
+
+    #[test]
+    fn test_guest_write_stval_round_trips() {
+        let mut csr = build_csr_state();
+        let outcome = csr.guest_write(addresses::STVAL, 0xDEAD_BEEF, CPUMode::M);
+        assert!(outcome.is_ok());
+        assert_eq!(csr.read(addresses::STVAL).unwrap(), 0xDEAD_BEEF);
+    }
+
+    #[test]
+    fn test_guest_write_stvec_round_trips() {
+        let mut csr = build_csr_state();
+        let outcome = csr.guest_write(addresses::STVEC, 0x8000_0000, CPUMode::M);
+        assert!(outcome.is_ok());
+        assert_eq!(csr.read(addresses::STVEC).unwrap(), 0x8000_0000);
+    }
+
+    #[test]
+    fn test_guest_write_sscratch_round_trips() {
+        let mut csr = build_csr_state();
+        let outcome = csr.guest_write(addresses::SSCRATCH, 0x1234, CPUMode::M);
+        assert!(outcome.is_ok());
+        assert_eq!(csr.read(addresses::SSCRATCH).unwrap(), 0x1234);
+    }
+
+    #[test]
+    fn test_medeleg_and_mideleg_are_independent() {
+        // medeleg and mideleg are separate registers -- writing one must
+        // not affect the other. If both addresses alias the same backing
+        // field, the second write below clobbers the first.
+        let mut csr = build_csr_state();
+        csr.guest_write(addresses::MEDELEG, 0b0000_0100, CPUMode::M).unwrap(); // delegate IllegalInstruction (bit 2)
+        csr.guest_write(addresses::MIDELEG, 0b1000_0000, CPUMode::M).unwrap(); // delegate MTI (bit 7)
+        assert_eq!(csr.read(addresses::MEDELEG).unwrap(), 0b0000_0100);
+        assert_eq!(csr.read(addresses::MIDELEG).unwrap(), 0b1000_0000);
     }
 }

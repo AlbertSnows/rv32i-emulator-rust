@@ -1,12 +1,34 @@
 use crate::definitions::addresses::{MCAUSE, MEPC, MTVAL, MTVEC, SCAUSE, SEPC, STVAL, STVEC};
 use crate::definitions::cpu::cpu_definition::CPUMode;
-use crate::definitions::masks;
-use crate::definitions::masks::{MCAUSE_INTERRUPT, MPIE};
+use crate::definitions::{addresses, masks};
+use crate::definitions::masks::{GLOBAL_MIE, GLOBAL_SIE, MCAUSE_INTERRUPT, MPIE, MPP, SPIE, SPP};
 
 // Traps are about transferring control
 // To transfer control, you will want to overwrite the pc with an address (source?)
 
-pub(crate) struct TrapDestination {
+pub const M_TRAP: TrapDestination = TrapDestination {
+    epc: MEPC,
+    cause: MCAUSE,
+    tval: MTVAL,
+    tvec: MTVEC,
+    pp_mask: MPP,
+    ie_mask: GLOBAL_MIE,
+    pie_mask: MPIE,
+    mode: CPUMode::M
+};
+
+pub const S_TRAP: TrapDestination = TrapDestination {
+    epc: SEPC,
+    cause: SCAUSE,
+    tval: STVAL,
+    tvec: STVEC,
+    pp_mask: SPP,
+    ie_mask: GLOBAL_SIE,
+    pie_mask: SPIE,
+    mode: CPUMode::S
+};
+
+pub struct TrapDestination {
     pub epc: usize,
     pub cause: usize,
     pub tval: usize,
