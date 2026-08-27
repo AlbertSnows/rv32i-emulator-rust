@@ -48,7 +48,9 @@ pub fn build_csr_state() -> CSRState {
         tdata2: 0,
         tcontrol: 0,
         mscratch: 0,
-     }
+        mcounteren: 0,
+        scounteren: 0,
+    }
 }
 
 // CSR (Control and Status Register) address space is 12 bits wide (0..4096), per the Zicsr extension 
@@ -84,6 +86,8 @@ pub struct CSRState {
     tdata2: u32,
     tcontrol: u32,
     mscratch: u32,
+    mcounteren: u32,
+    scounteren: u32,
 }
 
 impl CSRState {
@@ -127,7 +131,9 @@ impl CSRState {
             addresses::TDATA1 => Ok(&mut self.tdata1),
             addresses::TDATA2 => Ok(&mut self.tdata2),
             addresses::TCONTROL => Ok(&mut self.tcontrol),
-            addresses::MSRATCH => Ok(&mut self.mscratch),
+            addresses::MSCRATCH => Ok(&mut self.mscratch),
+            addresses::MCOUNTEREN => Ok(&mut self.mscratch),
+            addresses::SCOUNTNEREN => Ok(&mut self.mscratch),
             _ => Err(TrapCause::IllegalInstruction { instruction: None }),
         }
     }
@@ -185,7 +191,9 @@ impl CSRState {
             addresses::TDATA2 => Ok(0),
             addresses::TCONTROL => Ok(0),
 
-            addresses::MSRATCH => Ok(self.mscratch),
+            addresses::MSCRATCH => Ok(self.mscratch),
+            addresses::MCOUNTEREN => Ok(self.mscratch),
+            addresses::SCOUNTNEREN => Ok(self.mscratch),
             _ => Err(TrapCause::IllegalInstruction { instruction: None }),
         }
     }

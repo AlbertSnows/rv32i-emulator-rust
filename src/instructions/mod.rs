@@ -35,7 +35,7 @@ pub enum Format {
     JalrType { rd: usize, rs1: usize, imm: i32 },
     IShiftType { op: IShOp, rd: usize, rs1: usize, shamt: usize },
     SystemType { op: SystemOp },
-    CsrType { op: CsrOp, rd: usize, rs1_or_uimm: usize, csr: usize, cpu_mode: CPUMode },
+    CsrType { op: CsrOp, rd: usize, rs1_or_uimm: usize, csr: usize },
     FENCEType
 }
 
@@ -62,8 +62,8 @@ impl Format {
                 => i::shift::execute_i_shift_type(op, *rd, *rs1, *shamt, &mut cpu_state.register),
             Format::SystemType { op }
                 => i::system::execute_i_system_type(op, cpu_state),
-            Format::CsrType { op, rd, rs1_or_uimm, csr, cpu_mode }
-                => i::csr::execute_i_csr_type(op, *rd, *rs1_or_uimm, *csr, &mut cpu_state.register, &mut cpu_state.csr, cpu_mode),
+            Format::CsrType { op, rd, rs1_or_uimm, csr }
+                => i::csr::execute_i_csr_type(op, *rd, *rs1_or_uimm, *csr, &mut cpu_state.register, &mut cpu_state.csr, &cpu_state.mode),
             Format::FENCEType => fence::execute_fence_type(),
             Format::AType { op, rd, rs1, rs2, rl, aq }
                 => a::execute_a_type(op, *rd, *rs1, *rs2, *rl, *aq, &mut cpu_state.register, &mut cpu_state.bus, &mut cpu_state.reservation_address)

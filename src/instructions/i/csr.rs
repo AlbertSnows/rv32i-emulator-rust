@@ -45,7 +45,6 @@ pub fn parse_csr_inst(raw_word: InstructionWord) -> Result<Format, TrapCause> {
         rd: reg_dest as usize,
         rs1_or_uimm: rs1_or_uimm as usize,
         csr: csr_address as usize,
-        cpu_mode: CPUMode::M
     })
 }
 
@@ -155,7 +154,7 @@ mod tests {
         // rd         bits 11:7  = 00001          = 1
         // opcode     bits 6:0   = 1110011        = 0x73
 
-        let expected = |op| Ok(Format::CsrType { op, rd: 1, rs1_or_uimm: 2, csr: 0x300, cpu_mode: CPUMode::M });
+        let expected = |op| Ok(Format::CsrType { op, rd: 1, rs1_or_uimm: 2, csr: 0x300 });
 
         assert_eq!(parse_csr_inst(InstructionWord(0x300110F3)), expected(CsrOp::Csrrw));  // funct3 = 001
         assert_eq!(parse_csr_inst(InstructionWord(0x300120F3)), expected(CsrOp::Csrrs));  // funct3 = 010
