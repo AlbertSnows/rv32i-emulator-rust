@@ -50,6 +50,8 @@ pub fn build_csr_state() -> CSRState {
         mscratch: 0,
         mcounteren: 0,
         scounteren: 0,
+        pmpcfg0: 0,
+        pmpaddr0: 0,
     }
 }
 
@@ -88,6 +90,8 @@ pub struct CSRState {
     mscratch: u32,
     mcounteren: u32,
     scounteren: u32,
+    pmpcfg0: u32,
+    pmpaddr0: u32,
 }
 
 impl CSRState {
@@ -134,6 +138,9 @@ impl CSRState {
             addresses::MSCRATCH => Ok(&mut self.mscratch),
             addresses::MCOUNTEREN => Ok(&mut self.mcounteren),
             addresses::SCOUNTNEREN => Ok(&mut self.scounteren),
+            addresses::PMPCFG0 => Ok(&mut self.pmpcfg0),
+            addresses::PMPADDR0 => Ok(&mut self.pmpaddr0),
+
             _ => Err(TrapCause::IllegalInstruction { instruction: None }),
         }
     }
@@ -199,6 +206,10 @@ impl CSRState {
             addresses::MSCRATCH => Ok(self.mscratch),
             addresses::MCOUNTEREN => Ok(self.mcounteren),
             addresses::SCOUNTNEREN => Ok(self.scounteren),
+
+            addresses::PMPCFG0 => Ok(self.pmpcfg0),
+            addresses::PMPADDR0 => Ok(self.pmpaddr0),
+
             _ => Err(TrapCause::IllegalInstruction { instruction: None }),
         }
     }

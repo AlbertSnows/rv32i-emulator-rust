@@ -107,3 +107,5 @@ pub const TCONTROL: usize = 0x7a5;
 pub const MSCRATCH: usize = 0x340;
 pub const MCOUNTEREN: usize = 0x306;
 pub const SCOUNTNEREN: usize = 0x106;
+pub const PMPCFG0: usize = 0x3A0;
+pub const PMPADDR0: usize = 0x3B0;
