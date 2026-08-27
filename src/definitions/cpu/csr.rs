@@ -43,6 +43,11 @@ pub fn build_csr_state() -> CSRState {
         mideleg: 0,
         flags: CSRFlags { skip_instret_increment: false },
         mcycleh: 0,
+        tselect: 0,
+        tdata1: 0,
+        tdata2: 0,
+        tcontrol: 0,
+        mscratch: 0,
      }
 }
 
@@ -74,6 +79,11 @@ pub struct CSRState {
     mideleg: u32,
     pub flags: CSRFlags,
     mcycleh: u32,
+    tselect: u32,
+    tdata1: u32,
+    tdata2: u32,
+    tcontrol: u32,
+    mscratch: u32,
 }
 
 impl CSRState {
@@ -112,8 +122,13 @@ impl CSRState {
             addresses::SSCRATCH => Ok(&mut self.sscratch),
             addresses::STVAL => Ok(&mut self.stval),
             addresses::STVEC => Ok(&mut self.stvec),
-            _ => Err(TrapCause::IllegalInstruction { instruction: None }),
             addresses::MCYCLEH | addresses::CYCLEH => Ok(&mut self.mcycleh),
+            addresses::TSELECT => Ok(&mut self.tselect),
+            addresses::TDATA1 => Ok(&mut self.tdata1),
+            addresses::TDATA2 => Ok(&mut self.tdata2),
+            addresses::TCONTROL => Ok(&mut self.tcontrol),
+            addresses::MSRATCH => Ok(&mut self.mscratch),
+            _ => Err(TrapCause::IllegalInstruction { instruction: None }),
         }
     }
 
@@ -148,7 +163,29 @@ impl CSRState {
             addresses::MVENDORID => Ok(0),
             addresses::MARCHID => Ok(0),
             addresses::MIMPID => Ok(0),
-            // addresses::MCOUNTINHIBIT => Ok(0),
+
+            // Sdtrig (hardware trigger/breakpoint) CSRs. Hardcoded to 0
+            // regardless of what was last written. 
+            // This codebase has no
+            // trigger-matching hardware (no comparator watching
+            // fetch/load/store addresses against tdata2), so we declare
+            // zero triggers rather than half-implement the mechanism.
+            // This matters because the conformance test (rv32mi/breakpoint)
+            // uses "did my write to tdata1 stick?" as its own probe for
+            // "does this hardware actually support the trigger type I just
+            // configured?".
+            // if read() echoed the stored value back, the
+            // test would conclude real trigger hardware exists and then
+            // require it to actually fire a breakpoint exception, which we
+            // can't do. Always reading 0 keeps that probe failing (in the
+            // sense the test wants), which is what routes it to the
+            // graceful "trigger type unsupported, skip" path instead.
+            addresses::TSELECT => Ok(0),
+            addresses::TDATA1 => Ok(0),
+            addresses::TDATA2 => Ok(0),
+            addresses::TCONTROL => Ok(0),
+
+            addresses::MSRATCH => Ok(self.mscratch),
             _ => Err(TrapCause::IllegalInstruction { instruction: None }),
         }
     }

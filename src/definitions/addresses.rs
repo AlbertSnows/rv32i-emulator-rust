@@ -99,3 +99,9 @@ pub const MINSTRETH: usize = 0xB82;
 pub const INSTRETH: usize = 0xC82;
 pub const MCYCLEH: usize = 0xB80;
 pub const CYCLEH: usize = 0xC80;
+
+pub const TSELECT: usize = 0x7a0;
+pub const TDATA1: usize = 0x7a1;
+pub const TDATA2: usize = 0x7a2;
+pub const TCONTROL: usize = 0x7a5;
+pub const MSRATCH: usize = 0x340;
