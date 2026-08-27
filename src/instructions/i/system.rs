@@ -67,10 +67,10 @@ pub fn inst_i_xret(cpu: &mut CPUState, dest: &TrapDestination) -> Result<Executi
         return Err(TrapCause::IllegalInstruction { instruction: None });
     }
     // "xRET sets the pc to the value stored in the xepc register."
-    let epc_val = csr.read(dest.epc)? as usize;
+    let epc_val = csr.read(dest.epc, *mode)? as usize;
     pc.write(epc_val); //
 
-    let mstatus = csr.read(MSTATUS)?;
+    let mstatus = csr.read(MSTATUS, CPUMode::M)?;
     // mpp is where the previous mode was stored. saved at (12:11), 
     let pp_val = mask_and_shift(mstatus, dest.pp_mask);
     let mode_before_trap = CPUMode::from_privilege_level(pp_val)?;
@@ -150,7 +150,7 @@ mod tests {
         assert_eq!(cpu.pc.read(), 100);
         assert_eq!(cpu.mode, CPUMode::S);
         // MPP should be reset to 0 (U) afterward
-        assert_eq!(mask_and_shift(cpu.csr.read(MSTATUS).unwrap(), masks::MPP), 0);
+        assert_eq!(mask_and_shift(cpu.csr.read(MSTATUS, CPUMode::M).unwrap(), masks::MPP), 0);
     }
 
     #[test]
@@ -187,7 +187,7 @@ mod tests {
         assert_eq!(outcome.unwrap(), ExecutionSignal::Continue);
         assert_eq!(cpu.mode, CPUMode::U);
         assert_eq!(cpu.pc.read(), 100);
-        assert_eq!(mask_and_shift(cpu.csr.read(MSTATUS).unwrap(), masks::SPP), 0);
+        assert_eq!(mask_and_shift(cpu.csr.read(MSTATUS, CPUMode::M).unwrap(), masks::SPP), 0);
     }
 
     #[test]

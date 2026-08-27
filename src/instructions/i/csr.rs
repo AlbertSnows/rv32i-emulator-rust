@@ -66,71 +66,71 @@ pub fn inst_i_csrrw(rd: usize, rs1: usize, csr_address: usize, register: &mut Re
     // "If rd=x0, then the instruction shall not read the CSR and shall not cause any of the side effects that might occur on a CSR read."
     // https://docs.riscv.org/reference/isa/v20260120/unpriv/zicsr.html
     let rs1_val = register.read(rs1);
-    if rd != 0 {
-        let old_val = csr.read(csr_address)?;
-        register.write(rd, old_val);
-    }
+    let old_val = if rd != 0 { Some(csr.read(csr_address, cpu_mode)?) } else { None };
     csr.guest_write(csr_address, rs1_val, cpu_mode)?;
+    if let Some(ov) = old_val {
+        register.write(rd, ov);
+    }
     Ok(())
 }
 
 pub fn inst_i_csrrs(rd: usize, rs1: usize, csr_address: usize, register: &mut RegisterFile, csr: &mut CSRState, cpu_mode: CPUMode) -> Result<(), TrapCause> {
     // t = CSR[csr]; CSR[csr] = t | rs1; rd = t
     // "Both CSRRS and CSRRC always read the addressed CSR and cause any read side effects regardless of rs1 and rd fields."
-    let old_val = csr.read(csr_address)?;
+    let old_val = csr.read(csr_address, cpu_mode)?;
     let rs1_val = register.read(rs1);
-    register.write(rd, old_val);
     if rs1 != 0 {
         let masked_val = old_val | rs1_val;
         csr.guest_write(csr_address, masked_val, cpu_mode)?;
     }
+    register.write(rd, old_val);
     Ok(())
 }
 
 pub fn inst_i_csrrc(rd: usize, rs1: usize, csr_address: usize, register: &mut RegisterFile, csr: &mut CSRState, cpu_mode: CPUMode) -> Result<(), TrapCause> {
     // t = CSR[csr]; CSR[csr] = t & !rs1; rd = t
     // "Both CSRRS and CSRRC always read the addressed CSR and cause any read side effects regardless of rs1 and rd fields."
-    let old_val = csr.read(csr_address)?;
+    let old_val = csr.read(csr_address, cpu_mode)?;
     let rs1_val = register.read(rs1);
-    register.write(rd, old_val);
     if rs1 != 0 {
         let masked_val = old_val & !rs1_val;
         csr.guest_write(csr_address, masked_val, cpu_mode)?;
     }
+    register.write(rd, old_val);
     Ok(())
 }
 
 pub fn inst_i_csrrwi(rd: usize, uimm: u32, csr_address: usize, register: &mut RegisterFile, csr: &mut CSRState, cpu_mode: CPUMode) -> Result<(), TrapCause> {
     // t = CSR[csr]; CSR[csr] = uimm; rd = t
+    let old_val = csr.read(csr_address, cpu_mode)?;
+    csr.guest_write(csr_address, uimm, cpu_mode)?;
     if rd != 0 {
-        let old_val = csr.read(csr_address)?;
         register.write(rd, old_val);
     }
-    csr.guest_write(csr_address, uimm, cpu_mode)?;
     Ok(())
 }
 
 pub fn inst_i_csrrsi(rd: usize, uimm: u32, csr_address: usize, register: &mut RegisterFile, csr: &mut CSRState, cpu_mode: CPUMode) -> Result<(), TrapCause> {
     // t = CSR[csr]; CSR[csr] = t | uimm; rd = t
     //  "For CSRRSI and CSRRCI, if the uimm[4:0] field is zero, then these instructions will not write to the CSR"
-    let old_val = csr.read(csr_address)?;
-    register.write(rd, old_val);
+    let old_val = csr.read(csr_address, cpu_mode)?;
     if uimm != 0 {
         let masked_val = old_val | uimm;
         csr.guest_write(csr_address, masked_val, cpu_mode)?;
     }
+    register.write(rd, old_val);
     Ok(())
 }
 
 pub fn inst_i_csrrci(rd: usize, uimm: u32, csr_address: usize, register: &mut RegisterFile, csr: &mut CSRState, cpu_mode: CPUMode) -> Result<(), TrapCause> {
     // t = CSR[csr]; CSR[csr] = t & !uimm; rd = t
     //  "For CSRRSI and CSRRCI, if the uimm[4:0] field is zero, then these instructions will not write to the CSR"
-    let old_val = csr.read(csr_address)?;
-    register.write(rd, old_val);
+    let old_val = csr.read(csr_address, cpu_mode)?;
     if uimm != 0 {
         let masked_val = old_val & !uimm;
         csr.guest_write(csr_address, masked_val, cpu_mode)?;
     }
+    register.write(rd, old_val);
     Ok(())
 }
 
@@ -184,7 +184,7 @@ mod tests {
         csr.guest_write(0x300, 100, CPUMode::M); // CSR's old value
         inst_i_csrrw(1, 2, 0x300, &mut register, &mut csr, CPUMode::M);
         assert_eq!(register.read(1), 100); // rd gets the old CSR value
-        assert_eq!(csr.read(0x300).unwrap(), 55);   // CSR gets rs1's value
+        assert_eq!(csr.read(0x300, CPUMode::M).unwrap(), 55);   // CSR gets rs1's value
     }
 
     #[test]
@@ -197,7 +197,7 @@ mod tests {
         csr.guest_write(0x300, 999, CPUMode::M);  // CSR's old value
         inst_i_csrrw(0, 2, 0x300, &mut register, &mut csr, CPUMode::M); // rd = 0
         assert_eq!(register.read(0), 0);   // x0 stays 0 -- write was skipped
-        assert_eq!(csr.read(0x300).unwrap(), 42);   // CSR write still happens
+        assert_eq!(csr.read(0x300, CPUMode::M).unwrap(), 42);   // CSR write still happens
     }
 
     #[test]
@@ -209,7 +209,7 @@ mod tests {
         csr.guest_write(0x300, 0b0011, CPUMode::M);  // CSR's old value
         inst_i_csrrs(1, 2, 0x300, &mut register, &mut csr, CPUMode::M);
         assert_eq!(register.read(1), 0b0011);       // rd gets the old CSR value
-        assert_eq!(csr.read(0x300).unwrap(), 0b1111);        // 0b0011 | 0b1100
+        assert_eq!(csr.read(0x300, CPUMode::M).unwrap(), 0b1111);        // 0b0011 | 0b1100
     }
 
     #[test]
@@ -221,7 +221,7 @@ mod tests {
         csr.guest_write(0x300, 0b1111, CPUMode::M);  // CSR's old value
         inst_i_csrrc(1, 2, 0x300, &mut register, &mut csr, CPUMode::M);
         assert_eq!(register.read(1), 0b1111);       // rd gets the old CSR value
-        assert_eq!(csr.read(0x300).unwrap(), 0b1100);        // 0b1111 & !0b0011
+        assert_eq!(csr.read(0x300, CPUMode::M).unwrap(), 0b1100);        // 0b1111 & !0b0011
     }
 
     #[test]
@@ -231,9 +231,9 @@ mod tests {
         let mut register = build_register_file();
         let mut csr = build_csr_state();
         csr.guest_write(0x300, 100, CPUMode::M); // CSR's old value
-        inst_i_csrrwi(1, 5, 0x300, &mut register, &mut csr, CPUMode::M); // uimm = 5
+        let outcome = inst_i_csrrwi(1, 5, 0x300, &mut register, &mut csr, CPUMode::M); // uimm = 5
         assert_eq!(register.read(1), 100); // rd gets the old CSR value
-        assert_eq!(csr.read(0x300).unwrap(), 5);    // CSR gets the immediate
+        assert_eq!(csr.read(0x300, CPUMode::M).unwrap(), 5);    // CSR gets the immediate
     }
 
     #[test]
@@ -244,7 +244,7 @@ mod tests {
         csr.guest_write(0x300, 999, CPUMode::M); // CSR's old value
         inst_i_csrrwi(0, 42, 0x300, &mut register, &mut csr, CPUMode::M); // rd = 0, uimm = 42
         assert_eq!(register.read(0), 0);   // x0 stays 0 -- write was skipped
-        assert_eq!(csr.read(0x300).unwrap(), 42);   // CSR write still happens
+        assert_eq!(csr.read(0x300, CPUMode::M).unwrap(), 42);   // CSR write still happens
     }
 
     #[test]
@@ -255,7 +255,7 @@ mod tests {
         csr.guest_write(0x300, 0b0011, CPUMode::M); // CSR's old value
         inst_i_csrrsi(1, 0b1100, 0x300, &mut register, &mut csr, CPUMode::M); // uimm = bits to set
         assert_eq!(register.read(1), 0b0011); // rd gets the old CSR value
-        assert_eq!(csr.read(0x300).unwrap(), 0b1111);  // 0b0011 | 0b1100
+        assert_eq!(csr.read(0x300, CPUMode::M).unwrap(), 0b1111);  // 0b0011 | 0b1100
     }
 
     #[test]
@@ -266,6 +266,6 @@ mod tests {
         csr.guest_write(0x300, 0b1111,CPUMode::M); // CSR's old value
         inst_i_csrrci(1, 0b0011, 0x300, &mut register, &mut csr, CPUMode::M); // uimm = bits to clear
         assert_eq!(register.read(1), 0b1111); // rd gets the old CSR value
-        assert_eq!(csr.read(0x300).unwrap(), 0b1100);  // 0b1111 & !0b0011
+        assert_eq!(csr.read(0x300, CPUMode::M).unwrap(), 0b1100);  // 0b1111 & !0b0011
     }
 }

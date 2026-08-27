@@ -132,13 +132,18 @@ impl CSRState {
             addresses::TDATA2 => Ok(&mut self.tdata2),
             addresses::TCONTROL => Ok(&mut self.tcontrol),
             addresses::MSCRATCH => Ok(&mut self.mscratch),
-            addresses::MCOUNTEREN => Ok(&mut self.mscratch),
-            addresses::SCOUNTNEREN => Ok(&mut self.mscratch),
+            addresses::MCOUNTEREN => Ok(&mut self.mcounteren),
+            addresses::SCOUNTNEREN => Ok(&mut self.scounteren),
             _ => Err(TrapCause::IllegalInstruction { instruction: None }),
         }
     }
 
-    pub fn read(&self, address: usize) -> Result<u32, TrapCause> {
+    pub fn read(&self, address: usize, current_mode: CPUMode) -> Result<u32, TrapCause> {
+        let privilege_level = mask_and_shift(address as u32, 0b11 << MINIMUM_PRIVILEGE_LOCATION);
+        let meets_minimum_privilege = privilege_level <= current_mode.as_privilege_level();
+        if !meets_minimum_privilege {
+            return Err(TrapCause::IllegalInstruction { instruction: None });
+        }
         match address {
             addresses::MSTATUS => Ok(self.mstatus),
             addresses::MTVEC => Ok(self.mtvec),
@@ -192,8 +197,8 @@ impl CSRState {
             addresses::TCONTROL => Ok(0),
 
             addresses::MSCRATCH => Ok(self.mscratch),
-            addresses::MCOUNTEREN => Ok(self.mscratch),
-            addresses::SCOUNTNEREN => Ok(self.mscratch),
+            addresses::MCOUNTEREN => Ok(self.mcounteren),
+            addresses::SCOUNTNEREN => Ok(self.scounteren),
             _ => Err(TrapCause::IllegalInstruction { instruction: None }),
         }
     }
@@ -214,6 +219,8 @@ impl CSRState {
         if !has_write_access | !meets_minimum_privilege {
             // todo: encode more info about the specific trap failure?
             return Err(TrapCause::IllegalInstruction { instruction: None });
+        } else if(address == addresses::MISA) {
+            return Ok(MISA_STATE);
         }
         let is_instret = address == addresses::MINSTRET
             || address == addresses::INSTRET
@@ -288,8 +295,8 @@ mod tests {
     fn test_update_cycle_increments_cycle_and_time_together() {
         let mut csr = build_csr_state();
         csr.update_cycle(CPUCycles::Cycle);
-        assert_eq!(csr.read(addresses::CYCLE).unwrap(), 1);
-        assert_eq!(csr.read(addresses::TIME).unwrap(), 1);
+        assert_eq!(csr.read(addresses::CYCLE, CPUMode::M).unwrap(), 1);
+        assert_eq!(csr.read(addresses::TIME, CPUMode::M).unwrap(), 1);
     }
 
     #[test]
@@ -300,7 +307,7 @@ mod tests {
         csr.update_cycle(CPUCycles::Cycle);
         csr.update_cycle(CPUCycles::Cycle);
         csr.update_cycle(CPUCycles::Instret);
-        assert_eq!(csr.read(addresses::INSTRET).unwrap(), 1);
+        assert_eq!(csr.read(addresses::INSTRET, CPUMode::M).unwrap(), 1);
     }
 
     #[test]
@@ -323,7 +330,7 @@ mod tests {
         let mut csr = build_csr_state();
         let outcome = csr.guest_write(addresses::SEPC, 100, CPUMode::M);
         assert!(outcome.is_ok());
-        assert_eq!(csr.read(addresses::SEPC).unwrap(), 100);
+        assert_eq!(csr.read(addresses::SEPC, CPUMode::M).unwrap(), 100);
     }
 
     #[test]
@@ -331,7 +338,7 @@ mod tests {
         let mut csr = build_csr_state();
         let outcome = csr.guest_write(addresses::SCAUSE, 2, CPUMode::M);
         assert!(outcome.is_ok());
-        assert_eq!(csr.read(addresses::SCAUSE).unwrap(), 2);
+        assert_eq!(csr.read(addresses::SCAUSE, CPUMode::M).unwrap(), 2);
     }
 
     #[test]
@@ -339,7 +346,7 @@ mod tests {
         let mut csr = build_csr_state();
         let outcome = csr.guest_write(addresses::STVAL, 0xDEAD_BEEF, CPUMode::M);
         assert!(outcome.is_ok());
-        assert_eq!(csr.read(addresses::STVAL).unwrap(), 0xDEAD_BEEF);
+        assert_eq!(csr.read(addresses::STVAL, CPUMode::M).unwrap(), 0xDEAD_BEEF);
     }
 
     #[test]
@@ -347,7 +354,7 @@ mod tests {
         let mut csr = build_csr_state();
         let outcome = csr.guest_write(addresses::STVEC, 0x8000_0000, CPUMode::M);
         assert!(outcome.is_ok());
-        assert_eq!(csr.read(addresses::STVEC).unwrap(), 0x8000_0000);
+        assert_eq!(csr.read(addresses::STVEC, CPUMode::M).unwrap(), 0x8000_0000);
     }
 
     #[test]
@@ -355,7 +362,7 @@ mod tests {
         let mut csr = build_csr_state();
         let outcome = csr.guest_write(addresses::SSCRATCH, 0x1234, CPUMode::M);
         assert!(outcome.is_ok());
-        assert_eq!(csr.read(addresses::SSCRATCH).unwrap(), 0x1234);
+        assert_eq!(csr.read(addresses::SSCRATCH, CPUMode::M).unwrap(), 0x1234);
     }
 
     #[test]
@@ -366,7 +373,7 @@ mod tests {
         let mut csr = build_csr_state();
         csr.guest_write(addresses::MEDELEG, 0b0000_0100, CPUMode::M).unwrap(); // delegate IllegalInstruction (bit 2)
         csr.guest_write(addresses::MIDELEG, 0b1000_0000, CPUMode::M).unwrap(); // delegate MTI (bit 7)
-        assert_eq!(csr.read(addresses::MEDELEG).unwrap(), 0b0000_0100);
-        assert_eq!(csr.read(addresses::MIDELEG).unwrap(), 0b1000_0000);
+        assert_eq!(csr.read(addresses::MEDELEG, CPUMode::M).unwrap(), 0b0000_0100);
+        assert_eq!(csr.read(addresses::MIDELEG, CPUMode::M).unwrap(), 0b1000_0000);
     }
 }
