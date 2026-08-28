@@ -159,8 +159,10 @@ components:
       Chapter 12.3, p.129); Linux relies on virtual memory pervasively
       (per-process address spaces, demand paging, copy-on-write). Also
       confirmed (item #12) to be what's blocking test_rv32ui_p_illegal_passes
-      specifically (sfence.vma/satp) -- not just a distant Linux-boot
-      concern, already showing up in near-term conformance testing.
+      and test_rv32ui_p_dirty_si_passes specifically (sfence.vma/satp) --
+      not just a distant Linux-boot concern, already showing up in
+      near-term conformance testing. See docs/plans/sv32.txt for the
+      satp/PTE layout, the walk algorithm, and what needs to change.
     - full U/S/M three-mode operation
     - timer-driven preemption (mtime/mtimecmp)
     - console + disk drivers matching whatever device model above

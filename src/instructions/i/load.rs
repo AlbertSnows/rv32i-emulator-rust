@@ -1,8 +1,9 @@
-use crate::definitions::cpu::cpu_definition::RegisterFile;
+use crate::definitions::cpu::cpu_definition::{CPUMode, RegisterFile};
 use crate::definitions::cpu::bus::BUSState;
 use crate::fetcher::InstructionWord;
 use crate::instructions::Format;
 use crate::definitions::codes::ExecutionSignal;
+use crate::definitions::cpu::csr::CSRState;
 use crate::utility::bit_operations::{mask_and_shift, shake_to_signed};
 use crate::definitions::masks;
 use crate::definitions::trap_cause::TrapCause;
@@ -41,63 +42,70 @@ pub fn parse_load_inst(raw_word: InstructionWord) -> Result<Format, TrapCause> {
 }
 
 
-pub fn execute_i_load_type(op: &LoadOp, rd: usize, rs1: usize, imm: i32, register: &mut RegisterFile, bus: &BUSState) -> Result<ExecutionSignal, TrapCause> {
+pub fn execute_i_load_type(op: &LoadOp,
+                           rd: usize,
+                           rs1: usize, 
+                           imm: i32,
+                           register: &mut RegisterFile,
+                           bus: &mut BUSState,
+                           state: &CSRState,
+                           mode: CPUMode) -> Result<ExecutionSignal, TrapCause> {
     match op {
-        LoadOp::Lb => inst_i_lb(rd, rs1, imm, bus, register)?,
-        LoadOp::Lh => inst_i_lh(rd, rs1, imm, bus, register)?,
-        LoadOp::Lw => inst_i_lw(rd, rs1, imm, bus, register)?,
-        LoadOp::Lbu => inst_i_lbu(rd, rs1, imm, bus, register)?,
-        LoadOp::Lhu => inst_i_lhu(rd, rs1, imm, bus, register)?,
+        LoadOp::Lb => inst_i_lb(rd, rs1, imm, bus, register, state, mode)?,
+        LoadOp::Lh => inst_i_lh(rd, rs1, imm, bus, register, state, mode)?,
+        LoadOp::Lw => inst_i_lw(rd, rs1, imm, bus, register, state, mode)?,
+        LoadOp::Lbu => inst_i_lbu(rd, rs1, imm, bus, register, state, mode)?,
+        LoadOp::Lhu => inst_i_lhu(rd, rs1, imm, bus, register, state, mode)?,
     }
     Ok(ExecutionSignal::Continue)
 }
 
-pub fn inst_i_lb(rd: usize, rs1: usize, imm_i: i32, bus: &BUSState, reg_file: &mut RegisterFile) -> Result<(), TrapCause> {
+pub fn inst_i_lb(rd: usize, rs1: usize, imm_i: i32, bus: &mut BUSState, reg_file: &mut RegisterFile, state: &CSRState, mode: CPUMode) -> Result<(), TrapCause> {
     // sext = sign extended
     // rd <- sext(m8(rs1 + imm_i))
     let val = reg_file.read(rs1);
     let address = val.wrapping_add(imm_i as u32) as usize;
-    let num = bus.direct_read(address, 1)?;
+    let num = bus.guest_load(address as u32, 1, state, mode)?;
     let sext_num = shake_to_signed(num, 8);
     reg_file.write(rd, sext_num as u32);
     Ok(())
 }
 
-pub fn inst_i_lh(rd: usize, rs1: usize, imm_i: i32, bus: &BUSState, reg_file: &mut RegisterFile) -> Result<(), TrapCause> {
+pub fn inst_i_lh(rd: usize, rs1: usize, imm_i: i32, bus: &mut BUSState, reg_file: &mut RegisterFile, state: &CSRState, mode: CPUMode) -> Result<(), TrapCause> {
     // rd <- sext(m16(rs1 + imm_i))
     let val = reg_file.read(rs1);
     let address = val.wrapping_add(imm_i as u32) as usize;
-    let num = bus.direct_read(address, 2)?;
+    let num = bus.guest_load(address as u32, 2, state, mode)?;
     let sext_num = shake_to_signed(num, 16);
     reg_file.write(rd, sext_num as u32);
     Ok(())
 }
 
-pub fn inst_i_lw(rd: usize, rs1: usize, imm_i: i32, bus: &BUSState, reg_file: &mut RegisterFile) -> Result<(), TrapCause> {
+pub fn inst_i_lw(rd: usize, rs1: usize, imm_i: i32, bus: &mut BUSState, reg_file: &mut RegisterFile, state: &CSRState, mode: CPUMode) -> Result<(), TrapCause> {
     // rd <- sext(m32(rs1 + imm_i))
     let val = reg_file.read(rs1);
     let address = val.wrapping_add(imm_i as u32) as usize;
-    let num = bus.direct_read(address, 4)?;
+    let num = bus.guest_load(address as u32, 4, state, mode)?;
     let sext_num = shake_to_signed(num, 32);
     reg_file.write(rd, sext_num as u32);
     Ok(())
 }
 
-pub fn inst_i_lbu(rd: usize, rs1: usize, imm_i: i32, bus: &BUSState, reg_file: &mut RegisterFile) -> Result<(), TrapCause> {
+pub fn inst_i_lbu(rd: usize, rs1: usize, imm_i: i32, bus: &mut BUSState, reg_file: &mut RegisterFile, state: &CSRState, mode: CPUMode) -> Result<(), TrapCause> {
     // zero = zero extended
     // rd <- zext(m8(rs1 + imm_i))
     let val = reg_file.read(rs1);
     let address = val.wrapping_add(imm_i as u32) as usize;
-    let num = bus.direct_read(address, 1)?;
+    let num = bus.guest_load(address as u32, 1, state, mode)?;
     reg_file.write(rd, num);
     Ok(())
 }
 
-pub fn inst_i_lhu(rd: usize, rs1: usize, imm_i: i32, bus: &BUSState, reg_file: &mut RegisterFile) -> Result<(), TrapCause> {
+pub fn inst_i_lhu(rd: usize, rs1: usize, imm_i: i32, bus: &mut BUSState, reg_file: &mut RegisterFile, state: &CSRState, mode: CPUMode) -> Result<(), TrapCause> {
     // rd <- zext(m16(rs1 + imm_i))
     let val = reg_file.read(rs1);
     let address = val.wrapping_add(imm_i as u32) as usize;
-    let num = bus.direct_read(address, 2)?;
+    let num = bus.guest_load(address as u32, 2, state, mode)?;
     reg_file.write(rd, num);
     Ok(())
 }
@@ -107,6 +115,7 @@ mod tests {
     use super::*;
     use crate::definitions::cpu::cpu_definition::build_register_file;
     use crate::definitions::cpu::bus::{build_bus_state, BASE_ADDRESS};
+    use crate::definitions::cpu::csr::build_csr_state;
 
     #[test]
     fn test_parse_load_inst() {
@@ -124,8 +133,9 @@ mod tests {
         let mut reg_file = build_register_file();
         reg_file.write(3, BASE_ADDRESS + 4);
         let mut bus = build_bus_state();
+        let csr = build_csr_state();
         bus.ram.storage[10] = 0b1000_0001;
-        inst_i_lb(rd, rs1, imm_i, &bus, &mut reg_file).unwrap();
+        inst_i_lb(rd, rs1, imm_i, &mut bus, &mut reg_file, &csr, CPUMode::M).unwrap();
         assert_eq!(reg_file.read(1) as i32, -127);
     }
 
@@ -137,9 +147,10 @@ mod tests {
         let mut reg_file = build_register_file();
         reg_file.write(3, BASE_ADDRESS + 4);
         let mut bus = build_bus_state();
+        let csr = build_csr_state();
         bus.ram.storage[10] = 0b0000_0001;
         bus.ram.storage[11] = 0b1000_0000;
-        inst_i_lh(rd, rs1, imm_i, &bus, &mut reg_file).unwrap();
+        inst_i_lh(rd, rs1, imm_i, &mut bus, &mut reg_file, &csr, CPUMode::M).unwrap();
         assert_eq!(reg_file.read(1) as i32, -32767);
     }
 
@@ -151,11 +162,12 @@ mod tests {
         let mut reg_file = build_register_file();
         reg_file.write(3, BASE_ADDRESS + 4);
         let mut bus = build_bus_state();
+        let csr = build_csr_state();
         bus.ram.storage[12] = 0b0000_0001;
         bus.ram.storage[13] = 0b0000_0000;
         bus.ram.storage[14] = 0b0000_0000;
         bus.ram.storage[15] = 0b1000_0000;
-        let outcome = inst_i_lw(rd, rs1, imm_i, &bus, &mut reg_file).unwrap();
+        let outcome = inst_i_lw(rd, rs1, imm_i, &mut bus, &mut reg_file, &csr, CPUMode::M).unwrap();
         assert_eq!(reg_file.read(1) as i32, -2147483647);
     }
 
@@ -174,11 +186,12 @@ mod tests {
         let mut reg_file = build_register_file();
         reg_file.write(3, BASE_ADDRESS + 4);
         let mut bus = build_bus_state();
+        let csr = build_csr_state();
         bus.ram.storage[13] = 0b0000_0001;
         bus.ram.storage[14] = 0b0000_0000;
         bus.ram.storage[15] = 0b0000_0000;
         bus.ram.storage[16] = 0b1000_0000;
-        let outcome = inst_i_lw(rd, rs1, imm_i, &bus, &mut reg_file);
+        let outcome = inst_i_lw(rd, rs1, imm_i, &mut bus, &mut reg_file, &csr, CPUMode::M);
         assert_eq!(outcome, Ok(()));
         assert_eq!(reg_file.read(1) as i32, -2147483647);
     }
@@ -191,8 +204,9 @@ mod tests {
         let mut reg_file = build_register_file();
         reg_file.write(3, BASE_ADDRESS + 4);
         let mut bus = build_bus_state();
+        let csr = build_csr_state();
         bus.ram.storage[10] = 0b1000_0001;
-        inst_i_lbu(rd, rs1, imm_i, &bus, &mut reg_file).unwrap();
+        inst_i_lbu(rd, rs1, imm_i, &mut bus, &mut reg_file, &csr, CPUMode::M).unwrap();
         assert_eq!(reg_file.read(1), 129);
     }
 
@@ -204,9 +218,10 @@ mod tests {
         let mut reg_file = build_register_file();
         reg_file.write(3, BASE_ADDRESS + 4);
         let mut bus = build_bus_state();
+        let csr = build_csr_state();
         bus.ram.storage[10] = 0b0000_0001;
         bus.ram.storage[11] = 0b1000_0000;
-        inst_i_lhu(rd, rs1, imm_i, &bus, &mut reg_file).unwrap();
+        inst_i_lhu(rd, rs1, imm_i, &mut bus, &mut reg_file, &csr, CPUMode::M).unwrap();
         assert_eq!(reg_file.read(1), 32769);
     }
 
@@ -218,9 +233,10 @@ mod tests {
         let rs1 = 3;
         let mut reg_file = build_register_file();
         reg_file.write(3, u32::MAX);
-        let bus = build_bus_state();
+        let mut bus = build_bus_state();
+        let csr = build_csr_state();
         let imm_i = bus.ram.storage.len() as i32 + 1;
-        let outcome = inst_i_lb(rd, rs1, imm_i, &bus, &mut reg_file);
+        let outcome = inst_i_lb(rd, rs1, imm_i, &mut bus, &mut reg_file, &csr, CPUMode::M);
         assert!(outcome.is_err());
     }
 
@@ -230,9 +246,10 @@ mod tests {
         let rs1 = 3;
         let mut reg_file = build_register_file();
         reg_file.write(3, u32::MAX);
-        let bus = build_bus_state();
+        let mut bus = build_bus_state();
+        let csr = build_csr_state();
         let imm_i = bus.ram.storage.len() as i32 + 1;
-        let outcome = inst_i_lh(rd, rs1, imm_i, &bus, &mut reg_file);
+        let outcome = inst_i_lh(rd, rs1, imm_i, &mut bus, &mut reg_file, &csr, CPUMode::M);
         assert!(outcome.is_err());
     }
 
@@ -242,9 +259,10 @@ mod tests {
         let rs1 = 3;
         let mut reg_file = build_register_file();
         reg_file.write(3, u32::MAX);
-        let bus = build_bus_state();
+        let mut bus = build_bus_state();
+        let csr = build_csr_state();
         let imm_i = bus.ram.storage.len() as i32 + 1;
-        let outcome = inst_i_lw(rd, rs1, imm_i, &bus, &mut reg_file);
+        let outcome = inst_i_lw(rd, rs1, imm_i, &mut bus, &mut reg_file, &csr, CPUMode::M);
         assert!(outcome.is_err());
     }
 
@@ -254,9 +272,10 @@ mod tests {
         let rs1 = 3;
         let mut reg_file = build_register_file();
         reg_file.write(3, u32::MAX);
-        let bus = build_bus_state();
+        let mut bus = build_bus_state();
+        let csr = build_csr_state();
         let imm_i = bus.ram.storage.len() as i32 + 1;
-        let outcome = inst_i_lbu(rd, rs1, imm_i, &bus, &mut reg_file);
+        let outcome = inst_i_lbu(rd, rs1, imm_i, &mut bus, &mut reg_file, &csr, CPUMode::M);
         assert!(outcome.is_err());
     }
 
@@ -266,9 +285,10 @@ mod tests {
         let rs1 = 3;
         let mut reg_file = build_register_file();
         reg_file.write(3, u32::MAX);
-        let bus = build_bus_state();
+        let mut bus = build_bus_state();
+        let csr = build_csr_state();
         let imm_i = bus.ram.storage.len() as i32 + 1;
-        let outcome = inst_i_lhu(rd, rs1, imm_i, &bus, &mut reg_file);
+        let outcome = inst_i_lhu(rd, rs1, imm_i, &mut bus, &mut reg_file, &csr, CPUMode::M);
         assert!(outcome.is_err());
     }
 }

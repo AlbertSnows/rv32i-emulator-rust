@@ -16,6 +16,12 @@ const TWENTY_TO_TWENTY_FOUR: u32 = 0b0001_1111_0000_0000_0000_0000_0000;
 const TWENTY_FIVE_TO_THIRTY_ONE: u32 = 0b1111_1110_0000_0000_0000_0000_0000_0000;
 const TWELVE_AND_ELEVEN: u32 = 0b1_1000_0000_0000;
 const TWENTY_SEVEN_TO_THIRTY_ONE: u32 = 0b1111_1000_0000_0000_0000_0000_0000_0000;
+const ZERO_TO_ELEVEN: u32 = 0b0000_0000_0000_0000_0000_1111_1111_1111; // bits 11:0 (0xFFF)
+const THIRTY_ONE: u32 = 0b1000_0000_0000_0000_0000_0000_0000_0000; // bit 31
+const ZERO_TO_TWENTY_ONE: u32 = 0b0000_0000_0011_1111_1111_1111_1111_1111; // bits 21:0
+const TWENTY_TWO_TO_THIRTY_ONE: u32 = 0b1111_1111_1100_0000_0000_0000_0000_0000; // bits 31:22
+const TWELVE_TO_TWENTY_ONE: u32 = 0b0000_0000_0011_1111_1111_0000_0000_0000; // bits 21:12
+const TEN_TO_NINETEEN: u32 = 0b0000_0000_0000_1111_1111_1100_0000_0000; // bits 19:10
 
 // 0xB3 = 1011 0011
 // mask = 0111 1111 <- 7 bits
@@ -69,4 +75,26 @@ pub const STIP: u32 = FIVE;
 pub const SPP: u32 = EIGHT;
 pub const SEIE: u32 = NINE;
 pub const SEIP: u32 = NINE;
+// 31        30            22 21                    0
+// | MODE(1) |  ASID(9)      |      PPN(22)          |
+pub const SATP_PPN: u32 = ZERO_TO_TWENTY_ONE;
+pub const SATP_MODE: u32 = THIRTY_ONE;
 
+// virt_addr's fields (Section 12.3.1, Figure 33, p.130) -- named to
+// match the spec's own VPN[1]/VPN[0] indices, not just "first"/"second".
+pub const VPN_ONE: u32 = TWENTY_TWO_TO_THIRTY_ONE;   //  indexes the root table
+pub const VPN_ZERO: u32 = TWELVE_TO_TWENTY_ONE;      // indexes the leaf table
+pub const VIRT_ADDR_OFFSET: u32 = ZERO_TO_ELEVEN;    //  untranslated, carried through
+
+// A PTE's own fields (Section 12.3.1, Figure 35, p.130). Its page
+// number is split into two pieces, PTE_PPN_ONE is the top 12 bits, PTE_PPN_ZERO the next 10;
+// reconstructing the full 22-bit page number means combining them
+// (PPN_ONE shifted up by 10, OR'd with PPN_ZERO).
+//
+//  31              20 19            10 9    8 7 6 5 4 3 2 1 0
+// |   PPN[1] (12)     |  PPN[0] (10)   |RSW|D|A|G|U|X|W|R|V|
+pub const PTE_PPN_ONE: u32 = TWENTY_TO_THIRTY_ONE; // bits 31:20
+pub const PTE_PPN_ZERO: u32 = TEN_TO_NINETEEN;     // bits 19:10
+pub const PTE_A: u32 = 0b100_0000; // bit 6, accessed
+pub const PTE_D: u32 = 0b1000_0000; // bit 7, dirty
+pub const MSTATUS_SUM: u32 = 0b100_0000000000000000;

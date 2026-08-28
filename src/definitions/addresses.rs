@@ -109,3 +109,7 @@ pub const MCOUNTEREN: usize = 0x306;
 pub const SCOUNTNEREN: usize = 0x106;
 pub const PMPCFG0: usize = 0x3A0;
 pub const PMPADDR0: usize = 0x3B0;
+// satp — a CSR, tells you where the tables are and whether translation is on:
+// 31        30            22 21                    0
+// | MODE(1) |  ASID(9)      |      PPN(22)          |
+pub const SATP: usize = 0x180;

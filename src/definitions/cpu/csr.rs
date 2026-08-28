@@ -20,7 +20,6 @@ pub enum CPUCycles {
 pub struct CSRFlags {
     pub skip_instret_increment: bool
 }
-
 pub fn build_csr_state() -> CSRState {
     CSRState { 
         mstatus: 0,
@@ -52,6 +51,7 @@ pub fn build_csr_state() -> CSRState {
         scounteren: 0,
         pmpcfg0: 0,
         pmpaddr0: 0,
+        satp: 0,
     }
 }
 
@@ -92,6 +92,7 @@ pub struct CSRState {
     scounteren: u32,
     pmpcfg0: u32,
     pmpaddr0: u32,
+    satp: u32,
 }
 
 impl CSRState {
@@ -140,7 +141,7 @@ impl CSRState {
             addresses::SCOUNTNEREN => Ok(&mut self.scounteren),
             addresses::PMPCFG0 => Ok(&mut self.pmpcfg0),
             addresses::PMPADDR0 => Ok(&mut self.pmpaddr0),
-
+            addresses::SATP => Ok(&mut self.satp),
             _ => Err(TrapCause::IllegalInstruction { instruction: None }),
         }
     }
@@ -210,6 +211,7 @@ impl CSRState {
             addresses::PMPCFG0 => Ok(self.pmpcfg0),
             addresses::PMPADDR0 => Ok(self.pmpaddr0),
 
+            addresses::SATP => Ok(self.satp),
             _ => Err(TrapCause::IllegalInstruction { instruction: None }),
         }
     }

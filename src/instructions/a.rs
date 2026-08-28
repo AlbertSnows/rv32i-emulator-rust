@@ -5,7 +5,7 @@
 // |   5    | 1| 1|   5    |   5    |   3    |    5    |   7    |
 
 use std::cmp::{max, min};
-use crate::definitions::cpu::cpu_definition::{build_register_file, RegisterFile};
+use crate::definitions::cpu::cpu_definition::{build_register_file, RegisterFile, CPUMode};
 use crate::definitions::{op_codes, masks};
 use crate::fetcher::InstructionWord;
 use crate::instructions::Format;
@@ -15,6 +15,7 @@ use crate::definitions::trap_cause::TrapCause;
 use crate::utility::bit_operations::{extract_sub_bytes};
 use crate::utility::types::{ByteType};
 use crate::definitions::cpu::bus::BUSState;
+use crate::definitions::cpu::csr::CSRState;
 
 #[derive(Debug, PartialEq)]
 pub enum AOp {
@@ -64,35 +65,52 @@ pub fn parse_a_inst(raw_word: InstructionWord) -> Result<Format, TrapCause> {
     })
 }
 
-pub fn execute_a_type(op: &AOp, rd: usize, rs1: usize, rs2: usize,  rl: usize, aq: usize, register: &mut RegisterFile, bus: &mut BUSState, reservation: &mut Option<u32>) -> Result<ExecutionSignal, TrapCause> {
+pub fn execute_a_type(op: &AOp,
+                      rd: usize,
+                      rs1: usize,
+                      rs2: usize,
+                      rl: usize,
+                      aq: usize,
+                      register: &mut RegisterFile,
+                      bus: &mut BUSState,
+                      reservation: &mut Option<u32>,
+                      state: &CSRState,
+                      mode: CPUMode) -> Result<ExecutionSignal, TrapCause> {
     match op {
-        AOp::Lr => inst_a_lr(rd, rs1, rs2, register, bus, reservation)?,
-        AOp::Sc => inst_a_sc(rd, rs1, rs2, register, bus, reservation)?,
-        AOp::Amoswap => inst_a_amoswap(rd, rs1, rs2, register, bus)?,
-        AOp::Amoadd => inst_a_amoadd(rd, rs1, rs2, register, bus)?,
-        AOp::Amoxor => inst_a_amoxor(rd, rs1, rs2, register, bus)?,
-        AOp::Amoand => inst_a_amoand(rd, rs1, rs2, register, bus)?,
-        AOp::Amoor => inst_a_amoor(rd, rs1, rs2, register, bus)?,
-        AOp::Amomin => inst_a_amomin(rd, rs1, rs2, register, bus)?,
-        AOp::Amomax => inst_a_amomax(rd, rs1, rs2, register, bus)?,
-        AOp::Amominu => inst_a_amominu(rd, rs1, rs2, register, bus)?,
-        AOp::Amomaxu => inst_a_amomaxu(rd, rs1, rs2, register, bus)?,
+        AOp::Lr => inst_a_lr(rd, rs1, rs2, register, bus, reservation, state, mode)?,
+        AOp::Sc => inst_a_sc(rd, rs1, rs2, register, bus, reservation, state, mode)?,
+        AOp::Amoswap => inst_a_amoswap(rd, rs1, rs2, register, bus, state, mode)?,
+        AOp::Amoadd => inst_a_amoadd(rd, rs1, rs2, register, bus, state, mode)?,
+        AOp::Amoxor => inst_a_amoxor(rd, rs1, rs2, register, bus, state, mode)?,
+        AOp::Amoand => inst_a_amoand(rd, rs1, rs2, register, bus, state, mode)?,
+        AOp::Amoor => inst_a_amoor(rd, rs1, rs2, register, bus, state, mode)?,
+        AOp::Amomin => inst_a_amomin(rd, rs1, rs2, register, bus, state, mode)?,
+        AOp::Amomax => inst_a_amomax(rd, rs1, rs2, register, bus, state, mode)?,
+        AOp::Amominu => inst_a_amominu(rd, rs1, rs2, register, bus, state, mode)?,
+        AOp::Amomaxu => inst_a_amomaxu(rd, rs1, rs2, register, bus, state, mode)?,
     }
     Ok(ExecutionSignal::Continue)
 }
 
-pub fn inst_a_lr(rd: usize, rs1: usize, _rs2: usize, reg_file: &mut RegisterFile, bus: &mut BUSState, reservation: &mut Option<u32>) -> Result<(), TrapCause> {
+pub fn inst_a_lr(rd: usize,
+                 rs1: usize,
+                 _rs2: usize,
+                 reg_file: &mut RegisterFile,
+                 bus: &mut BUSState,
+                 reservation: &mut Option<u32>,
+                 state: &CSRState,
+                 mode: CPUMode) -> Result<(), TrapCause> {
     // rd <- mem[rs1] (word). rs2 is 00000 (or should be)
     // register a reservation on rs1's address for a following SC.W.
     // Sign-extension is a no-op on RV32 (rd is already the full 32 bits).
     let mem_addr = reg_file.read(rs1);
-    let mem_val = bus.direct_read(mem_addr as usize, ByteType::Word.as_num())?;
+    let mem_val = bus.guest_load(mem_addr, ByteType::Word.as_num(), state, mode)?;
     reg_file.write(rd, mem_val);
     *reservation = Some(mem_addr);
     Ok(())
 }
 
-pub fn inst_a_sc(rd: usize, rs1: usize, rs2: usize, reg_file: &mut RegisterFile, bus: &mut BUSState, reservation: &mut Option<u32>) -> Result<(), TrapCause> {
+pub fn inst_a_sc(rd: usize, rs1: usize, rs2: usize, reg_file: &mut RegisterFile, bus: &mut BUSState, reservation: &mut Option<u32>, state: &CSRState, mode: CPUMode) -> Result<(), TrapCause> {
     // If `reservation` is Some(addr) and addr matches rs1's address:
     //
     // write rs2's value to mem[rs1], write 0 to rd (success).
@@ -110,7 +128,7 @@ pub fn inst_a_sc(rd: usize, rs1: usize, rs2: usize, reg_file: &mut RegisterFile,
     let rs2_val = reg_file.read(rs2);
     let addresses_match = *reservation == Some(rs1_addr);
     if (addresses_match) {
-        bus.direct_write(rs1_addr as usize, &rs2_val.to_le_bytes())?;
+        bus.guest_write(rs1_addr, &rs2_val.to_le_bytes(), state, mode)?;
         reg_file.write(rd, 0);
     } else {
         reg_file.write(rd, 1);
@@ -119,107 +137,107 @@ pub fn inst_a_sc(rd: usize, rs1: usize, rs2: usize, reg_file: &mut RegisterFile,
     Ok(())
 }
 
-fn amo_write_back(rd: usize, rs1: usize, new_val: u32, reg_file: &mut RegisterFile, bus: &mut BUSState) -> Result<(), TrapCause> {
+fn amo_write_back(rd: usize, rs1: usize, new_val: u32, reg_file: &mut RegisterFile, bus: &mut BUSState, state: &CSRState, mode: CPUMode) -> Result<(), TrapCause> {
     let addr = reg_file.read(rs1);
-    let original = bus.direct_read(addr as usize, ByteType::Word.as_num())?;
+    let original = bus.guest_load(addr, ByteType::Word.as_num(), state, mode)?;
     reg_file.write(rd, original);
-    bus.direct_write(addr as usize, &new_val.to_le_bytes())?;
+    bus.guest_write(addr, &new_val.to_le_bytes(), state, mode)?;
     Ok(())
 }
 
 
-pub fn inst_a_amoswap(rd: usize, rs1: usize, rs2: usize, reg_file: &mut RegisterFile, bus: &mut BUSState) -> Result<(), TrapCause> {
+pub fn inst_a_amoswap(rd: usize, rs1: usize, rs2: usize, reg_file: &mut RegisterFile, bus: &mut BUSState, state: &CSRState, mode: CPUMode) -> Result<(), TrapCause> {
     // original <- mem[rs1]; rd <- original; mem[rs1] <- rs2
     let rs2_val = reg_file.read(rs2);
-    amo_write_back(rd, rs1, rs2_val, reg_file, bus)?;
+    amo_write_back(rd, rs1, rs2_val, reg_file, bus, state, mode)?;
     Ok(())
 }
 
-pub fn inst_a_amoadd(rd: usize, rs1: usize, rs2: usize, reg_file: &mut RegisterFile, bus: &mut BUSState) -> Result<(), TrapCause> {
+pub fn inst_a_amoadd(rd: usize, rs1: usize, rs2: usize, reg_file: &mut RegisterFile, bus: &mut BUSState, state: &CSRState, mode: CPUMode) -> Result<(), TrapCause> {
     // original <- mem[rs1]; rd <- original; mem[rs1] <- original.wrapping_add(rs2)
     let rs1_addr = reg_file.read(rs1);
-    let original = bus.direct_read(rs1_addr as usize, ByteType::Word.as_num())?;
+    let original = bus.guest_load(rs1_addr, ByteType::Word.as_num(), state, mode)?;
     let rs2_addr = reg_file.read(rs2);
     let rs2_val = original.wrapping_add(rs2_addr);
-    amo_write_back(rd, rs1, rs2_val, reg_file, bus)?;
+    amo_write_back(rd, rs1, rs2_val, reg_file, bus, state, mode)?;
     Ok(())
 }
 
-pub fn inst_a_amoxor(rd: usize, rs1: usize, rs2: usize, reg_file: &mut RegisterFile, bus: &mut BUSState) -> Result<(), TrapCause> {
+pub fn inst_a_amoxor(rd: usize, rs1: usize, rs2: usize, reg_file: &mut RegisterFile, bus: &mut BUSState, state: &CSRState, mode: CPUMode) -> Result<(), TrapCause> {
     // original <- mem[rs1]; rd <- original; mem[rs1] <- original ^ rs2
     let rs1_addr = reg_file.read(rs1);
-    let original = bus.direct_read(rs1_addr as usize, ByteType::Word.as_num())?;
+    let original = bus.guest_load(rs1_addr, ByteType::Word.as_num(), state, mode)?;
     let rs2_addr = reg_file.read(rs2);
     let rs2_val = original ^ rs2_addr;
-    amo_write_back(rd, rs1, rs2_val, reg_file, bus)?;
+    amo_write_back(rd, rs1, rs2_val, reg_file, bus, state, mode)?;
     Ok(())
 }
 
-pub fn inst_a_amoand(rd: usize, rs1: usize, rs2: usize, reg_file: &mut RegisterFile, bus: &mut BUSState) -> Result<(), TrapCause> {
+pub fn inst_a_amoand(rd: usize, rs1: usize, rs2: usize, reg_file: &mut RegisterFile, bus: &mut BUSState, state: &CSRState, mode: CPUMode) -> Result<(), TrapCause> {
     // original <- mem[rs1]; rd <- original; mem[rs1] <- original & rs2
     let rs1_addr = reg_file.read(rs1);
-    let original = bus.direct_read(rs1_addr as usize, ByteType::Word.as_num())?;
+    let original = bus.guest_load(rs1_addr, ByteType::Word.as_num(), state, mode)?;
     let rs2_addr = reg_file.read(rs2);
     let rs2_val = original & rs2_addr;
-    amo_write_back(rd, rs1, rs2_val, reg_file, bus)?;
+    amo_write_back(rd, rs1, rs2_val, reg_file, bus, state, mode)?;
     Ok(())
 }
 
-pub fn inst_a_amoor(rd: usize, rs1: usize, rs2: usize, reg_file: &mut RegisterFile, bus: &mut BUSState) -> Result<(), TrapCause> {
+pub fn inst_a_amoor(rd: usize, rs1: usize, rs2: usize, reg_file: &mut RegisterFile, bus: &mut BUSState, state: &CSRState, mode: CPUMode) -> Result<(), TrapCause> {
     // original <- mem[rs1]; rd <- original; mem[rs1] <- original | rs2
     let rs1_addr = reg_file.read(rs1);
-    let original = bus.direct_read(rs1_addr as usize, ByteType::Word.as_num())?;
+    let original = bus.guest_load(rs1_addr, ByteType::Word.as_num(), state, mode)?;
     let rs2_addr = reg_file.read(rs2);
     let rs2_val = original | rs2_addr;
-    amo_write_back(rd, rs1, rs2_val, reg_file, bus)?;
+    amo_write_back(rd, rs1, rs2_val, reg_file, bus, state, mode)?;
     Ok(())
 }
 
-pub fn inst_a_amomin(rd: usize, rs1: usize, rs2: usize, reg_file: &mut RegisterFile, bus: &mut BUSState) -> Result<(), TrapCause> {
+pub fn inst_a_amomin(rd: usize, rs1: usize, rs2: usize, reg_file: &mut RegisterFile, bus: &mut BUSState, state: &CSRState, mode: CPUMode) -> Result<(), TrapCause> {
     // original <- mem[rs1]; rd <- original;
     // mem[rs1] <- signed min(original, rs2) -- same signed treatment as SLT/DIV.
     let rs1_addr = reg_file.read(rs1);
     let rs2_addr = reg_file.read(rs2) as i32;
-    let original = bus.direct_read(rs1_addr as usize, ByteType::Word.as_num())? as i32;
+    let original = bus.guest_load(rs1_addr, ByteType::Word.as_num(), state, mode)? as i32;
     reg_file.write(rd, original as u32);
     let min_val = min(original, rs2_addr);
-    bus.direct_write(rs1_addr as usize, &min_val.to_le_bytes())?;
+    bus.guest_write(rs1_addr, &min_val.to_le_bytes(), state, mode)?;
     Ok(())
 }
 
-pub fn inst_a_amomax(rd: usize, rs1: usize, rs2: usize, reg_file: &mut RegisterFile, bus: &mut BUSState) -> Result<(), TrapCause> {
+pub fn inst_a_amomax(rd: usize, rs1: usize, rs2: usize, reg_file: &mut RegisterFile, bus: &mut BUSState, state: &CSRState, mode: CPUMode) -> Result<(), TrapCause> {
     // original <- mem[rs1]; rd <- original;
     // mem[rs1] <- signed max(original, rs2)
     let rs1_addr = reg_file.read(rs1);
     let rs2_addr = reg_file.read(rs2) as i32;
-    let original = bus.direct_read(rs1_addr as usize, ByteType::Word.as_num())? as i32;
+    let original = bus.guest_load(rs1_addr, ByteType::Word.as_num(), state, mode)? as i32;
     reg_file.write(rd, original as u32);
     let max_val = max(original, rs2_addr) as i32;
-    bus.direct_write(rs1_addr as usize, &max_val.to_le_bytes())?;
+    bus.guest_write(rs1_addr, &max_val.to_le_bytes(), state, mode)?;
     Ok(())
 }
 
-pub fn inst_a_amominu(rd: usize, rs1: usize, rs2: usize, reg_file: &mut RegisterFile, bus: &mut BUSState) -> Result<(), TrapCause> {
+pub fn inst_a_amominu(rd: usize, rs1: usize, rs2: usize, reg_file: &mut RegisterFile, bus: &mut BUSState, state: &CSRState, mode: CPUMode) -> Result<(), TrapCause> {
     // original <- mem[rs1]; rd <- original;
     // mem[rs1] <- unsigned min(original, rs2) -- same unsigned treatment as SLTU/DIVU.
     let rs1_addr = reg_file.read(rs1);
     let rs2_addr = reg_file.read(rs2);
-    let original = bus.direct_read(rs1_addr as usize, ByteType::Word.as_num())?;
+    let original = bus.guest_load(rs1_addr, ByteType::Word.as_num(), state, mode)?;
     reg_file.write(rd, original);
     let min_val = min(original, rs2_addr);
-    bus.direct_write(rs1_addr as usize, &min_val.to_le_bytes())?;
+    bus.guest_write(rs1_addr, &min_val.to_le_bytes(), state, mode)?;
     Ok(())
 }
 
-pub fn inst_a_amomaxu(rd: usize, rs1: usize, rs2: usize, reg_file: &mut RegisterFile, bus: &mut BUSState) -> Result<(), TrapCause> {
+pub fn inst_a_amomaxu(rd: usize, rs1: usize, rs2: usize, reg_file: &mut RegisterFile, bus: &mut BUSState, state: &CSRState, mode: CPUMode) -> Result<(), TrapCause> {
     // original <- mem[rs1]; rd <- original;
     // mem[rs1] <- unsigned max(original, rs2)
     let rs1_addr = reg_file.read(rs1);
     let rs2_addr = reg_file.read(rs2);
-    let original = bus.direct_read(rs1_addr as usize, ByteType::Word.as_num())?;
+    let original = bus.guest_load(rs1_addr, ByteType::Word.as_num(), state, mode)?;
     reg_file.write(rd, original);
     let max_val = max(original, rs2_addr);
-    bus.direct_write(rs1_addr as usize, &max_val.to_le_bytes())?;
+    bus.guest_write(rs1_addr, &max_val.to_le_bytes(), state, mode)?;
     Ok(())
 }
 
@@ -227,17 +245,19 @@ pub fn inst_a_amomaxu(rd: usize, rs1: usize, rs2: usize, reg_file: &mut Register
 mod tests {
     use super::*;
     use crate::definitions::cpu::bus::{build_bus_state, BASE_ADDRESS};
+    use crate::definitions::cpu::csr::build_csr_state;
 
     #[test]
     fn test_inst_a_lr() {
         let mut reg = build_register_file();
         let mut bus = build_bus_state();
+        let csr = build_csr_state();
         let mut reservation: Option<u32> = None;
         let rs1 = 1;
         reg.write(1, BASE_ADDRESS);
         bus.direct_write(BASE_ADDRESS as usize, &42u32.to_le_bytes()).unwrap();
         let rd = 5;
-        inst_a_lr(rd, rs1, 0, &mut reg, &mut bus, &mut reservation).unwrap();
+        inst_a_lr(rd, rs1, 0, &mut reg, &mut bus, &mut reservation, &csr, CPUMode::M).unwrap();
         assert_eq!(reg.read(5), 42);
         assert_eq!(reservation.unwrap(), BASE_ADDRESS);
     }
@@ -252,7 +272,8 @@ mod tests {
         reg.write(2, 99);
         let mut reservation = Some(BASE_ADDRESS);
         let rd = 5;
-        inst_a_sc(rd, rs1, rs2, &mut reg, &mut bus, &mut reservation).unwrap();
+        let csr = build_csr_state();
+        inst_a_sc(rd, rs1, rs2, &mut reg, &mut bus, &mut reservation, &csr, CPUMode::M).unwrap();
         assert_eq!(reg.read(5), 0);
         assert_eq!(reservation, None);
         assert_eq!(bus.direct_read(BASE_ADDRESS as usize, ByteType::Word.as_num()).unwrap(), 99);
@@ -268,7 +289,8 @@ mod tests {
         reg.write(2, 99);
         let mut reservation: Option<u32> = None;
         let rd = 5;
-        inst_a_sc(rd, rs1, rs2, &mut reg, &mut bus, &mut reservation).unwrap();
+        let csr = build_csr_state();
+        inst_a_sc(rd, rs1, rs2, &mut reg, &mut bus, &mut reservation, &csr, CPUMode::M).unwrap();
         assert_ne!(reg.read(5), 0);
         assert_eq!(bus.direct_read(BASE_ADDRESS as usize, ByteType::Word.as_num()).unwrap(), 0);
     }
@@ -283,7 +305,8 @@ mod tests {
         let rs2 = 2;
         reg.write(2, 20);
         let rd = 5;
-        inst_a_amoswap(rd, rs1, rs2, &mut reg, &mut bus).unwrap();
+        let csr = build_csr_state();
+        inst_a_amoswap(rd, rs1, rs2, &mut reg, &mut bus, &csr, CPUMode::M).unwrap();
         assert_eq!(reg.read(5), 10);
         assert_eq!(bus.direct_read(BASE_ADDRESS as usize, ByteType::Word.as_num()).unwrap(), 20);
     }
@@ -298,7 +321,8 @@ mod tests {
         let rs2 = 2;
         reg.write(2, 5);
         let rd = 5;
-        inst_a_amoadd(rd, rs1, rs2, &mut reg, &mut bus).unwrap();
+        let csr = build_csr_state();
+        inst_a_amoadd(rd, rs1, rs2, &mut reg, &mut bus, &csr, CPUMode::M).unwrap();
         assert_eq!(reg.read(5), 10);
         assert_eq!(bus.direct_read(BASE_ADDRESS as usize, ByteType::Word.as_num()).unwrap(), 15);
     }
@@ -313,7 +337,8 @@ mod tests {
         let rs2 = 2;
         reg.write(2, 0b0101);
         let rd = 5;
-        inst_a_amoxor(rd, rs1, rs2, &mut reg, &mut bus).unwrap();
+        let csr = build_csr_state();
+        inst_a_amoxor(rd, rs1, rs2, &mut reg, &mut bus, &csr, CPUMode::M).unwrap();
         assert_eq!(reg.read(5), 0b0110);
         assert_eq!(bus.direct_read(BASE_ADDRESS as usize, ByteType::Word.as_num()).unwrap(), 0b0011);
     }
@@ -328,7 +353,8 @@ mod tests {
         let rs2 = 2;
         reg.write(2, 0b0101);
         let rd = 5;
-        inst_a_amoand(rd, rs1, rs2, &mut reg, &mut bus).unwrap();
+        let csr = build_csr_state();
+        inst_a_amoand(rd, rs1, rs2, &mut reg, &mut bus, &csr, CPUMode::M).unwrap();
         assert_eq!(reg.read(5), 0b0110);
         assert_eq!(bus.direct_read(BASE_ADDRESS as usize, ByteType::Word.as_num()).unwrap(), 0b0100);
     }
@@ -343,7 +369,8 @@ mod tests {
         let rs2 = 2;
         reg.write(2, 0b0101);
         let rd = 5;
-        inst_a_amoor(rd, rs1, rs2, &mut reg, &mut bus).unwrap();
+        let csr = build_csr_state();
+        inst_a_amoor(rd, rs1, rs2, &mut reg, &mut bus, &csr, CPUMode::M).unwrap();
         assert_eq!(reg.read(5), 0b0110);
         assert_eq!(bus.direct_read(BASE_ADDRESS as usize, ByteType::Word.as_num()).unwrap(), 0b0111);
     }
@@ -358,7 +385,8 @@ mod tests {
         let rs2 = 2;
         reg.write(2, 3);
         let rd = 5;
-        inst_a_amomin(rd, rs1, rs2, &mut reg, &mut bus).unwrap();
+        let csr = build_csr_state();
+        inst_a_amomin(rd, rs1, rs2, &mut reg, &mut bus, &csr, CPUMode::M).unwrap();
         assert_eq!(reg.read(5) as i32, -5);
         assert_eq!(bus.direct_read(BASE_ADDRESS as usize, ByteType::Word.as_num()).unwrap() as i32, -5);
     }
@@ -373,7 +401,8 @@ mod tests {
         let rs2 = 2;
         reg.write(2, 3);
         let rd = 5;
-        inst_a_amomax(rd, rs1, rs2, &mut reg, &mut bus).unwrap();
+        let csr = build_csr_state();
+        inst_a_amomax(rd, rs1, rs2, &mut reg, &mut bus, &csr, CPUMode::M).unwrap();
         assert_eq!(reg.read(5) as i32, -5);
         assert_eq!(bus.direct_read(BASE_ADDRESS as usize, ByteType::Word.as_num()).unwrap(), 3);
     }
@@ -388,7 +417,8 @@ mod tests {
         let rs2 = 2;
         reg.write(2, 3);
         let rd = 5;
-        inst_a_amominu(rd, rs1, rs2, &mut reg, &mut bus).unwrap();
+        let csr = build_csr_state();
+        inst_a_amominu(rd, rs1, rs2, &mut reg, &mut bus, &csr, CPUMode::M).unwrap();
         assert_eq!(reg.read(5), u32::MAX);
         assert_eq!(bus.direct_read(BASE_ADDRESS as usize, ByteType::Word.as_num()).unwrap(), 3);
     }
@@ -403,7 +433,8 @@ mod tests {
         let rs2 = 2;
         reg.write(2, 3);
         let rd = 5;
-        inst_a_amomaxu(rd, rs1, rs2, &mut reg, &mut bus).unwrap();
+        let csr = build_csr_state();
+        inst_a_amomaxu(rd, rs1, rs2, &mut reg, &mut bus, &csr, CPUMode::M).unwrap();
         assert_eq!(reg.read(5), u32::MAX);
         assert_eq!(bus.direct_read(BASE_ADDRESS as usize, ByteType::Word.as_num()).unwrap(), u32::MAX);
     }

@@ -6,14 +6,14 @@ use crate::decoder::decode_word_to_instruction;
 use crate::instructions::pc::advance_pc;
 use crate::definitions::trap_cause::{TrapCause, TrapDestination};
 use crate::utility::bit_operations::{set_bit_range, mask_and_shift};
-use crate::definitions::cpu::csr::{CPUCycles, MIPBits};
+use crate::definitions::cpu::csr::{CPUCycles, CSRState, MIPBits};
 use crate::definitions::masks::{GLOBAL_MIE, MPIE, MTIP, MTIE, MTI, MPP, SPP, GLOBAL_SIE, SPIE};
 use crate::instructions::i::system::{inst_i_xret};
 use crate::definitions::trap_cause::{M_TRAP, S_TRAP};
 
 fn perform_step(cpu: &mut CPUState) -> Result<ExecutionSignal, TrapCause> {
     // mut allows cpu to change in the local scope
-    let raw_word = fetch_word_from_memory(&cpu.pc, &cpu.bus)?; // 51 = 0x33 = 0011 0011
+    let raw_word = fetch_word_from_memory(&cpu.pc, &mut cpu.bus,  &cpu.csr, cpu.mode)?; // 51 = 0x33 = 0011 0011
     let instruction = decode_word_to_instruction(raw_word)?;
     // &mut cpu passes a mutable reference to cpu
     // &mut cpu = this reference has "mutable" permission to cpu
@@ -56,12 +56,16 @@ fn set_tval(cpu: &mut CPUState, dest: &TrapDestination, trap_cause: &TrapCause) 
         TrapCause::LoadAddressMisaligned { address } |
         TrapCause::LoadAccessFault { address } |
         TrapCause::StoreAddressMisaligned { address } |
-        TrapCause::StoreAccessFault { address } => *address as u32,
+        TrapCause::StoreAccessFault { address } |
+        TrapCause::InstructionPageFault { address } |
+        TrapCause::LoadPageFault { address } |
+        TrapCause::StorePageFault { address }
+            => *address as u32,
         TrapCause::IllegalInstruction { instruction } => instruction.unwrap_or(0),
         TrapCause::Breakpoint | TrapCause::EnvironmentCallFromMMode |
         TrapCause::EnvironmentCallFromSMode | TrapCause::EnvironmentCallFromUMode |
         TrapCause::MachineTimerInterrupt
-            => 0
+            => 0,
     };
     cpu.csr.guest_write(dest.tval, trap_val, dest.mode)
         .expect("MTVAL is 0b00_11, mode is M, MTVAL is matched");

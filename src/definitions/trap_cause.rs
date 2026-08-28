@@ -5,7 +5,6 @@ use crate::definitions::masks::{GLOBAL_MIE, GLOBAL_SIE, MCAUSE_INTERRUPT, MPIE, 
 
 // Traps are about transferring control
 // To transfer control, you will want to overwrite the pc with an address (source?)
-
 pub const M_TRAP: TrapDestination = TrapDestination {
     epc: MEPC,
     cause: MCAUSE,
@@ -52,7 +51,10 @@ pub enum TrapCause {
     EnvironmentCallFromMMode,
     EnvironmentCallFromUMode,
     EnvironmentCallFromSMode,
-    MachineTimerInterrupt
+    MachineTimerInterrupt,
+    InstructionPageFault { address: usize },
+    LoadPageFault { address: usize },
+    StorePageFault { address: usize },
 }
 
 impl TrapCause {
@@ -69,7 +71,10 @@ impl TrapCause {
             TrapCause::EnvironmentCallFromMMode => 11,
             TrapCause::EnvironmentCallFromSMode => 9,
             TrapCause::EnvironmentCallFromUMode => 8,
-            TrapCause::MachineTimerInterrupt => MCAUSE_INTERRUPT | 7
+            TrapCause::MachineTimerInterrupt => MCAUSE_INTERRUPT | 7,
+            TrapCause::InstructionPageFault { .. } => 12,
+            TrapCause::LoadPageFault { .. } => 13,
+            TrapCause::StorePageFault { .. } => 15,
         }
     }
 }

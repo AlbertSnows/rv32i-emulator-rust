@@ -1,8 +1,12 @@
 
-use crate::definitions::cpu::cpu_definition::{PCState, build_pc_state};
-use crate::definitions::cpu::memory::FULL_MEM_SIZE;
+use crate::definitions::cpu::cpu_definition::{build_pc_state, CPUState, PCState, CPUMode};
+use crate::definitions::cpu::memory::{MemoryAccessType, FULL_MEM_SIZE};
 use crate::definitions::cpu::bus::{BUSState, build_bus_state, BASE_ADDRESS};
+use crate::definitions::cpu::csr::CSRState;
 use crate::definitions::trap_cause::TrapCause;
+use crate::mmu;
+use crate::utility::types::ByteType;
+
 // word in this context refers to the fixed-sized chunk of data to interface with
 // words for us are 32bits of data that we'll have to decode later, for now it's just raw bits
 #[derive(Debug, PartialEq, Copy, Clone)]
@@ -45,14 +49,19 @@ pub fn fetch_word_from_memory_instructional(pc: &PCState, bus: &BUSState) -> Res
 // this is the fetch path (called by core.rs's perform_step every
 // cycle), so it needs to go through the same routing/translation every
 // other memory access goes through, not bypass it.
-pub fn fetch_word_from_memory(pc: &PCState, bus: &BUSState) -> Result<InstructionWord, TrapCause> {
+pub fn fetch_word_from_memory(pc: &PCState, bus: &mut BUSState, state: &CSRState, mode: CPUMode) -> Result<InstructionWord, TrapCause> {
     let pc_value = pc.read();
-    let raw_word = bus.direct_read(pc_value, 4)?;
+
+    let raw_word = bus.guest_fetch(pc_value as u32,
+                                   ByteType::Word.as_num(),
+                                   state,
+                                   mode)?;
     Ok(InstructionWord(raw_word))
 }
 
 #[cfg(test)]
 mod tests {
+    use crate::definitions::cpu::csr::build_csr_state;
     use super::*;
 
     #[test]
@@ -73,25 +82,27 @@ mod tests {
     fn test_fetch_word_from_memory() {
         let mut pc = build_pc_state();
         let mut bus = build_bus_state();
+        let csr = build_csr_state();
         pc.write(BASE_ADDRESS as usize);
         bus.ram.storage[0] = 1;
         bus.ram.storage[1] = 2;
         bus.ram.storage[2] = 3;
         bus.ram.storage[3] = 4;
         let expected_outcome = 0b0000_0100_0000_0011_0000_0010_0000_0001;
-        assert_eq!(fetch_word_from_memory(&pc, &bus).unwrap().0, expected_outcome);
+        assert_eq!(fetch_word_from_memory(&pc, &mut bus, &csr, CPUMode::M).unwrap().0, expected_outcome);
     }
 
     #[test]
     fn test_fetch_word_from_memory_out_of_bounds_returns_err() {
         let mut pc = build_pc_state();
-        let bus = build_bus_state();
+        let mut bus = build_bus_state();
+        let csr = build_csr_state();
         // BASE_ADDRESS + FULL_MEM_SIZE - 2 means pc+3 reaches one past the
         // last valid index in ram.storage after translation 
         //  should hit
         // the bounds check regardless of how big ram storage actually is.
         pc.write(BASE_ADDRESS as usize + FULL_MEM_SIZE - 2);
-        let outcome = fetch_word_from_memory(&pc, &bus);
+        let outcome = fetch_word_from_memory(&pc, &mut bus, &csr, CPUMode::M);
         assert!(outcome.is_err());
     }
 }

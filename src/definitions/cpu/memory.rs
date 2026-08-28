@@ -1,4 +1,22 @@
 use crate::definitions::trap_cause::TrapCause;
+use crate::utility::bit_operations::mask_and_shift;
+
+#[derive(PartialEq)]
+pub enum MemoryAccessType {
+    Fetch,
+    Load,
+    Store,
+}
+
+impl MemoryAccessType {
+    pub fn to_pte_mask(self) -> u32 {
+        match self {
+            MemoryAccessType::Load => 0b10,
+            MemoryAccessType::Store => 0b100,
+            MemoryAccessType::Fetch => 0b1000,
+        }
+    }
+}
 
 const TEST_MEM_SIZE: usize = 4096;
 pub const FULL_MEM_SIZE: usize = 65536;

@@ -1,7 +1,10 @@
-use crate::definitions::cpu::memory::{MemoryState, build_memory_state};
+use crate::definitions::cpu::memory::{build_memory_state, MemoryAccessType, MemoryState};
 use crate::definitions::trap_cause::{TrapCause};
 use crate::definitions::addresses::{MTIME, MTIMECMP, MTIME_END, MTIMECMP_END};
-use crate::utility::types::{ ByteType, as_byte_type };
+use crate::definitions::cpu::cpu_definition::CPUMode;
+use crate::definitions::cpu::csr::CSRState;
+use crate::mmu;
+use crate::utility::types::{ByteType, as_byte_type };
 use crate::utility::bit_operations::{ as_window, extract_sub_bytes };
 // every riscv-tests binary links at exactly this address. 
 // The low half of the 32-bit address
@@ -28,6 +31,62 @@ pub fn build_bus_state() -> BUSState {
 }
 
 impl BUSState {
+
+    // For instruction fetch only. Tagged
+    // MemoryAccessType::Fetch, so the walker checks the PTE's X
+    // (execute) bit -- not R. Never used for data accesses; a load
+    // reading through here would be checked against the wrong
+    // permission bit.
+    pub fn guest_fetch(&mut self,
+                       addr: u32,
+                       num_bytes: usize,
+                       state: &CSRState,
+                       mode: CPUMode) -> Result<u32, TrapCause> {
+        let phs_addr = mmu::lookup_virt_to_phys(
+            addr,
+            MemoryAccessType::Fetch,
+            self,
+            state,
+            mode
+        )?;
+        self.direct_read(phs_addr as usize, num_bytes)
+    }
+
+    // For ordinary data reads a guest instruction performs
+    // Tagged MemoryAccessType::Load, so the walker checks the PTE's R
+    // (read) bit, not X. Using guest_fetch here instead would check
+    // the wrong permission bit: an ordinary data page would incorrectly fail every
+    // load against it, while an executable-but-not-readable page would
+    // incorrectly let a load through that should have faulted.
+    pub fn guest_load(&mut self,
+                      addr: u32,
+                      num_bytes: usize,
+                      state: &CSRState,
+                      mode: CPUMode) -> Result<u32, TrapCause> {
+        let phs_addr = mmu::lookup_virt_to_phys(
+            addr,
+            MemoryAccessType::Load,
+            self,
+            state,
+            mode
+        )?;
+        self.direct_read(phs_addr as usize, num_bytes)
+    }
+
+    pub fn guest_write(&mut self, addr: u32,
+                       bytes: &[u8],
+                       state: &CSRState,
+                       mode: CPUMode) -> Result<(), TrapCause> {
+        let phs_addr = mmu::lookup_virt_to_phys(
+            addr,
+            MemoryAccessType::Store,
+            self,
+            state,
+            mode
+        )?;
+        self.direct_write(phs_addr as usize, bytes)
+    }
+
     pub fn direct_read(&self, address: usize, num_bytes: usize) -> Result<u32, TrapCause> {
         match address {
             // X..=Y means range X to Y, inclusive Y
