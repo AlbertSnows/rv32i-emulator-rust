@@ -1,11 +1,12 @@
 use crate::definitions::cpu::memory::{build_memory_state, MemoryAccessType, MemoryState};
 use crate::definitions::trap_cause::{TrapCause};
-use crate::definitions::addresses::{MTIME, MTIMECMP, MTIME_END, MTIMECMP_END};
-use crate::definitions::cpu::cpu_definition::CPUMode;
+use crate::definitions::addresses::{MTIME, MTIMECMP, MTIME_END, MTIMECMP_END, MSTATUS};
+use crate::definitions::cpu::cpu_definition::{CPUMode, CPUState};
 use crate::definitions::cpu::csr::CSRState;
+use crate::definitions::masks::{MPP, MSTATUS_MPRV};
 use crate::mmu;
 use crate::utility::types::{ByteType, as_byte_type };
-use crate::utility::bit_operations::{ as_window, extract_sub_bytes };
+use crate::utility::bit_operations::{as_window, extract_sub_bytes, mask_and_shift};
 // every riscv-tests binary links at exactly this address. 
 // The low half of the 32-bit address
 // space is reserved for boot ROM and memory-mapped
@@ -42,13 +43,18 @@ impl BUSState {
                        num_bytes: usize,
                        state: &CSRState,
                        mode: CPUMode) -> Result<u32, TrapCause> {
-        let phs_addr = mmu::lookup_virt_to_phys(
-            addr,
-            MemoryAccessType::Fetch,
-            self,
-            state,
-            mode
-        )?;
+        let phs_addr = if mode == CPUMode::M {
+            addr
+        } else {
+            mmu::lookup_virt_to_phys(
+                addr,
+                MemoryAccessType::Fetch,
+                self,
+                state,
+                mode
+            )?
+        };
+
         self.direct_read(phs_addr as usize, num_bytes)
     }
 
@@ -63,13 +69,23 @@ impl BUSState {
                       num_bytes: usize,
                       state: &CSRState,
                       mode: CPUMode) -> Result<u32, TrapCause> {
-        let phs_addr = mmu::lookup_virt_to_phys(
-            addr,
-            MemoryAccessType::Load,
-            self,
-            state,
-            mode
-        )?;
+        let mstatus = state.read(MSTATUS, CPUMode::M)?;
+        let mprv_set = mask_and_shift(mstatus, MSTATUS_MPRV) == 1;
+        let mpp_lvl = mask_and_shift(mstatus, MPP);
+        let as_priv  = CPUMode::from_privilege_level(mpp_lvl)?;
+        let effective_mode = if mprv_set { as_priv } else { mode };
+
+        let phs_addr = if effective_mode == CPUMode::M {
+            addr
+        } else {
+            mmu::lookup_virt_to_phys(
+                addr,
+                MemoryAccessType::Load,
+                self,
+                state,
+                effective_mode
+            )?
+        };
         self.direct_read(phs_addr as usize, num_bytes)
     }
 
@@ -77,13 +93,23 @@ impl BUSState {
                        bytes: &[u8],
                        state: &CSRState,
                        mode: CPUMode) -> Result<(), TrapCause> {
-        let phs_addr = mmu::lookup_virt_to_phys(
-            addr,
-            MemoryAccessType::Store,
-            self,
-            state,
-            mode
-        )?;
+        let mstatus = state.read(MSTATUS, CPUMode::M)?;
+        let mprv_set = mask_and_shift(mstatus, MSTATUS_MPRV) == 1;
+        let mpp_lvl = mask_and_shift(mstatus, MPP);
+        let as_priv  = CPUMode::from_privilege_level(mpp_lvl)?;
+        let effective_mode = if mprv_set { as_priv } else { mode };
+
+        let phs_addr = if effective_mode == CPUMode::M {
+            addr
+        } else {
+            mmu::lookup_virt_to_phys(
+                addr,
+                MemoryAccessType::Store,
+                self,
+                state,
+                effective_mode
+            )?
+        };
         self.direct_write(phs_addr as usize, bytes)
     }
 

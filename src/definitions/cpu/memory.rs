@@ -1,7 +1,7 @@
 use crate::definitions::trap_cause::TrapCause;
 use crate::utility::bit_operations::mask_and_shift;
 
-#[derive(PartialEq)]
+#[derive(PartialEq, Copy, Clone)]
 pub enum MemoryAccessType {
     Fetch,
     Load,

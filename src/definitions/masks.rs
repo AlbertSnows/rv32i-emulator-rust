@@ -61,7 +61,24 @@ pub const FIVE: u32 = 0b10_0000;
 pub const EIGHT: u32 = 0b1_0000_0000;
 pub const NINE: u32 = 0b10_0000_0000;
 
-pub const SSTATUS: u32 = ONE | FIVE | EIGHT;
+// sstatus bit layout (RV32), a restricted view of mstatus (Section
+// 12.1.1, Figure 17, p.112): every field below sits at the exact same
+// bit position it occupies in mstatus itself, but most of mstatus's
+// bits are WPRI (reserved/inaccessible) through this address -- S-mode
+// only gets to see the subset of mstatus that's actually S-mode's
+// business.
+//
+// |SD|WPRI |SDT|SPELP|WPRI |MXR|SUM|WPRI|XS   |FS   |WPRI |VS  |SPP|WPRI|UBE|SPIE|WPRI    |SIE|WPRI|
+// |31|30:25|24 |23   |22:20|19 |18 |17  |16:15|14:13|12:11|10:9|8  |7   |6  |5   |4:2     |1  |0   |
+//
+// This codebase only wires up the subset actually needed: SIE/SPIE/SPP
+// (S-mode CSR/trap-delegation, item #11) and SUM/MXR (Sv32 permission
+// checks in the page-table walker). FS/XS/VS/SD are
+// dirty-state tracking for extensions this codebase doesn't implement
+// (F/D, custom, V) deliberately left WPRI/reserved here, not a gap.
+// Same for UBE (switches U-mode accesses to big-endian, this
+// codebase is little-endian throughout, top to bottom).
+pub const SSTATUS: u32 = ONE | FIVE | EIGHT | MSTATUS_SUM | MSTATUS_MXR;
 pub const PER_SOURCE_SIE: u32 = ONE | FIVE | NINE;
 pub const SIP: u32 = PER_SOURCE_SIE;
 
@@ -97,4 +114,24 @@ pub const PTE_PPN_ONE: u32 = TWENTY_TO_THIRTY_ONE; // bits 31:20
 pub const PTE_PPN_ZERO: u32 = TEN_TO_NINETEEN;     // bits 19:10
 pub const PTE_A: u32 = 0b100_0000; // bit 6, accessed
 pub const PTE_D: u32 = 0b1000_0000; // bit 7, dirty
-pub const MSTATUS_SUM: u32 = 0b100_0000000000000000;
+// MPRV ("Modify PRiVilege") -- lets M-mode's *data* accesses (loads and
+// stores only, never instruction fetches) be checked as if issued by
+// whatever privilege level MPP names, instead of M-mode's own real
+// privilege. Used to let M-mode software (or, here, a conformance test)
+// exercise page-table permission checks and A/D-bit tracking without
+// actually leaving M-mode via mret/sret.
+pub const MSTATUS_MPRV: u32 = 0b10_0000_0000_0000_0000; // bit 17
+pub const MSTATUS_SUM: u32 = 0b100_0000000000000000; // bit 18
+pub const MSTATUS_MXR: u32 = 0b1000_0000000000000000; // bit 19
+// TVM ("Trap Virtual Memory") -- M-mode's lock barring S-mode from
+// touching virtual-memory management at all: when set, S-mode
+// executing sfence.vma or accessing satp must trap illegal-instruction
+// instead of succeeding. M-mode only -- WPRI/reserved through sstatus,
+// so this is checked against mstatus directly, never sstatus.
+pub const MSTATUS_TVM: u32 = 0b1_0000_0000_0000_0000_0000; // bit 20
+// TSR ("Trap SRET") -- the same shape of M-mode lock as TVM, but for
+// SRET instead of sfence.vma/satp: when set, S-mode executing SRET
+// must trap illegal-instruction instead of returning to whatever
+// sepc/sstatus.SPP say to return to. Also M-mode only -- WPRI/reserved
+// through sstatus, same reasoning as TVM.
+pub const MSTATUS_TSR: u32 = 0b1_00_0000_0000_0000_0000_0000; // bit 22

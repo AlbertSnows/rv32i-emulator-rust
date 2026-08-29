@@ -100,7 +100,7 @@ pub fn lookup_virt_to_phys(virt_addr: u32,
     let r_bit = mask_and_shift(pte_one, 0b10);
 
     if (v_bit == 0 || (r_bit == 0 && w_bit == 1)) {
-        return Err(TrapCause::InstructionPageFault { address: virt_addr as usize });
+        return Err(page_fault(access_type, virt_addr));
     }
     let x_bit = mask_and_shift(pte_one, 0b1000);
     let mstatus = state.read(MSTATUS, CPUMode::M)?;
@@ -110,16 +110,16 @@ pub fn lookup_virt_to_phys(virt_addr: u32,
     if (is_leaf) {
         let u_bit = mask_and_shift(pte_one, 0b10000);
         if (mode == CPUMode::U && u_bit == 0) {
-            return Err(TrapCause::InstructionPageFault { address: virt_addr as usize });
+            return Err(page_fault(access_type, virt_addr));
         }
         let other_case = (mode == CPUMode::S) && u_bit == 1 && !sum_is_set;
         if (other_case) {
-            return Err(TrapCause::InstructionPageFault { address: virt_addr as usize });
+            return Err(page_fault(access_type, virt_addr));
         }
 
         let pte_zero = mask_and_shift(pte_one, PTE_PPN_ZERO);
         if (pte_zero != 0) {
-            return Err(TrapCause::InstructionPageFault { address: virt_addr as usize });
+            return Err(page_fault(access_type, virt_addr));
         }
 
         let a_bit = mask_and_shift(pte_one, PTE_A);
@@ -142,7 +142,7 @@ pub fn lookup_virt_to_phys(virt_addr: u32,
             let ppn_one = mask_and_shift(pte_one, PTE_PPN_ONE);
             Ok(ppn_one << 22 | vpn_zero << PAGESIZE | offset)
         } else {
-            Err(TrapCause::InstructionPageFault { address: virt_addr as usize })
+            Err(page_fault(access_type, virt_addr))
         }
     } else {
         let pte_two = bus.direct_read(table_two_addr as usize, ByteType::Word.as_num())?;
@@ -151,7 +151,7 @@ pub fn lookup_virt_to_phys(virt_addr: u32,
         let r_bit = mask_and_shift(pte_two, 0b10);
 
         if (v_bit == 0 || (r_bit == 0 && w_bit == 1)) {
-            return Err(TrapCause::InstructionPageFault { address: virt_addr as usize });
+            return Err(page_fault(access_type, virt_addr));
         }
         let x_bit = mask_and_shift(pte_two, 0b1000);
         let is_leaf = r_bit == 1 || x_bit == 1;
@@ -159,11 +159,11 @@ pub fn lookup_virt_to_phys(virt_addr: u32,
         if (is_leaf) {
             let u_bit = mask_and_shift(pte_two, 0b10000);
             if (mode == CPUMode::U && u_bit == 0) {
-                return Err(TrapCause::InstructionPageFault { address: virt_addr as usize });
+                return Err(page_fault(access_type, virt_addr));
             }
             let other_case = (mode == CPUMode::S) && u_bit == 1 && !sum_is_set;
             if (other_case) {
-                return Err(TrapCause::InstructionPageFault { address: virt_addr as usize });
+                return Err(page_fault(access_type, virt_addr));
             }
 
             let a_bit = mask_and_shift(pte_two, PTE_A);
@@ -187,10 +187,19 @@ pub fn lookup_virt_to_phys(virt_addr: u32,
                 let pte_ppn = mask_and_shift(pte_two, PTE_PPN_ONE | PTE_PPN_ZERO);
                 Ok(pte_ppn << PAGESIZE  | offset)
             } else {
-                Err(TrapCause::InstructionPageFault { address: virt_addr as usize })
+                Err(page_fault(access_type, virt_addr))
             }
         } else {
-            Err(TrapCause::InstructionPageFault { address: virt_addr as usize })
+            Err(page_fault(access_type, virt_addr))
         }
+    }
+}
+
+fn page_fault(access_type: MemoryAccessType, virt_addr: u32) -> TrapCause {
+    let addr = virt_addr as usize;
+    match access_type {
+        MemoryAccessType::Store => TrapCause::StorePageFault { address: addr },
+        MemoryAccessType::Load => TrapCause::LoadPageFault { address: addr },
+        MemoryAccessType::Fetch => TrapCause::InstructionPageFault { address: addr },
     }
 }

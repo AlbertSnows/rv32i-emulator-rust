@@ -6,8 +6,9 @@ use crate::definitions::masks;
 use crate::instructions::i::csr;
 use crate::definitions::trap_cause::{TrapCause, TrapDestination, M_TRAP, S_TRAP};
 use crate::definitions::codes::{ ExecutionSignal };
-use crate::definitions::addresses::{ MSTATUS, MEPC, SEPC };
+use crate::definitions::addresses::{MSTATUS, MEPC, SEPC, SSTATUS};
 use crate::definitions::cpu::csr::CSRState;
+use crate::definitions::masks::{MSTATUS_TVM, MSTATUS_TSR};
 
 #[derive(Debug, PartialEq)]
 pub enum SystemOp {
@@ -15,7 +16,8 @@ pub enum SystemOp {
     EBreak, // 0000000 00001 = 0x001
     MRet, // 0011000 00010 = 0x302
     WFI,
-    SRet
+    SRet,
+    SFenceVma,
 }
 
 pub fn parse_system_inst(raw_word: InstructionWord) -> Result<Format, TrapCause> {
@@ -25,6 +27,10 @@ pub fn parse_system_inst(raw_word: InstructionWord) -> Result<Format, TrapCause>
     let funct_three = mask_and_shift(content, masks::FUNCT_THREE);
     if funct_three != 0 {
         return csr::parse_csr_inst(raw_word);
+    }
+    let funct_seven = mask_and_shift(content, masks::FUNCT_SEVEN);
+    if funct_seven == 0b0001001 {
+        return Ok(Format::SystemType { op: SystemOp::SFenceVma });
     }
     let distinguishing_bits = mask_and_shift(content, masks::CSR_ADDRESS);
     let instruction_name = match distinguishing_bits {
@@ -51,8 +57,19 @@ pub fn execute_i_system_type(op: &SystemOp, cpu: &mut CPUState) -> Result<Execut
         },
         SystemOp::EBreak => Err(TrapCause::Breakpoint),
         SystemOp::MRet => inst_i_xret(cpu, &M_TRAP),
-        SystemOp::SRet => inst_i_xret(cpu, &S_TRAP),
-        SystemOp::WFI => Ok(ExecutionSignal::Continue)
+        SystemOp::SRet => {
+            if cpu.mode == CPUMode::S && mask_and_shift(cpu.csr.read(MSTATUS, CPUMode::M)?, MSTATUS_TSR) == 1 {
+                return Err(TrapCause::IllegalInstruction { instruction: None });
+            }
+            inst_i_xret(cpu, &S_TRAP)
+        },
+        SystemOp::WFI => Ok(ExecutionSignal::Continue),
+        SystemOp::SFenceVma => {
+            if cpu.mode == CPUMode::S && mask_and_shift(cpu.csr.read(MSTATUS, CPUMode::M)?, MSTATUS_TVM) == 1 {
+                return Err(TrapCause::IllegalInstruction { instruction: None })
+            }
+            Ok(ExecutionSignal::Continue)
+        }
     }
 }
 

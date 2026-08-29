@@ -4,6 +4,7 @@ use crate::definitions::addresses;
 use crate::definitions::codes::MISA_STATE;
 use crate::utility::bit_operations::{mask_and_shift, set_bit_range};
 use crate::definitions::masks;
+use crate::definitions::masks::MSTATUS_TVM;
 
 const ACCESS_TYPE_LOCATION: u32 = 10;
 const MINIMUM_PRIVILEGE_LOCATION: u32 = 8;
@@ -211,7 +212,12 @@ impl CSRState {
             addresses::PMPCFG0 => Ok(self.pmpcfg0),
             addresses::PMPADDR0 => Ok(self.pmpaddr0),
 
-            addresses::SATP => Ok(self.satp),
+            addresses::SATP => {
+                if current_mode == CPUMode::S && mask_and_shift(self.mstatus, masks::MSTATUS_TVM) == 1 {
+                    return Err(TrapCause::IllegalInstruction { instruction: None })
+                }
+                Ok(self.satp)
+            },
             _ => Err(TrapCause::IllegalInstruction { instruction: None }),
         }
     }
@@ -242,6 +248,11 @@ impl CSRState {
         if is_instret {
             self.flags.skip_instret_increment = true;
         }
+
+        if address == addresses::SATP && current_mode == CPUMode::S && mask_and_shift(self.mstatus, MSTATUS_TVM) == 1 {
+            return Err(TrapCause::IllegalInstruction { instruction: None })
+        }
+
         let property = self.field_for(address)?;
         match address {
             addresses::MIP => Ok(*property),

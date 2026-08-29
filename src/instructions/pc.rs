@@ -24,6 +24,7 @@ pub fn advance_pc(pc: &mut PCState, instruction: &Format, reg_file: &RegisterFil
         },
         Format::JalrType { rd, rs1, imm } => pc_value,
         Format::SystemType { op: SystemOp::MRet } => pc_value,
+        Format::SystemType { op: SystemOp::SRet } => pc_value,
         _ => pc_value.wrapping_add(4)
     };
     let is_invalid_pc_state = new_value % 4 != 0;
