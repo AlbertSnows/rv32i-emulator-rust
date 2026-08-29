@@ -11,10 +11,20 @@ components:
 - decode
 - execute
 
-[ ] 12. Close the rv32mi/rv32si conformance gap (9/22 failing, down from
+[x] 12. Close the rv32mi/rv32si conformance gap -- DONE, all 82 fixtures
+    (rv32ui/um/ua plus the full rv32mi/rv32si set) now pass. instret_overflow,
+    zicntr, breakpoint, csr, pmpaddr, illegal, and dirty_si were each traced
+    and fixed individually; illegal and dirty_si required building out full
+    Sv32 virtual memory support (satp/page-table walking, see mmu.rs and
+    docs/plans/sv32.txt). pmpaddr and breakpoint were closed via minimal,
+    spec-legal "declared absent" stubs (zero PMP entries, zero debug
+    triggers) rather than real PMP/Sdtrig hardware, since neither is needed
+    for this project's actual goals.
+
+    (Original scope, kept for history: 9/22 failing, down from
     11 -- these fixtures were built as part of item #13 below, adopting
     the external riscv-tests suite, but the harness only reports whether
-    they pass; getting them all green is this item).
+    they pass; getting them all green is this item.)
 
     Done this session:
     - misa (0x301), mvendorid (0xF11), marchid (0xF12), mimpid (0xF13):
@@ -126,8 +136,13 @@ components:
     See docs/plans/test_suite.txt for details on the toolchain, the
     ELF loader, and the signaling convention. rv32ui/rv32um/rv32ua
     coverage (60/60) is done via tests/harness.rs; rv32mi-p-*/rv32si-p-*
-    fixtures are also in now, but only 11/22 pass -- see item #12 for
-    what's blocking the rest.
+    fixtures are also in and all pass now (see item #12, done). Still
+    outstanding for this item: riscv-arch-test (the RISCOF-based official
+    conformance suite) hasn't been adopted at all yet -- see
+    docs/plans/arch_test.txt for what that actually needs (RISCOF + a DUT
+    plugin, the sail-riscv reference model, and a signature-based
+    pass/fail convention, all genuinely new -- not a drop-in extension of
+    the riscv-tests harness).
 
 [ ] 14. Refactor CSRState -- attempt after item #8 is done. Motivation:
     building mip surfaced how much side-effect/special-case behavior

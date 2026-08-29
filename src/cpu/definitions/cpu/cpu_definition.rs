@@ -1,6 +1,6 @@
 use crate::definitions::trap_cause::TrapCause;
-use crate::definitions::codes::{ PRIV_M, PRIV_S, PRIV_U };
-use crate::definitions::addresses::{ CYCLE, TIME, INSTRET };
+use crate::definitions::codes::{PRIV_M, PRIV_S, PRIV_U };
+use crate::definitions::addresses::{CYCLE, TIME, INSTRET };
 use crate::definitions::cpu::csr::{CSRState, build_csr_state};
 use crate::definitions::cpu::flags::CPUFlags;
 use crate::definitions::cpu::bus::{BUSState, build_bus_state};

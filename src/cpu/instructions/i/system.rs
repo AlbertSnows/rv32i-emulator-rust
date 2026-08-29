@@ -1,7 +1,7 @@
 use crate::definitions::cpu::cpu_definition::{RegisterFile, CPUState, PCState, CPUMode};
 use crate::fetcher::InstructionWord;
 use crate::instructions::Format;
-use crate::utility::bit_operations::{ mask_and_shift, set_bit_range };
+use crate::utility::bit_operations::{mask_and_shift, set_bit_range };
 use crate::definitions::masks;
 use crate::instructions::i::csr;
 use crate::definitions::trap_cause::{TrapCause, TrapDestination, M_TRAP, S_TRAP};

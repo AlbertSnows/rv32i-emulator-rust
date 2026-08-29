@@ -16,13 +16,10 @@ fn main() {
 
     let mut execution_outcome = ExecutionSignal::Continue;
     while execution_outcome == ExecutionSignal::Continue {
-        execution_outcome = match step(&mut cpu) {
-            Ok(signal) => signal,
-            Err(m) => {
-                println!("{:?}", m);
-                ExecutionSignal::Halt
-            }
-        }
+        execution_outcome = step(&mut cpu).unwrap_or_else(|m| {
+            println!("{:?}", m);
+            ExecutionSignal::Halt
+        })
     }
     println!("{:?}", cpu.register);
 }
