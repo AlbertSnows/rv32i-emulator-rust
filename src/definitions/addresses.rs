@@ -57,8 +57,59 @@ pub const MIE: usize = 0x304;
 // mip is about what's currently interrupting/what's pending
 pub const MIP: usize = 0x344;
 
-// Memory addresses
+// mtime/mtimecmp are memory-mapped
+// registers. read/written via ordinary loads/stores like any
+// other address. Owned by CLINT ("Core-Local Interruptor"). 
+// mtime is a free-running counter; mtimecmp is
+// the compare value. once mtime >= mtimecmp, a machine timer
+// interrupt becomes pending. Both are 64-bit
+// despite this being an RV32 (32-bit) emulator --
+// a 32-bit CPU accesses them via two separate 32-bit loads/stores (low
+// word, then high word)
 pub const MTIME: usize = 0x0200BFF8;
 pub const MTIMECMP: usize = 0x02004000;
 pub const MTIME_END: usize = MTIME + ByteType::DoubleWord.as_num() - 1;
 pub const MTIMECMP_END: usize = MTIMECMP + ByteType::DoubleWord.as_num() - 1;
+pub const MHARTID: usize = 0xF14;
+
+// sstatus is is mstatus, but with only access priv to bits 1, 5, and 8
+pub const SSTATUS: usize = 0x100;
+// SIE is is MIE, but with only access priv to bits 1, 5, and 9
+pub const SIE: usize = 0x104;
+pub const STVEC: usize = 0x105;
+pub const SSCRATCH: usize = 0x140;
+pub const SEPC: usize = 0x141;
+pub const SCAUSE: usize = 0x142;
+pub const STVAL: usize = 0x143;
+// SIP is is MIP, but with only access priv to bits 1, 5, and 9
+pub const SIP: usize = 0x144;
+pub const MEDELEG: usize = 0x302;
+pub const MIDELEG: usize = 0x303;
+pub const MISA: usize = 0x301;
+
+pub const MCOUNTINHIBIT: usize = 0x320;
+
+// address for who made it
+pub const MVENDORID: usize = 0xF11;
+// address for which architecture is in use
+pub const MARCHID: usize = 0xF12;
+// address of exact version of architecture
+pub const MIMPID: usize = 0xF13;
+pub const MINSTRETH: usize = 0xB82;
+pub const INSTRETH: usize = 0xC82;
+pub const MCYCLEH: usize = 0xB80;
+pub const CYCLEH: usize = 0xC80;
+
+pub const TSELECT: usize = 0x7a0;
+pub const TDATA1: usize = 0x7a1;
+pub const TDATA2: usize = 0x7a2;
+pub const TCONTROL: usize = 0x7a5;
+pub const MSCRATCH: usize = 0x340;
+pub const MCOUNTEREN: usize = 0x306;
+pub const SCOUNTNEREN: usize = 0x106;
+pub const PMPCFG0: usize = 0x3A0;
+pub const PMPADDR0: usize = 0x3B0;
+// satp — a CSR, tells you where the tables are and whether translation is on:
+// 31        30            22 21                    0
+// | MODE(1) |  ASID(9)      |      PPN(22)          |
+pub const SATP: usize = 0x180;

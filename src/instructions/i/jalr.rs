@@ -22,9 +22,18 @@ pub fn parse_jalr_inst(raw_word: InstructionWord) -> Result<Format, TrapCause> {
     })
 }
 
-pub fn execute_i_jalr_type(rd: usize, rs1: usize, imm: i32, register: &mut RegisterFile, pc: &PCState) -> Result<ExecutionSignal, TrapCause> {
-    register.write(rd, (pc.read().wrapping_add(4)) as u32);
-    Ok(ExecutionSignal::Continue)
+pub fn execute_i_jalr_type(rd: usize, rs1: usize, imm: i32, register: &mut RegisterFile, pc: &mut PCState) -> Result<ExecutionSignal, TrapCause> {
+    let rs1_val = register.read(rs1);
+    // 1 = ..001, !1 = ..110
+    // (combine rs1 and imm) -> and with !1 which means keep all bits in (rs1 + imm) but force it to be even (rounded down)
+    let new_value = (rs1_val.wrapping_add(imm as u32)) & !1;
+    if (new_value % 4 != 0) {
+        Err(TrapCause::InstructionAddressMisaligned { address: new_value as usize })
+    } else {
+        register.write(rd, (pc.read().wrapping_add(4)) as u32);
+        pc.write(new_value as usize);
+        Ok(ExecutionSignal::Continue)
+    }
 }
 
 
@@ -47,10 +56,10 @@ mod tests {
         let rd = 1;
         let mut pc = build_pc_state();
         let rs1 = 2;
-        let imm = 3;
+        let imm = 4;
         let mut reg_file = build_register_file();
         pc.write(3);
-        execute_i_jalr_type(rd, rs1, imm, &mut reg_file, &pc);
+        execute_i_jalr_type(rd, rs1, imm, &mut reg_file, &mut pc);
         assert_eq!(reg_file.read(1), 7);
     }
 
@@ -59,10 +68,11 @@ mod tests {
         let rd = 1;
         let mut pc = build_pc_state();
         let rs1 = 2;
-        let imm = 3;
+        let imm = 4;
         let mut reg_file = build_register_file();
         pc.write(u32::MAX as usize);
-        execute_i_jalr_type(rd, rs1, imm, &mut reg_file, &pc);
+        execute_i_jalr_type(rd, rs1, imm, &mut reg_file, &mut pc);
+
         assert_eq!(reg_file.read(1), 3);
     }
 }

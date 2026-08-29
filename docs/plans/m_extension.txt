@@ -1,0 +1,125 @@
+M extension (item #9) -- intent, semantics, and where it fits
+
+--- why ---
+
+Multiply/divide is a separate,
+optional extension ("M") a chip can add on top. RISC-V splits it out
+deliberately: some low-end/microcontroller implementations skip
+multiply/divide hardware entirely (division especially is expensive to
+build), and generate library calls instead. But any standard prebuilt
+toolchain output (the kind riscv-tests, OpenSBI, and eventually a real
+Linux build all are) assumes M exists. Ordinary compiled C uses multiplication constantly, 
+without this, execution traps almost immediately on real-world binaries.
+
+Source: docs/books/riscv-unprivileged.pdf, Chapter 12 ("M" Standard
+Extension for Integer Multiplication and Division), pp. 65-66.
+
+--- 1. encoding: same opcode, new funct7 ---
+
+M-extension instructions are still R-type -- two source registers in,
+one destination register out, no immediate. Same 32-bit layout this
+codebase's r.rs already decodes:
+
+ 31        25 24    20 19    15 14   12 11     7 6      0
+| funct7    |  rs2   |  rs1   | funct3 |   rd    | opcode |
+|    7      |   5    |   5    |   3    |    5    |   7    |
+
+Same opcode as ADD/SUB/AND/etc. (OP = 0b0110011). What distinguishes
+"this is an M-extension instruction" from ordinary ALU ops is funct7:
+the base ISA only ever uses funct7 = 0b0000000 (most ops) or 0b0100000
+(SUB/SRA). M-extension ops all use funct7 = 0b0000001 ("MULDIV"), then
+funct3 picks which of the 8 operations, exactly like funct3 already
+picks between SLL/SLT/SLTU/etc. within a shared funct7 in the base ISA:
+
+  funct7=0000001, funct3=000 -> MUL
+  funct7=0000001, funct3=001 -> MULH
+  funct7=0000001, funct3=010 -> MULHSU
+  funct7=0000001, funct3=011 -> MULHU
+  funct7=0000001, funct3=100 -> DIV
+  funct7=0000001, funct3=101 -> DIVU
+  funct7=0000001, funct3=110 -> REM
+  funct7=0000001, funct3=111 -> REMU
+
+(source: riscv-unprivileged.pdf Chapter 36, "RV32M Standard Extension"
+listing, p.588)
+
+This lines up directly with how src/instructions/r.rs::parse_r_inst
+already works -- it already matches on the (funct_seven, funct_three)
+tuple (r.rs:41-52) to select between Add/Sub/Sll/etc. Adding M is the
+same shape of change: 8 more arms in that match, all keyed on
+funct_seven = 0b0000001.
+
+--- 2. the eight instructions: what each computes ---
+
+All operate on two XLEN-bit (32-bit here) register values and write an
+XLEN-bit result to rd. No immediate, no memory access -- pure register
+arithmetic, same shape as ADD/SUB.
+
+- MUL: rs1 * rs2, keep only the low 32 bits of the (up to 64-bit) full
+  product. This is the "normal" multiply -- what you'd reach for almost
+  always.
+- MULH: rs1 * rs2 treating both as signed, keep the upper 32 bits of the
+  full 64-bit product.
+- MULHU: same, but both operands treated as unsigned.
+- MULHSU: rs1 treated as signed, rs2 treated as unsigned -- an
+  asymmetric case. Exists specifically for multi-word signed
+  multiplication: when building a wider signed product out of 32-bit
+  limbs, the most-significant limb carries the sign, but the
+  less-significant limbs it's multiplied against are just unsigned
+  magnitude. Rarely needed directly; mostly a building block for
+  wider-than-32-bit arithmetic in software.
+- If a caller needs both halves of the same product, the spec's
+  recommended sequence is MULH[[S]U] first, then MUL, on the same
+  operands -- real hardware can fuse these into one multiply; this
+  emulator doesn't need to bother fusing, just compute both correctly.
+- DIV / DIVU: signed / unsigned integer division, rs1 / rs2, rounding
+  toward zero (not floor -- -7 / 2 = -3, not -4).
+- REM / REMU: the remainder of that same division. For REM, the sign of
+  a nonzero remainder matches the sign of the dividend (rs1), not the
+  divisor. Standard invariant (ignoring the overflow case below):
+  dividend == divisor * quotient + remainder.
+
+--- 3. division edge cases: no traps, defined results ---
+
+Consistent with how this codebase already treats ADD/SUB overflow
+(wraps silently, no trap -- see r.rs, s.rs) -- and unlike the M
+extension's own design note explaining why divide-by-zero was
+deliberately *not* made trap-worthy (would've been the only arithmetic
+trap in the base+M ISA) -- division here also never traps. Every input
+combination, including the degenerate ones, has a fully-defined result:
+
+  divide by zero (any DIV/DIVU/REM/REMU):
+    DIV/DIVU quotient = all bits set (-1 as DIV, u32::MAX as DIVU)
+    REM/REMU remainder = the dividend, unchanged
+
+  signed overflow (DIV/REM only -- occurs *only* when dividend =
+  i32::MIN and divisor = -1, since the true mathematical quotient
+  2^31 doesn't fit back into a signed 32-bit result):
+    DIV quotient = the dividend (i32::MIN)
+    REM remainder = 0
+
+  (unsigned division/remainder can never overflow -- there's no
+  negative range to exceed)
+
+Source: riscv-unprivileged.pdf, Table 11 ("Semantics for division by
+zero and division overflow"), p.66.
+
+--- 4. what needs to change in this codebase ---
+
+Mirrors how load/store or the base R-type ops are structured today:
+
+- src/instructions/r.rs: extend AluOp (r.rs:20-32) with the 8 new
+  variants, extend parse_r_inst's match (r.rs:41-52) with the funct7 =
+  0b0000001 arms, add 8 execute_* functions alongside the existing
+  inst_r_* ones. No new Format variant needed -- RType already carries
+  op/rd/rs1/rs2, same shape M needs.
+- No opcode/masks changes needed -- OP (0b0110011) and FUNCT_SEVEN
+  already exist and already get read out in parse_r_inst; M just adds
+  new match arms against values already being extracted.
+- No bus/memory/pc changes -- these are pure register-to-register ops,
+  same category as ADD/SUB, so nothing about addressing, alignment, or
+  advance_pc's default (pc + 4) is affected.
+- r.rs's test_parse_r_inst_invalid_combo_panics needs its premise
+  revisited once MUL exists (see section 1 above) -- either swap to a
+  still-genuinely-invalid funct7/funct3 combo, or split into a separate
+  positive test for the now-valid MUL encoding.

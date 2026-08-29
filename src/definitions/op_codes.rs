@@ -24,3 +24,5 @@ pub const AUIPC: u32 = 0b0010111; // U-type: auipc
 pub const J: u32 = 0b1101111; // J-type: jal
 pub const MISC_MEM: u32 = 0b000_1111;
 pub const FENCE: u32 = MISC_MEM;
+
+pub const A: u32 = 0b0101111;

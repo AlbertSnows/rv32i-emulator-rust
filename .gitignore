@@ -1,3 +1,7 @@
 /target
 /.ignore/
 .claude
+/.idea/.gitignore
+/.idea/modules.xml
+/.idea/rv32i-emulator.iml
+/.idea/vcs.xml

@@ -5,6 +5,22 @@ use crate::utility::types::ByteType;
 pub const WORD: usize = 4;
 pub const DOUBLEWORD: usize = 8;
 
+pub fn resolve_string_from_bytes(bytes: &[u8], offset: usize) -> &str {
+    let mut end = offset;
+    while bytes[end] != 0 {
+        end += 1;
+    }
+    std::str::from_utf8(&bytes[offset..end]).unwrap()
+}
+
+pub fn read_u16(bytes: &[u8], offset: usize) -> u16 {
+    u16::from_le_bytes(bytes[offset..offset + 2].try_into().unwrap())
+}
+
+pub fn read_u32(bytes: &[u8], offset: usize) -> u32 {
+    u32::from_le_bytes(bytes[offset..offset + 4].try_into().unwrap())
+}
+
 // construct a new bit number, byte by byte
 pub const fn extract_sub_bytes(bit_range: u64, offset: usize, width: ByteType)-> u64 {
     let byte_range = bit_range.to_le_bytes();

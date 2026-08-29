@@ -3,16 +3,17 @@ use crate::definitions::codes::{ PRIV_M, PRIV_S, PRIV_U };
 use crate::definitions::addresses::{ CYCLE, TIME, INSTRET };
 use crate::definitions::cpu::csr::{CSRState, build_csr_state};
 use crate::definitions::cpu::flags::CPUFlags;
-use crate::definitions::cpu::memory::{MemoryState, build_memory_state};
+use crate::definitions::cpu::bus::{BUSState, build_bus_state};
 
-#[derive(Debug, PartialEq, Copy, Clone)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct CPUState {
     pub register: RegisterFile,
     pub pc: PCState,
-    pub mem: MemoryState,
+    pub bus: BUSState,
     pub csr: CSRState,
     pub mode: CPUMode,
-    pub flags: CPUFlags
+    pub flags: CPUFlags,
+    pub reservation_address: Option<u32>
 }
 
 #[derive(Debug, Copy, Clone, PartialEq)]
@@ -44,12 +45,13 @@ pub fn build_cpu_state() -> CPUState {
     CPUState {
         register: build_register_file(),
         pc: build_pc_state(),
-        mem: build_memory_state(),
+        bus: build_bus_state(),
         csr: build_csr_state(),
         mode: CPUMode::M,
         flags: CPUFlags {
             in_trap: false
-        }
+        },
+        reservation_address: None
     }
 }
 

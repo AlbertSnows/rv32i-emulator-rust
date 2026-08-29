@@ -20,3 +20,19 @@ enum AccessStates {
     WriteOnly,
     ReadWrite
 }
+
+// misa ("Machine ISA") -- fixed value reported by this emulator, read-only
+// (see riscv_privleged.pdf 3.1.1). Bits 31:30 are MXL (native width);
+// the rest is one bit per letter of the alphabet, bit N = the Nth letter
+// (A=0, B=1, ... I=8 ... M=12 ... S=18 ... U=20 ... Z=25), set for every
+// extension/mode this codebase actually implements.
+//
+//   bits 31:30  MXL = 1        -> RV32 (see Table 11)
+//   bit  20     U              -> U-mode implemented (CPUMode::U)
+//   bit  18     S              -> S-mode implemented
+//   bit  12     M              -> M extension implemented
+//   bit  8      I              -> RV32I base ISA
+//   bit  0      A              -> A extension implemented
+//
+// 0x40_14_11_01 = (1 << 30) | (1 << 20) | (1 << 18) | (1 << 12) | (1 << 8) | (1 << 0)
+pub const MISA_STATE: u32 = 0x40141101;

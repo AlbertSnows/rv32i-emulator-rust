@@ -48,9 +48,14 @@ pub fn parse_j_inst(raw_word: InstructionWord) -> Result<Format, TrapCause> {
 }
 
 pub fn execute_j_type(op: &JOp, rd: usize, imm: i32, register: &mut RegisterFile, pc: &PCState) -> Result<ExecutionSignal, TrapCause> {
-    let write_value = (pc.read() as u32).wrapping_add(4);
-    register.write(rd, write_value);
-    Ok(ExecutionSignal::Continue)
+    // adding i32 as u32 still does the arithmetic correctly
+    let jump_target = (pc.read() as u32).wrapping_add(imm as u32);
+    if (jump_target % 4 != 0) {
+        Err(TrapCause::InstructionAddressMisaligned { address: jump_target as usize })
+    } else {
+        register.write(rd, (pc.read() as u32).wrapping_add(4));
+        Ok(ExecutionSignal::Continue)
+    }
 }
 
 #[cfg(test)]
@@ -84,11 +89,11 @@ mod tests {
     fn test_execute_j_type_wraps_at_u32_max() {
         let mut register = build_register_file();
         let mut pc = build_pc_state();
-        pc.write(u32::MAX as usize);
+        pc.write((u32::MAX - 3) as usize);
 
         let outcome = execute_j_type(&JOp::Jal, 5, 16, &mut register, &pc);
 
         assert_eq!(outcome, Ok(ExecutionSignal::Continue));
-        assert_eq!(register.read(5), 3);
+        assert_eq!(register.read(5), 0);
     }
 }

@@ -1,0 +1,34 @@
+elf header is bytes 0-51
+shoff -> byte 32
+shentsize -> byte 46
+shnum -> byte 48
+
+where do we find tohost?
+shoff points to -> section header table
+
+section header table 
+- shnum entries
+- shentsize bytes each
+each entry has an sh_type
+we care about sh_type = 2, sh_type = 3
+
+type 2 has rows with 
+- ? st_name, st_value
+
+type 3
+has a bunch of bytes. one will have, at location X, tohost 
+tohost maps to st_name from type 2
+
+from the mapping, we know st_value, which has our address
+
+loop 1
+- walk shnum
+- look at sh type
+- finh sh type = 2
+- sh_link points to .strtab
+
+loop 2
+- walk records inside symbol table (what is symbol table?)
+- resolve st_name for record 
+- if st_name = tohost, yield st_value
+
