@@ -15,13 +15,31 @@ architecture, just a list for later.)
 
 **BIOS / firmware:**
 
-- binary/firmware image loader
+Not building one — loading a real, unmodified **OpenSBI** binary, the
+same one real hardware/QEMU use. Reimplementing the SBI spec ourselves
+would just be re-deriving a solved problem instead of exercising the
+emulator; OpenSBI's `generic` platform driver discovers its own
+hardware from the device tree it's handed, so matching QEMU's `virt`
+addresses/`compatible` strings (see `docs/dev/peripherals_specs.md`,
+`docs/dev/peripherals_no_spec.md`) gets a fully spec-correct SBI
+implementation with zero firmware-side code of our own. What's
+actually needed on this project's side:
+
+- a multi-image loader: place OpenSBI + kernel + DTB in memory at once,
+  each at the address it expects (extends the existing ELF loader, not
+  a new subsystem)
+- correct initial CPU state before jumping to firmware, matching what
+  QEMU sets up: `a0` = hart ID, `a1` = DTB physical address, PC =
+  firmware entry point
 - [done, item #11] full S-mode CSR set (`sepc`, `scause`, `stval`,
   `stvec`, `sstatus`, `sie`, `sip`), SRET, `medeleg`/`mideleg` (trap
-  delegation M->S)
-- SBI call surface
+  delegation M->S) — this is what OpenSBI itself needs from the CPU to
+  run correctly, already in place
 
 **OS (Linux):**
+
+Also not building — loading a real, unmodified Linux kernel image, the
+same way. What's needed on this project's side:
 
 - Sv32 virtual memory (`satp`, page-table walker/translation) — needed
   for instruction/load/store page faults (Table 16 codes 12/13/15,
@@ -35,7 +53,10 @@ architecture, just a list for later.)
   what needs to change.
 - full U/S/M three-mode operation
 - timer-driven preemption (`mtime`/`mtimecmp`)
-- console + disk drivers matching whatever device model above
+- console + disk drivers matching whatever device model above — these
+  are Linux's own existing drivers (8250 for UART, virtio-blk), not
+  anything written for this project; they just need real hardware
+  underneath that behaves the way those drivers expect
 
 ## [ ] 14. Refactor CSRState (Postponed)
 
