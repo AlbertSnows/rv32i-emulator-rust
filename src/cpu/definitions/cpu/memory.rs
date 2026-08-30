@@ -19,7 +19,7 @@ impl MemoryAccessType {
 }
 
 const TEST_MEM_SIZE: usize = 4096;
-pub const FULL_MEM_SIZE: usize = 65536;
+pub const FULL_MEM_SIZE: usize = 0x4_00_00;
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct MemoryState {

@@ -6,3 +6,7 @@
 /.idea/modules.xml
 /.idea/rv32i-emulator.iml
 /.idea/vcs.xml
+/sail_cSim/
+/spike/
+/config.ini
+/docs/dev/riscof_setup.md
