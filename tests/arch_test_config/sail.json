@@ -26,7 +26,7 @@
     // the top 29 bits of `writable_hpm_counters`.
     "scounteren_writable_bits": {
       "len": 32,
-      "value": "0x0"
+      "value": "0x7"
     },
     // The bits in this value control whether the corresponding bits
     // of the `mcounteren` CSR that control access to HPM counters,
@@ -36,7 +36,7 @@
     // bit is read-only zero.
     "mcounteren_writable_bits": {
       "len": 32,
-      "value": "0x0"
+      "value": "0x7"
     },
     // `mtvec.{direct,vectored}.supported` indicates whether the
     // corresponding mode is supported for `mtvec`.  At least one mode
@@ -58,17 +58,15 @@
         "base_alignment": 2
       }
     },
-    // Similar to `mtvec` above. If `S` mode is not supported, these
-    // values need to be present and legal but are ignored.
     "stvec": {
       // The spec requires `base_alignment` for `stvec.direct` to be 2
       // (i.e. 4-byte alignment), hence there is no configuration
       // parameter for it.
       "direct": {
-        "supported": false
+        "supported": true
       },
       "vectored": {
-        "supported": false,
+        "supported": true,
         "base_alignment": 2
       }
     },
@@ -443,19 +441,16 @@
       "supported": true
     },
     "F": {
-      "supported": true,
-      // When to set mstatus[FS] and mstatus[SD] to 1, as a result of fflags
-      // being set. There are three options:
-      //
-      // - Fflags_Dirty_Precise: Only set FS/SD when absolutely required, because
-      //                         fflags has actually changed value.
-      // - Fflags_Dirty_Flag: Set FS/SD when the instruction sets a flag, even
-      //                      if that flag is already set.
-      // - Fflags_Dirty_Instruction: Set FS/SD when we execute an instruction that
-      //                             might set a flag, even if it actually doesn't.
+      "supported": false,
       "fflags_dirty_policy": "Fflags_Dirty_Precise"
     },
     "D": {
+      "supported": false
+    },
+    "S": {
+      "supported": true
+    },
+    "U": {
       "supported": true
     },
     "V": {
@@ -578,7 +573,7 @@
       "supported": false
     },
     "Zihpm": {
-      "supported": true
+      "supported": false
     },
     "Zimop": {
       "supported": false

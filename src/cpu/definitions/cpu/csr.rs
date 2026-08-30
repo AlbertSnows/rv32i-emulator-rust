@@ -53,6 +53,7 @@ pub fn build_csr_state() -> CSRState {
         pmpcfg0: 0,
         pmpaddr0: 0,
         satp: 0,
+        mstatush: 0,
     }
 }
 
@@ -94,6 +95,7 @@ pub struct CSRState {
     pmpcfg0: u32,
     pmpaddr0: u32,
     satp: u32,
+    mstatush: u32
 }
 
 impl CSRState {
@@ -132,7 +134,7 @@ impl CSRState {
             addresses::SSCRATCH => Ok(&mut self.sscratch),
             addresses::STVAL => Ok(&mut self.stval),
             addresses::STVEC => Ok(&mut self.stvec),
-            addresses::MCYCLEH | addresses::CYCLEH => Ok(&mut self.mcycleh),
+            addresses::MCYCLEH | addresses::CYCLEH | addresses::TIMEH => Ok(&mut self.mcycleh),
             addresses::TSELECT => Ok(&mut self.tselect),
             addresses::TDATA1 => Ok(&mut self.tdata1),
             addresses::TDATA2 => Ok(&mut self.tdata2),
@@ -143,6 +145,7 @@ impl CSRState {
             addresses::PMPCFG0 => Ok(&mut self.pmpcfg0),
             addresses::PMPADDR0 => Ok(&mut self.pmpaddr0),
             addresses::SATP => Ok(&mut self.satp),
+            addresses::MSTATUSH => Ok(&mut self.mstatush),
             _ => Err(TrapCause::IllegalInstruction { instruction: None }),
         }
     }
@@ -162,7 +165,7 @@ impl CSRState {
             addresses::MCYCLE | addresses::CYCLE | addresses::TIME => Ok(self.mcycle),
             addresses::MINSTRET | addresses::INSTRET => Ok(self.minstret),
             addresses::MINSTRETH | addresses::INSTRETH => Ok(self.minstreth),
-            addresses::MCYCLEH | addresses::CYCLEH => Ok(self.mcycleh),
+            addresses::MCYCLEH | addresses::CYCLEH | addresses::TIMEH => Ok(self.mcycleh),
 
             addresses::MIP => Ok(self.mip),
             addresses::MIE => Ok(self.mie),
@@ -183,6 +186,7 @@ impl CSRState {
             addresses::MVENDORID => Ok(0),
             addresses::MARCHID => Ok(0),
             addresses::MIMPID => Ok(0),
+            addresses::MSTATUSH => Ok(0),
 
             // Sdtrig (hardware trigger/breakpoint) CSRs. Hardcoded to 0
             // regardless of what was last written. 
@@ -275,6 +279,7 @@ impl CSRState {
                 *property = value & !0b11; // becomes 11...1100, forcing out of vectored mode
                 Ok(*property)
             },
+            addresses::MSTATUSH => Ok(*property),
             _ => {
                 *property = value;
                 Ok(value)

@@ -4,30 +4,35 @@ $schema: config_schema.json#
 kind: architecture configuration
 type: fully configured
 name: rv32i-emulator
-description: rv32i-emulator -- extensions/params restored from
-  sail-RVI20U32.yaml almost verbatim (F/D/C over-declared, not actually
-  implemented -- safe for now since EXTENSIONS=I restricts which tests
-  get built; needs real trimming before an unrestricted build).
+description: >-
+  rv32i-emulator -- extensions this emulator actually implements.
+  F/D/C/Zcf/Zcd/Zca/Zihpm were declared here once (copied from
+  sail-RVI20U32.yaml on the assumption EXTENSIONS=I made over-declaring
+  them harmless) and removed after a real build proved that wrong --
+  shared boot code touches fcsr because F was declared, regardless of
+  which test suite is actually being built, causing an unhandled trap
+  (mtvec still 0 this early in boot) that froze pc at 0 forever. Same
+  reasoning applies to Zihpm (extra hpmcounters this emulator doesn't
+  implement) and MCOUNTINHIBIT_IMPLEMENTED below (mcountinhibit was
+  explicitly decided not-implemented earlier in this project).
 implemented_extensions:
   - { name: I, version: "= 2.1" }
   - { name: M, version: "= 2.0" }
   - { name: Zmmul, version: "= 1.0.0" }
   - { name: A, version: "= 2.1.0" }
-  - { name: F, version: "= 2.2.0" }
-  - { name: D, version: "= 2.2.0" }
-  - { name: C, version: "= 2.0" }
   - { name: Zicntr, version: "= 2.0" }
-  - { name: Zihpm, version: "= 2.0" }
   - { name: Zicsr, version: "= 2.0" }
   - { name: Zifencei, version: "= 2.0.0" }
   - { name: Zaamo, version: "= 1.0.0" }
   - { name: Zalrsc, version: "= 1.0.0" }
-  - { name: Zca, version: "= 1.0.0" }
-  - { name: Zcf, version: "= 1.0.0" }
-  - { name: Zcd, version: "= 1.0.0" }
   - { name: Sm, version: "= 1.12.0" }
+  - { name: U, version: "= 1.0.0" }
+  - { name: S, version: "= 1.12.0" }
+  - { name: Sv32, version: "= 1.0" }
 
 params:
+  # Sv32 params
+  SXLEN: [32]
   # A params
   MISALIGNED_AMO: false
   LRSC_RESERVATION_STRATEGY: "reserve exactly enough to cover the access" # XLEN size reservation
@@ -37,14 +42,6 @@ params:
   MUTABLE_MISA_A: false
   # M params
   MUTABLE_MISA_M: false
-  # F params
-  MUTABLE_MISA_F: false
-  HW_MSTATUS_FS_DIRTY_UPDATE: precise
-  MSTATUS_FS_LEGAL_VALUES: [0, 1, 2, 3]
-  # D params
-  MUTABLE_MISA_D: false
-  # C params
-  MUTABLE_MISA_C: false
   # Zicntr params
   TIME_CSR_IMPLEMENTED: true
   # Sm params
@@ -83,27 +80,64 @@ params:
   MTVEC_BASE_ALIGNMENT_DIRECT: 4
   MTVEC_BASE_ALIGNMENT_VECTORED: 4
   MTVEC_ILLEGAL_WRITE_BEHAVIOR: retain
+  MCOUNTINHIBIT_IMPLEMENTED: false
+  NUM_PMP_ENTRIES: 0
+  # Only indices 0-2 (cycle/time/instret, Zicntr) are real -- no Zihpm,
+  # so every hpmcounter3-31 slot is false in both arrays; MCOUNTENABLE_EN[i]
+  # can only be true where HPM_COUNTER_EN[i] is also true.
   HPM_COUNTER_EN:
     [
-      false, false, false, true, true, true, true, true,
-      true, true, true, true, true, true, true, true,
-      true, true, true, true, true, true, true, true,
-      true, true, true, true, true, true, true, true,
+      false, false, false, false, false, false, false, false,
+      false, false, false, false, false, false, false, false,
+      false, false, false, false, false, false, false, false,
+      false, false, false, false, false, false, false, false,
     ]
-  HPM_EVENTS: [0]
-  MCOUNTINHIBIT_IMPLEMENTED: true
-  COUNTINHIBIT_EN:
-    [
-      true, false, true, true, true, true, true, true,
-      true, true, true, true, true, true, true, true,
-      true, true, true, true, true, true, true, true,
-      true, true, true, true, true, true, true, true,
-    ]
-  NUM_PMP_ENTRIES: 0
   MCOUNTENABLE_EN:
     [
-      true, true, true, true, true, true, true, true,
-      true, true, true, true, true, true, true, true,
-      true, true, true, true, true, true, true, true,
-      true, true, true, true, true, true, true, true,
+      true, true, true, false, false, false, false, false,
+      false, false, false, false, false, false, false, false,
+      false, false, false, false, false, false, false, false,
+      false, false, false, false, false, false, false, false,
+    ]
+  # U params
+  MUTABLE_MISA_U: false
+  U_MODE_ENDIANNESS: little
+  UXLEN: [32]
+  TRAP_ON_ECALL_FROM_U: true
+  # S params
+  MUTABLE_MISA_S: false
+  S_MODE_ENDIANNESS: little
+  # Sv32's satp ASID field is 9 bits, not the 16-bit width larger
+  # (Sv39+) schemes use.
+  ASID_WIDTH: 9
+  STVAL_WIDTH: 32
+  STVEC_MODES: [0, 1]
+  STVEC_BASE_ALIGNMENT_VECTORED: 4
+  # No F/D implemented, so mstatus.FS can only ever be Off.
+  MSTATUS_FS_LEGAL_VALUES: [0]
+  SATP_MODE_BARE: true
+  TRAP_ON_ECALL_FROM_S: true
+  MSTATUS_VS_LEGAL_VALUES: [0, 1, 2, 3]
+  REPORT_ENCODING_IN_STVAL_ON_ILLEGAL_INSTRUCTION: true
+  REPORT_VA_IN_MTVAL_ON_LOAD_PAGE_FAULT: true
+  REPORT_VA_IN_MTVAL_ON_STORE_AMO_PAGE_FAULT: true
+  REPORT_VA_IN_MTVAL_ON_INSTRUCTION_PAGE_FAULT: true
+  REPORT_VA_IN_STVAL_ON_BREAKPOINT: true
+  REPORT_VA_IN_STVAL_ON_LOAD_MISALIGNED: true
+  REPORT_VA_IN_STVAL_ON_STORE_AMO_MISALIGNED: true
+  REPORT_VA_IN_STVAL_ON_INSTRUCTION_MISALIGNED: true
+  REPORT_VA_IN_STVAL_ON_LOAD_ACCESS_FAULT: true
+  REPORT_VA_IN_STVAL_ON_STORE_AMO_ACCESS_FAULT: true
+  REPORT_VA_IN_STVAL_ON_INSTRUCTION_ACCESS_FAULT: true
+  REPORT_VA_IN_STVAL_ON_LOAD_PAGE_FAULT: true
+  REPORT_VA_IN_STVAL_ON_STORE_AMO_PAGE_FAULT: true
+  REPORT_VA_IN_STVAL_ON_INSTRUCTION_PAGE_FAULT: true
+  # Same reasoning as MCOUNTENABLE_EN -- only cycle/time/instret (0-2)
+  # are real, no Zihpm.
+  SCOUNTENABLE_EN:
+    [
+      true, true, true, false, false, false, false, false,
+      false, false, false, false, false, false, false, false,
+      false, false, false, false, false, false, false, false,
+      false, false, false, false, false, false, false, false,
     ]

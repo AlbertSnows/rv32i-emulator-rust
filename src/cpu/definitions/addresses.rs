@@ -113,3 +113,7 @@ pub const PMPADDR0: usize = 0x3B0;
 // 31        30            22 21                    0
 // | MODE(1) |  ASID(9)      |      PPN(22)          |
 pub const SATP: usize = 0x180;
+
+pub const MSTATUSH: usize = 0x310;
+
+pub const TIMEH: usize = 0xC81;

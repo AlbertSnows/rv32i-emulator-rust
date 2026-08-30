@@ -5,4 +5,4 @@ ref_model_exe: sail_riscv_sim
 udb_config: rv32i-emulator.yaml
 linker_script: link.ld
 dut_include_dir: .
-include_priv_tests: False
+include_priv_tests: True

@@ -1,171 +1,6 @@
 # Plans
 
-Enums by format.
 
-Little endian: right -> left. E.g. for `0x002081B3`, `0x1000` is `B3`.
-
-Recipe has instructions. Pantry has numbers (memory).
-
-Components:
-
-- fetch
-- decode
-- execute
-
-## [x] 12. Close the rv32mi/rv32si conformance gap
-
-**DONE** — all 82 fixtures (rv32ui/um/ua plus the full rv32mi/rv32si
-set) now pass. `instret_overflow`, `zicntr`, `breakpoint`, `csr`,
-`pmpaddr`, `illegal`, and `dirty_si` were each traced and fixed
-individually; `illegal` and `dirty_si` required building out full Sv32
-virtual memory support (satp/page-table walking, see `mmu.rs` and
-`docs/plans/sv32.md`). `pmpaddr` and `breakpoint` were closed via
-minimal, spec-legal "declared absent" stubs (zero PMP entries, zero
-debug triggers) rather than real PMP/Sdtrig hardware, since neither is
-needed for this project's actual goals.
-
-(Original scope, kept for history: 9/22 failing, down from 11 — these
-fixtures were built as part of item #13 below, adopting the external
-riscv-tests suite, but the harness only reports whether they pass;
-getting them all green is this item.)
-
-### Done this session
-
-- `misa` (`0x301`), `mvendorid` (`0xF11`), `marchid` (`0xF12`),
-  `mimpid` (`0xF13`): all now implemented as fixed-value read-only CSRs
-  (`0x40141101` for `misa`, documented at
-  `src/definitions/codes.rs::MISA_STATE`; 0 for the other three, per
-  spec — 0 explicitly means "non-commercial implementation," which is
-  literally what this project is). Together these fixed
-  `test_rv32ui_p_mcsr_passes` and (as a side effect)
-  `test_rv32ui_p_csr_si_passes`.
-- Found and fixed a real, general bug while chasing this, not specific
-  to any one test: `csrrw`/`csrrs`/`csrrc` all wrote to `rd` *before*
-  reading `rs1` — corrupts the result whenever `rd == rs1` (e.g.
-  `csrrw t0, mtvec, t0`, a completely ordinary "save old value, install
-  new one" idiom). Fixed in all three (`i/instructions/i/csr.rs`) by
-  reading `rs1` first. Swept every other instruction category (R-type,
-  M-extension, I-type ALU/shift, loads, JALR, AMO) this session to
-  confirm none of them have the same shape of bug — confirmed clean;
-  CSR instructions were the only place it could exist, since they're
-  the only ones that touch a register write and a separate register
-  read as two distinct steps rather than "gather inputs, then write
-  once." This fix alone turned `test_rv32ui_p_instret_overflow_passes`
-  from a hang into a clean `Fail(2)` — see below, not fully fixed yet,
-  but the hang is gone.
-- Confirmed `mcountinhibit` is *not* needed for anything: not just for
-  this test suite, but for this project's actual goals generally (it's
-  genuinely optional per spec — "not implemented" is a first-class
-  supported outcome, not a workaround — and `instret_overflow.S`'s own
-  `mcountinhibit` write is already wrapped in the standard safe-probe
-  pattern specifically anticipating it might not exist). Leave it
-  unimplemented; a half-implementation (readable but not writable)
-  wouldn't help anyway, since the one place it's used is a write.
-
-### Small, well-understood, concrete fixes remaining
-
-- `test_rv32ui_p_instret_overflow_passes` (now `Fail(2)`, not a hang):
-  two more things needed, both scoped out this session, neither
-  implemented yet:
-  - (a) minstret auto-increment suppression — `step()`'s
-    `update_cycle(Instret)` runs unconditionally after every retired
-    instruction, including a CSR write that just set `minstret`
-    itself, so `csrwi minstret,0; csrr a0,minstret` reads back 1
-    instead of the expected 0. Fix: give `CSRState` a
-    `suppress_next_instret_increment` flag, set it inside `guest_write`
-    whenever the target address is MINSTRET/INSTRET, and have `step()`
-    check-and-clear it (a `take()`-style method) instead of
-    incrementing unconditionally.
-  - (b) minstreth: the test's `TEST_CASE(3)`/`(4)` also check the upper
-    32 bits of a 64-bit retired-instruction count — not implemented at
-    all, since `minstret` is currently just a standalone `u32` with no
-    linked high half. Same shape of problem this codebase already
-    solved once for `mtime`/`mtimecmp` (a 64-bit value split across two
-    32-bit CSRs on RV32) — reuse that pattern rather than inventing a
-    new one.
-
-### Needs its own trace/investigation, unknown scope
-
-- `test_rv32ui_p_dirty_si_passes`: times out. Exercises the F/D
-  `mstatus.FS` ("dirty") field, entirely unimplemented — may be the
-  same class of "we silently accept a bit we should reject" bug MTVEC
-  had, or may be something else. Don't assume; trace it first.
-- `test_rv32ui_p_csr_passes`, `test_rv32ui_p_ma_fetch_passes` / `_si`,
-  `test_rv32ui_p_breakpoint_passes`, `test_rv32ui_p_zicntr_passes`:
-  clean `Fail(N)`s, not yet traced to a specific cause. Given
-  misa/mvendorid/marchid/mimpid turned out to be exactly this shape of
-  problem for `mcsr`, check for more unimplemented-but-harmlessly-readable
-  CSRs first before assuming something more exotic.
-
-### Confirmed, larger, deliberately out of scope for now
-
-- `test_rv32ui_p_illegal_passes`: traced this session (see the
-  `illegal` investigation) down to real subtests 5/6/7 — `sfence.vma`
-  and `satp`, i.e. Sv32 paging support. Neither is implemented, both
-  correctly trap as illegal instructions, but the test isn't built to
-  recover from that the way the earlier subtest (`bad2`) is. This is
-  the same Sv32 work already listed under "OS (Linux)" below — don't
-  treat it as a new task, just know that it's *also* what's blocking
-  this conformance test, not only the "boot real Linux" goal.
-- `test_rv32ui_p_pmpaddr_passes`: needs PMP (physical memory
-  protection), not implemented and not currently planned anywhere in
-  this doc. Decide explicitly whether PMP is in scope before spending
-  time on it — it's not a quick CSR add like `misa`.
-
-## [ ] 13. Adopt an external RISC-V test suite
-
-Instead of only hand-written Rust unit tests, for much broader
-instruction coverage. Two candidates, ideally both eventually, starting
-with the first:
-
-- **riscv-tests** (github.com/riscv-software-src/riscv-tests) — the
-  classic per-instruction suite, one small assembly program per
-  instruction (rv32ui-* = RV32 user integer). Good near-term fit: the
-  base rv32ui subset explicitly excludes SYSTEM-opcode instructions
-  (syscall, break, rdcycle, rdtime, rdinstret), so it only needs the
-  arithmetic/logic/branch/load/store instructions already implemented,
-  not CSR/trap correctness.
-- **riscv-arch-test** (github.com/riscv/riscv-arch-test) — the
-  official, more formal RISC-V International conformance suite, run
-  through a Python framework (RISCOF) that compares output against a
-  reference model's "signature." More rigorous, more setup, worth
-  adopting after riscv-tests proves the basics out.
-
-Neither is a drop-in, though — both ship as RISC-V assembly compiled to
-ELF binaries. Real prerequisites before either can run here:
-
-- a RISC-V cross-compiler toolchain (or prebuilt test binaries), to
-  produce the ELFs in the first place
-- an actual ELF loader in this codebase — everything so far uses
-  `store_in_mem` to poke raw instruction bytes in by hand; nothing
-  parses `.text`/`.data` segments or sets the initial pc from a real
-  binary yet
-- handling the pass/fail signaling convention the tests use
-  (riscv-tests traditionally writes a result code to a fixed "tohost"
-  memory address) — same category of thing as the `mtime`/`mtimecmp`
-  memory-mapped work, a fixed address with special read/write behavior,
-  just for reporting a test result instead of timing
-
-See `docs/plans/test_suite.md` for details on the toolchain, the ELF
-loader, and the signaling convention. rv32ui/rv32um/rv32ua coverage
-(60/60) is done via `tests/harness.rs`; rv32mi-p-*/rv32si-p-* fixtures
-are also in and all pass now (see item #12, done). Still outstanding
-for this item: riscv-arch-test (the RISCOF-based official conformance
-suite) hasn't been adopted at all yet — see `docs/plans/arch_test.md`
-for what that actually needs (RISCOF + a DUT plugin, the sail-riscv
-reference model, and a signature-based pass/fail convention, all
-genuinely new — not a drop-in extension of the riscv-tests harness).
-
-## [ ] 14. Refactor CSRState
-
-Attempt after item #8 is done. Motivation: building `mip` surfaced how
-much side-effect/special-case behavior `CSRState::write` has
-accumulated (address-level read-only vs. field-level read-only within
-an otherwise-writable register, internal bypass paths for
-cycle/instret/mip that never go through `write()` at all, per-CSR
-exceptions like MIP's no-op case). Worth revisiting the whole
-read/write/field_for design once interrupts exposes the full shape of
-what it actually needs to handle, rather than guessing now.
 
 ## Beyond CPU emulation: peripherals / BIOS / OS
 
@@ -201,3 +36,14 @@ architecture, just a list for later.)
 - full U/S/M three-mode operation
 - timer-driven preemption (`mtime`/`mtimecmp`)
 - console + disk drivers matching whatever device model above
+
+## [ ] 14. Refactor CSRState (Postponed)
+
+Attempt after item #8 is done. Motivation: building `mip` surfaced how
+much side-effect/special-case behavior `CSRState::write` has
+accumulated (address-level read-only vs. field-level read-only within
+an otherwise-writable register, internal bypass paths for
+cycle/instret/mip that never go through `write()` at all, per-CSR
+exceptions like MIP's no-op case). Worth revisiting the whole
+read/write/field_for design once interrupts exposes the full shape of
+what it actually needs to handle, rather than guessing now.

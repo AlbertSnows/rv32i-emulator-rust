@@ -11,10 +11,21 @@
 //
 // RVMODEL_DATA_SECTION and RVMODEL_HALT_PASS/RVMODEL_HALT_FAIL content
 // copied from config/sail/sail-RVA23S64/rvmodel_macros.h, minus
-// sail-specific pieces (CLINT_BASE_ADDRESS, STANDARD_SM_SUPPORTED) this
-// emulator doesn't need -- both DUTs use the same tohost/HTIF
-// termination convention this project's riscv-tests harness already
-// implements.
+// CLINT_BASE_ADDRESS (sail-specific, this emulator doesn't need it) --
+// both DUTs use the same tohost/HTIF termination convention this
+// project's riscv-tests harness already implements.
+//
+// STANDARD_SM_SUPPORTED was *also* excluded on that same "sail-specific"
+// assumption, which was wrong: it's not sail-specific at all -- it's a
+// signal telling the shared framework code "this DUT correctly
+// implements the standard machine-mode privileged architecture," and
+// RVTEST_BOOT_TO_MMODE (tests/env/rvtest_setup.h) gates its entire
+// trap-CSR setup block (including writing mtvec) behind
+// `#ifdef STANDARD_SM_SUPPORTED`. Leaving it undefined meant mtvec was
+// never initialized, causing sail_riscv_sim itself to hit an infinite
+// fetch-access-fault loop at address 0 the first time boot code
+// attempted a trap (an M-mode-to-self ecall, part of the framework's
+// "T-SBI" mechanism) -- confirmed via --trace.
 //
 // Everything below TERMINATION is a required no-op: this emulator has
 // no console and no interrupt injection yet, so IO_WRITE_STR and every
@@ -26,6 +37,8 @@
 
 #ifndef _RVMODEL_MACROS_H
 #define _RVMODEL_MACROS_H
+
+#define STANDARD_SM_SUPPORTED
 
 #define RVMODEL_DATA_SECTION \
         .pushsection .tohost,"aw",@progbits;                \
@@ -50,7 +63,18 @@
     sw x0, 4(t0)          ;\
     j write_tohost_fail   ;\
 
-#define RVMODEL_IO_WRITE_STR(_R1, _R2, _R3, _STR_PTR)
+#define RVMODEL_IO_WRITE_STR(_R1, _R2, _R3, _STR_PTR)               \
+1:                                                                 ;\
+  lbu _R1, 0(_STR_PTR)        /* load next byte */                ;\
+  beqz _R1, 3f                /* exit loop if null terminator */  ;\
+2:                                                                 ;\
+  la _R2, tohost                                                  ;\
+  li _R3, 0x01010000           /* device=1 (terminal), cmd=1 (output) -- write this marker BEFORE the character byte, so a host polling after every instruction never observes a nonzero low word paired with a stale (often zero) high word */ ;\
+  sw _R3, 4(_R2)                                                  ;\
+  sw _R1, 0(_R2)               /* write the character byte */     ;\
+  addi _STR_PTR, _STR_PTR, 1                                      ;\
+  j 1b                                                             ;\
+3:
 
 #define RVMODEL_INTERRUPT_LATENCY 1
 #define RVMODEL_TIMER_INT_SOON_DELAY 100

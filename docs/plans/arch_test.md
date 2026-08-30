@@ -118,12 +118,3 @@ under the RISCOF plan. The `begin_signature`/`end_signature` dump logic
 already written isn't what ACT4 needs; the self-checking ELF already
 knows the right answer.
 
-## Outline of steps, in dependency order
-
-6. [ ] Rework `arch_test_runner.rs` from a signature-dumper into a
-   `tohost`-polling pass/fail runner (mirroring `run_tests`), run it
-   against one generated ELF, confirm Pass.
-7. [ ] Delete the now-dead RISCOF scaffolding (`config.ini`, `spike/`,
-   `sail_cSim/` at the project root).
-8. [ ] Scale up to the full extension set this emulator implements
-   (I, M, A, Zicsr, privileged M/S).
