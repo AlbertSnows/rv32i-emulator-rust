@@ -6,7 +6,7 @@ edition = "2024"
 [dependencies]
 
 [lib]
-path = "src/cpu/lib.rs"
+path = "src/lib.rs"
 
 [[bin]]
 name = "rv32i-emulator"

@@ -1,5 +1,5 @@
-use crate::definitions::cpu::memory::MemoryState;
-use crate::utility::types::ByteType;
+use crate::cpu::definitions::cpu::memory::MemoryState;
+use crate::cpu::utility::types::ByteType;
 
 // words are bit terminology; a word is a 32bit number
 pub const WORD: usize = 4;
@@ -99,8 +99,8 @@ pub const fn mask_and_shift(maskee: u32, masker: u32) -> u32 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::definitions::masks;
-    use crate::programs::instructions::ADD_X3_X1_X2;
+    use crate::cpu::definitions::masks;
+    use crate::cpu::programs::instructions::ADD_X3_X1_X2;
 
     #[test]
     fn test_mask() {
@@ -123,14 +123,14 @@ mod tests {
 
     #[test]
     fn test_store_in_mem() {
-        let mut mem = crate::definitions::cpu::memory::build_memory_state();
+        let mut mem = crate::cpu::definitions::cpu::memory::build_memory_state();
         store_in_mem(&[0xB3, 0x81, 0x20, 0x00], &mut mem, 0);
         assert_eq!(mem.storage[0..4], [0xB3, 0x81, 0x20, 0x00]);
     }
 
     #[test]
     fn test_store_in_mem_at_offset() {
-        let mut mem = crate::definitions::cpu::memory::build_memory_state();
+        let mut mem = crate::cpu::definitions::cpu::memory::build_memory_state();
         store_in_mem(&[0xAA, 0xBB], &mut mem, 10);
         assert_eq!(mem.storage[10..12], [0xAA, 0xBB]);
         // untouched neighbors stay zero

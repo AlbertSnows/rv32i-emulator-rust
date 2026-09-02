@@ -9,15 +9,15 @@
 // e.g. add, sub, and, or, xor, sll, srl, sra, slt, sltu
 // rs is an index
 
-use crate::definitions::cpu::cpu_definition::{build_register_file, RegisterFile};
-use crate::definitions::{op_codes, masks};
-use crate::fetcher::InstructionWord;
-use crate::instructions::Format;
-use crate::utility::bit_operations::mask_and_shift;
-use crate::definitions::codes::ExecutionSignal;
-use crate::definitions::trap_cause::TrapCause;
-use crate::utility::bit_operations::{extract_sub_bytes};
-use crate::utility::types::{ByteType};
+use crate::cpu::definitions::cpu::cpu_definition::{build_register_file, RegisterFile};
+use crate::cpu::definitions::{op_codes, masks};
+use crate::cpu::fetcher::InstructionWord;
+use crate::cpu::instructions::Format;
+use crate::cpu::utility::bit_operations::mask_and_shift;
+use crate::cpu::definitions::codes::ExecutionSignal;
+use crate::cpu::definitions::trap_cause::TrapCause;
+use crate::cpu::utility::bit_operations::{extract_sub_bytes};
+use crate::cpu::utility::types::{ByteType};
 
 #[derive(Debug, PartialEq)]
 pub enum AluOp {
@@ -322,7 +322,7 @@ mod tests {
 
     #[test]
     fn test_parse_r_inst_add() {
-        use crate::programs::instructions::ADD_X3_X1_X2;
+        use crate::cpu::programs::instructions::ADD_X3_X1_X2;
 
         // add x3, x1, x2
         let raw_word = InstructionWord(ADD_X3_X1_X2);

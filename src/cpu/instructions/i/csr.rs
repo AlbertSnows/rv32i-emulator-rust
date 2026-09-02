@@ -6,14 +6,14 @@
 // rd <- CSR[csr] (old value, always read first); CSR[csr] <- new value
 // rs1/uimm is a register index for csrrw/csrrs/csrrc, but a 5-bit
 
-use crate::definitions::cpu::cpu_definition::{RegisterFile, CPUState, CPUMode};
-use crate::definitions::cpu::csr::CSRState;
-use crate::fetcher::InstructionWord;
-use crate::instructions::Format;
-use crate::definitions::codes::ExecutionSignal;
-use crate::utility::bit_operations::mask_and_shift;
-use crate::definitions::masks;
-use crate::definitions::trap_cause::TrapCause;
+use crate::cpu::definitions::cpu::cpu_definition::{RegisterFile, CPUState, CPUMode};
+use crate::cpu::definitions::cpu::csr::CSRState;
+use crate::cpu::fetcher::InstructionWord;
+use crate::cpu::instructions::Format;
+use crate::cpu::definitions::codes::ExecutionSignal;
+use crate::cpu::utility::bit_operations::mask_and_shift;
+use crate::cpu::definitions::masks;
+use crate::cpu::definitions::trap_cause::TrapCause;
 
 #[derive(Debug, PartialEq)]
 pub enum CsrOp {
@@ -137,8 +137,8 @@ pub fn inst_i_csrrci(rd: usize, uimm: u32, csr_address: usize, register: &mut Re
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::definitions::cpu::cpu_definition::build_register_file;
-    use crate::definitions::cpu::csr::build_csr_state;
+    use crate::cpu::definitions::cpu::cpu_definition::build_register_file;
+    use crate::cpu::definitions::cpu::csr::build_csr_state;
 
     #[test]
     fn test_parse_csr_inst_all_ops() {

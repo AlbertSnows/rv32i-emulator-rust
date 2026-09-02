@@ -1,10 +1,10 @@
-use crate::definitions::trap_cause::TrapCause;
-use crate::definitions::cpu::cpu_definition::CPUMode;
-use crate::definitions::addresses;
-use crate::definitions::codes::MISA_STATE;
-use crate::utility::bit_operations::{mask_and_shift, set_bit_range};
-use crate::definitions::masks;
-use crate::definitions::masks::MSTATUS_TVM;
+use crate::cpu::definitions::trap_cause::TrapCause;
+use crate::cpu::definitions::cpu::cpu_definition::CPUMode;
+use crate::cpu::definitions::addresses;
+use crate::cpu::definitions::codes::MISA_STATE;
+use crate::cpu::utility::bit_operations::{mask_and_shift, set_bit_range};
+use crate::cpu::definitions::masks;
+use crate::cpu::definitions::masks::{MEIP, MSTATUS_TVM, MTI, SEIP};
 
 const ACCESS_TYPE_LOCATION: u32 = 10;
 const MINIMUM_PRIVILEGE_LOCATION: u32 = 8;
@@ -111,6 +111,8 @@ impl CSRState {
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub enum MIPBits {
     MTI,
+    MEI,
+    SEI
 }
 
 impl CSRState {
@@ -310,8 +312,14 @@ impl CSRState {
         match location_id {
             MIPBits::MTI => {
                 // (mtime >= mtimecmp) as u32
-                self.mip = set_bit_range(self.mip, location_value, 1, masks::MTI.trailing_zeros() as usize);
-            }
+                self.mip = set_bit_range(self.mip, location_value, 1, MTI.trailing_zeros() as usize);
+            },
+            MIPBits::MEI => {
+                self.mip = set_bit_range(self.mip, location_value, 1, MEIP.trailing_zeros() as usize);
+            },
+            MIPBits::SEI => {
+                self.mip = set_bit_range(self.mip, location_value, 1, SEIP.trailing_zeros() as usize);
+            },
         }
     }
 }

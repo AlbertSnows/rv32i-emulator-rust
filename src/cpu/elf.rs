@@ -1,7 +1,7 @@
-use crate::definitions::cpu::cpu_definition::{CPUState};
-use crate::utility::bit_operations::{read_u32, read_u16};
-use crate::definitions::trap_cause::{TrapCause};
-use crate::utility::bit_operations::{resolve_string_from_bytes};
+use crate::cpu::definitions::cpu::cpu_definition::{CPUState};
+use crate::cpu::utility::bit_operations::{read_u32, read_u16};
+use crate::cpu::definitions::trap_cause::{TrapCause};
+use crate::cpu::utility::bit_operations::{resolve_string_from_bytes};
 // ELF = Executable and Linkable Format
 // standard format for compiled unix programs
 // gcc outputs elf

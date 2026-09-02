@@ -26,6 +26,79 @@ never actually interrupt the CPU.
 **Spec:** [RISC-V PLIC Specification v1.0.0](https://github.com/riscv/riscv-plic-spec/releases/download/1.0.0/riscv-plic-1.0.0.pdf)
 (ratified 2023-03, CC-BY-4.0, 16 pages — short and precise).
 
+### How it actually works
+
+**The problem.** A hart has exactly one external-interrupt wire per
+privilege mode it supports — `mip.MEIP` for M-mode, `mip.SEIP` for
+S-mode. That's it. But a real machine might have a UART, a disk, a
+network card, several timers — dozens of devices that all need to
+interrupt the CPU. Something has to sit between "many devices, each
+raising its own signal" and "one wire per privilege mode into the
+hart." That's the PLIC: a hardware multiplexer with built-in
+prioritization.
+
+**Sources, gateways, and the pending bit.** Each device is assigned a
+small integer "interrupt source" ID (1-1023; 0 means "no interrupt").
+Between each device and the PLIC's core logic sits a "gateway" — its
+job is traffic control: at most *one* pending request per source can
+be latched in the PLIC core at a time. If a device's interrupt line is
+level-triggered (a UART holding "I have data" high, for instance) and
+it fires again before the first request was serviced, the gateway
+won't forward a second one — it waits for a completion message first.
+This is what stops a busy device from flooding the PLIC with duplicate
+requests for something already in flight.
+
+**Priority and targets.** Each source has a priority register (`0` =
+never interrupt, higher = more urgent). Each "target" — really a
+(hart, privilege mode) pair, called a "context" in the spec — has a
+threshold register: any pending interrupt at or below that threshold
+is masked for that context. When a source's priority beats a context's
+threshold *and* that context has the source enabled, the PLIC raises
+that context's EIP line — wired directly into that hart's `meip` or
+`seip` bit. This is the one place PLIC touches this project's existing
+CSR code: it's not writing `mip` through a CSR instruction, it's a
+permanent, always-on wire — the PLIC's output for context N *is* the
+input to that context's `meip`/`seip` bit, updated continuously as
+PLIC state changes.
+
+**The claim/complete handshake.** When the hart takes the interrupt and
+its handler runs, it doesn't yet know *which* source fired — only that
+"some enabled, high-enough-priority source is pending." So it reads a
+per-context "claim" register. That single read does two things
+atomically: it returns the ID of the highest-priority pending source
+for this context, *and* it clears that source's pending bit in the
+PLIC core. Note what it does *not* do: it doesn't tell the gateway "you
+can send this source another request." That's a separate step — after
+the handler actually finishes servicing the device (e.g. reads the
+UART's data, clears its status), it writes that same source ID back to
+the *same register address* (claim and complete share one address,
+distinguished only by read vs. write). That write is the "complete"
+message, telling the gateway "this source is free to raise a new
+request." Two separate signals, because "PLIC has stopped telling me
+about this pending request" and "the device has actually been dealt
+with" are genuinely different moments — a level-triggered device might
+still be asserting its line right up until the handler clears it, and
+the gateway needs to know when it's safe to treat that as a *new*
+event rather than the same one still outstanding.
+
+**The memory map, now that the concepts make sense:** it's just those
+pieces of state laid out as arrays — one priority word per source, one
+pending bit per source packed 32-to-a-word, one full enable-bitmap
+*per context* (every context gets its own bitmap of which sources it
+listens to, which is why this block is enormous in the general spec —
+sources × contexts), and one threshold register plus one claim/complete
+register per context, each context getting its own 4KB-aligned slot.
+
+**Why the general spec looks huge but this project's won't be.** The
+spec supports up to 1023 sources and 15872 contexts because it has to
+cover everything from a tiny microcontroller to a many-core server
+chip. This project's actual footprint: maybe 2-4 sources (UART, later
+virtio devices) and exactly 2 contexts (hart 0's M-mode and hart 0's
+S-mode, single hart). Nearly the entire address space the spec
+describes is legally allowed to just read as zero and ignore writes —
+real backing storage is only needed for the handful of (source,
+context) combinations actually declared.
+
 ### Section outline
 
 - **§1 Introduction** — the model: gateways convert raw device signals
@@ -67,17 +140,12 @@ never actually interrupt the CPU.
 - **§9 Interrupt Completion** — writing the claimed ID back to the same
   register tells the gateway to accept a new request from that source.
 
-### What's needed (minimal, single hart, few sources)
+### What's needed
 
-A source count in the single digits (UART = 1, plus a couple of
-virtio-mmio lines if that comes later) means most of the 1023-source /
-15872-context address space is unused/reserved space you don't need to
-back with real storage — implement it as "reads as zero, ignore
-out-of-range writes" and only give real backing to the sources and
-contexts you declare. Two contexts (M and S) is enough for one hart.
-Wire the PLIC's per-context EIP output into the existing
-`mip.MEIP`/`SEIP` CSR bits so `step()`'s trap-check logic (whatever
-already polls `mip`) picks it up unchanged.
+Real backing storage only for the declared sources/contexts (see
+above), plus wiring the PLIC's per-context EIP output into the
+existing `mip.MEIP`/`SEIP` CSR bits so `step()`'s trap-check logic
+(whatever already polls `mip`) picks it up unchanged.
 
 ## SBI — Supervisor Binary Interface
 

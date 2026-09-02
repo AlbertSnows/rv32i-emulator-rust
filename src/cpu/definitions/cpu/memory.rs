@@ -1,5 +1,5 @@
-use crate::definitions::trap_cause::TrapCause;
-use crate::utility::bit_operations::mask_and_shift;
+use crate::cpu::definitions::trap_cause::TrapCause;
+use crate::cpu::utility::bit_operations::mask_and_shift;
 
 #[derive(PartialEq, Copy, Clone)]
 pub enum MemoryAccessType {

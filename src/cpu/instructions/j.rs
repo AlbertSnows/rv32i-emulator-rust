@@ -9,13 +9,13 @@
 // (PC-relative, always even, bit 0 implied zero) instead of raw upper bits.
 // immediate bits arrive scrambled: [20][10:1][11][19:12].
 // e.g. jal
-use crate::instructions::Format;
-use crate::fetcher::InstructionWord;
-use crate::definitions::cpu::cpu_definition::{RegisterFile, PCState};
-use crate::definitions::codes::ExecutionSignal;
-use crate::utility::bit_operations::{mask_and_shift, merge_bits, shake_to_signed};
-use crate::definitions::masks;
-use crate::definitions::trap_cause::TrapCause;
+use crate::cpu::instructions::Format;
+use crate::cpu::fetcher::InstructionWord;
+use crate::cpu::definitions::cpu::cpu_definition::{RegisterFile, PCState};
+use crate::cpu::definitions::codes::ExecutionSignal;
+use crate::cpu::utility::bit_operations::{mask_and_shift, merge_bits, shake_to_signed};
+use crate::cpu::definitions::masks;
+use crate::cpu::definitions::trap_cause::TrapCause;
 
 #[derive(Debug, PartialEq)]
 pub enum JOp {
@@ -61,8 +61,8 @@ pub fn execute_j_type(op: &JOp, rd: usize, imm: i32, register: &mut RegisterFile
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::definitions::cpu::cpu_definition::build_register_file;
-    use crate::definitions::cpu::cpu_definition::build_pc_state;
+    use crate::cpu::definitions::cpu::cpu_definition::build_register_file;
+    use crate::cpu::definitions::cpu::cpu_definition::build_pc_state;
 
     #[test]
     fn test_parse_j_inst() {

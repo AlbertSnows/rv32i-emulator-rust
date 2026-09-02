@@ -16,9 +16,9 @@ pub mod system;
 pub mod jalr;
 pub mod csr;
 
-use crate::fetcher::InstructionWord;
-use crate::instructions::Format;
-use crate::utility::bit_operations::mask_and_shift;
-use crate::definitions::masks;
+use crate::cpu::fetcher::InstructionWord;
+use crate::cpu::instructions::Format;
+use crate::cpu::utility::bit_operations::mask_and_shift;
+use crate::cpu::definitions::masks;
 use alu_imm_or_shift::IShOp;
 

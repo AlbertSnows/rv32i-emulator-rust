@@ -9,13 +9,13 @@
 // always even, so bit 0 is implied zero and isn't stored -- one extra bit of
 // range for free. immediate bits arrive scrambled: [12][10:5] ... [4:1][11].
 // e.g. beq, bne, blt, bge, bltu, bgeu
-use crate::instructions::Format;
-use crate::fetcher::InstructionWord;
-use crate::definitions::cpu::cpu_definition::RegisterFile;
-use crate::definitions::codes::ExecutionSignal;
-use crate::utility::bit_operations::{mask_and_shift, merge_bits, shake_to_signed};
-use crate::definitions::masks;
-use crate::definitions::trap_cause::TrapCause;
+use crate::cpu::instructions::Format;
+use crate::cpu::fetcher::InstructionWord;
+use crate::cpu::definitions::cpu::cpu_definition::RegisterFile;
+use crate::cpu::definitions::codes::ExecutionSignal;
+use crate::cpu::utility::bit_operations::{mask_and_shift, merge_bits, shake_to_signed};
+use crate::cpu::definitions::masks;
+use crate::cpu::definitions::trap_cause::TrapCause;
 
 #[derive(Debug, PartialEq)]
 pub enum BOp {

@@ -135,3 +135,6 @@ pub const MSTATUS_TVM: u32 = 0b1_0000_0000_0000_0000_0000; // bit 20
 // sepc/sstatus.SPP say to return to. Also M-mode only -- WPRI/reserved
 // through sstatus, same reasoning as TVM.
 pub const MSTATUS_TSR: u32 = 0b1_00_0000_0000_0000_0000_0000; // bit 22
+
+pub const MEIP: u32 = 0b1000_0000_0000;
+pub const MEIE: u32 = MEIP;

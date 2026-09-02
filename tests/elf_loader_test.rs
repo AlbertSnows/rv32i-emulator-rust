@@ -1,6 +1,6 @@
-use rv32i_emulator::definitions::cpu::cpu_definition::build_cpu_state;
-use rv32i_emulator::definitions::cpu::bus::BASE_ADDRESS;
-use rv32i_emulator::elf::{find_symbol, load_elf};
+use rv32i_emulator::cpu::definitions::cpu::cpu_definition::build_cpu_state;
+use rv32i_emulator::cpu::definitions::cpu::bus::BASE_ADDRESS;
+use rv32i_emulator::cpu::elf::{find_symbol, load_elf};
 
 // A ELF produced by riscv-none-elf-gcc from riscv-tests' rv32ui/add.S.
 // Its own load address (e_entry = 0x80000000) is far beyond 

@@ -18,9 +18,9 @@ use i::load::LoadOp;
 use i::alu_imm_or_shift::{AluImmOp, IShOp};
 use i::system::SystemOp;
 use i::csr::CsrOp;
-use crate::definitions::cpu::cpu_definition::{CPUState, PCState, CPUMode};
-use crate::definitions::codes::ExecutionSignal;
-use crate::definitions::trap_cause::TrapCause;
+use crate::cpu::definitions::cpu::cpu_definition::{CPUState, PCState, CPUMode};
+use crate::cpu::definitions::codes::ExecutionSignal;
+use crate::cpu::definitions::trap_cause::TrapCause;
 
 #[derive(Debug, PartialEq)]
 pub enum Format {

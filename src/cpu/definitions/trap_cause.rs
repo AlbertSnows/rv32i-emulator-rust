@@ -1,7 +1,7 @@
-use crate::definitions::addresses::{MCAUSE, MEPC, MTVAL, MTVEC, SCAUSE, SEPC, STVAL, STVEC};
-use crate::definitions::cpu::cpu_definition::CPUMode;
-use crate::definitions::{addresses, masks};
-use crate::definitions::masks::{GLOBAL_MIE, GLOBAL_SIE, MCAUSE_INTERRUPT, MPIE, MPP, SPIE, SPP};
+use crate::cpu::definitions::addresses::{MCAUSE, MEPC, MTVAL, MTVEC, SCAUSE, SEPC, STVAL, STVEC};
+use crate::cpu::definitions::cpu::cpu_definition::CPUMode;
+use crate::cpu::definitions::{addresses, masks};
+use crate::cpu::definitions::masks::{GLOBAL_MIE, GLOBAL_SIE, MCAUSE_INTERRUPT, MPIE, MPP, SPIE, SPP};
 
 // Traps are about transferring control
 // To transfer control, you will want to overwrite the pc with an address (source?)
@@ -38,7 +38,7 @@ pub struct TrapDestination {
     pub mode: CPUMode
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
 pub enum TrapCause {
     InstructionAddressMisaligned  { address: usize }, 
     InstructionAccessFault  { address: usize }, 
@@ -55,9 +55,23 @@ pub enum TrapCause {
     InstructionPageFault { address: usize },
     LoadPageFault { address: usize },
     StorePageFault { address: usize },
+    MachineExternalInterrupt,
+    SupervisorExternalInterrupt
+
 }
 
 impl TrapCause {
+
+    pub fn target_mode_for(cause: TrapCause) -> CPUMode {
+        // the target mode is ...
+        match cause {
+            TrapCause::MachineTimerInterrupt => CPUMode::M,
+            TrapCause::MachineExternalInterrupt => CPUMode::M,
+            TrapCause::SupervisorExternalInterrupt => CPUMode::S,
+            _ => panic!("not an interrupt cause")
+        }
+    }
+
     pub fn mcause_code(&self) -> u32 {
         match self {
             TrapCause::InstructionAddressMisaligned { .. } => 0,
@@ -75,6 +89,8 @@ impl TrapCause {
             TrapCause::InstructionPageFault { .. } => 12,
             TrapCause::LoadPageFault { .. } => 13,
             TrapCause::StorePageFault { .. } => 15,
+            TrapCause::MachineExternalInterrupt => MCAUSE_INTERRUPT | 11,
+            TrapCause::SupervisorExternalInterrupt => MCAUSE_INTERRUPT | 9,
         }
     }
 }

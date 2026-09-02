@@ -1,8 +1,8 @@
 use std::path::Path;
 use std::process::exit;
-use rv32i_emulator::core::step;
-use rv32i_emulator::definitions::cpu::cpu_definition::build_cpu_state;
-use rv32i_emulator::elf::{find_symbol, load_elf};
+use rv32i_emulator::cpu::core::step;
+use rv32i_emulator::cpu::definitions::cpu::cpu_definition::build_cpu_state;
+use rv32i_emulator::cpu::elf::{find_symbol, load_elf};
 
 pub const MAX_ITERATIONS: u32 = 1_000_000;
 

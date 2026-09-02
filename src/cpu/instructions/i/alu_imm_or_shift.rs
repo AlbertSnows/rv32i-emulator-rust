@@ -1,10 +1,10 @@
-use crate::definitions::cpu::cpu_definition::RegisterFile;
-use crate::fetcher::InstructionWord;
-use crate::instructions::Format;
-use crate::definitions::codes::ExecutionSignal;
-use crate::utility::bit_operations::{mask_and_shift, shake_to_signed};
-use crate::definitions::masks;
-use crate::definitions::trap_cause::TrapCause;
+use crate::cpu::definitions::cpu::cpu_definition::RegisterFile;
+use crate::cpu::fetcher::InstructionWord;
+use crate::cpu::instructions::Format;
+use crate::cpu::definitions::codes::ExecutionSignal;
+use crate::cpu::utility::bit_operations::{mask_and_shift, shake_to_signed};
+use crate::cpu::definitions::masks;
+use crate::cpu::definitions::trap_cause::TrapCause;
 
 #[derive(Debug, PartialEq)]
 pub enum AluImmOp {
@@ -134,7 +134,7 @@ pub fn inst_i_andi(rd: usize, rs1: usize, imm_i: i32, reg_file: &mut RegisterFil
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::definitions::cpu::cpu_definition::build_register_file;
+    use crate::cpu::definitions::cpu::cpu_definition::build_register_file;
 
     #[test]
     fn test_parse_alu_imm_or_shift_inst_routes_to_alu_imm() {

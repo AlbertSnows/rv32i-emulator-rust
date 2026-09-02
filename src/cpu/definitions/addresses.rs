@@ -1,4 +1,4 @@
-use crate::utility::types::ByteType;
+use crate::cpu::utility::types::ByteType;
 
 // Machine-level addresses. 
 // Remember: addresses are just a number
@@ -8,6 +8,7 @@ use crate::utility::types::ByteType;
 
 
 // CSR addresses
+// status keeps track of the cpu's mode configurations
 // Each is 12 bits, 3 hex digits, 4 bits apiece 
 // Bits [11:10] (R/W vs. read-only) and bits [9:8] (required privilege level) 
 // sit right next to each other, together spanning bits [11:8] 
@@ -53,6 +54,9 @@ pub const WFI_FUNCT_TWELVE:usize = 0x105;
 // |Platform Use (custom)|Rsvd |LCOFI|Rsvd|MEI|Rsvd|SEI|Rsvd|MTI|Rsvd|STI|Rsvd|MSI|Rsvd|SSI|Rsvd|
 // |31:16                |15:14|13   |12  |11 |10  |9  |8   |7  |6   |5  |4   |3  |2   |1  |0   |
 // mie is about what we're willing to have interrupt us/willing to accept
+// mei = machine external interrupt = device interrupting through plic
+// mti = machine time interrupt = timer expired
+//
 pub const MIE: usize = 0x304;
 // mip is about what's currently interrupting/what's pending
 pub const MIP: usize = 0x344;

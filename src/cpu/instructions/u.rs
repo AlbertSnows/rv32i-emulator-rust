@@ -10,14 +10,14 @@
 // that becomes the upper bits of a 32-bit value. used (with an I-type addi)
 // to build large constants two instructions at a time.
 // e.g. lui, auipc
-use crate::instructions::Format;
-use crate::fetcher::InstructionWord;
-use crate::definitions::cpu::cpu_definition::{RegisterFile, PCState};
-use crate::instructions::i::system::SystemOp;
-use crate::definitions::codes::ExecutionSignal;
-use crate::utility::bit_operations::mask_and_shift;
-use crate::definitions::{masks, op_codes};
-use crate::definitions::trap_cause::TrapCause;
+use crate::cpu::instructions::Format;
+use crate::cpu::fetcher::InstructionWord;
+use crate::cpu::definitions::cpu::cpu_definition::{RegisterFile, PCState};
+use crate::cpu::instructions::i::system::SystemOp;
+use crate::cpu::definitions::codes::ExecutionSignal;
+use crate::cpu::utility::bit_operations::mask_and_shift;
+use crate::cpu::definitions::{masks, op_codes};
+use crate::cpu::definitions::trap_cause::TrapCause;
 
 #[derive(Debug, PartialEq)]
 pub enum UOp {
@@ -62,7 +62,7 @@ pub fn inst_u_auipc(rd: usize, imm_upper: i32, pc: &PCState, register: &mut Regi
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::definitions::cpu::cpu_definition::{build_pc_state, build_register_file};
+    use crate::cpu::definitions::cpu::cpu_definition::{build_pc_state, build_register_file};
 
     #[test]
     fn test_parse_u_inst_lui() {

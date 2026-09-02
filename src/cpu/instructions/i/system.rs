@@ -1,14 +1,14 @@
-use crate::definitions::cpu::cpu_definition::{RegisterFile, CPUState, PCState, CPUMode};
-use crate::fetcher::InstructionWord;
-use crate::instructions::Format;
-use crate::utility::bit_operations::{mask_and_shift, set_bit_range };
-use crate::definitions::masks;
-use crate::instructions::i::csr;
-use crate::definitions::trap_cause::{TrapCause, TrapDestination, M_TRAP, S_TRAP};
-use crate::definitions::codes::{ ExecutionSignal };
-use crate::definitions::addresses::{MSTATUS, MEPC, SEPC, SSTATUS};
-use crate::definitions::cpu::csr::CSRState;
-use crate::definitions::masks::{MSTATUS_TVM, MSTATUS_TSR};
+use crate::cpu::definitions::cpu::cpu_definition::{RegisterFile, CPUState, PCState, CPUMode};
+use crate::cpu::fetcher::InstructionWord;
+use crate::cpu::instructions::Format;
+use crate::cpu::utility::bit_operations::{mask_and_shift, set_bit_range };
+use crate::cpu::definitions::masks;
+use crate::cpu::instructions::i::csr;
+use crate::cpu::definitions::trap_cause::{TrapCause, TrapDestination, M_TRAP, S_TRAP};
+use crate::cpu::definitions::codes::{ ExecutionSignal };
+use crate::cpu::definitions::addresses::{MSTATUS, MEPC, SEPC, SSTATUS};
+use crate::cpu::definitions::cpu::csr::CSRState;
+use crate::cpu::definitions::masks::{MSTATUS_TVM, MSTATUS_TSR};
 
 #[derive(Debug, PartialEq)]
 pub enum SystemOp {
@@ -109,7 +109,7 @@ pub fn inst_i_xret(cpu: &mut CPUState, dest: &TrapDestination) -> Result<Executi
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::definitions::cpu::cpu_definition::build_cpu_state;
+    use crate::cpu::definitions::cpu::cpu_definition::build_cpu_state;
 
     #[test]
     fn test_parse_system_inst_ecall() {

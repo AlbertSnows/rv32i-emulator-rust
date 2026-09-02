@@ -5,17 +5,17 @@
 // |   5    | 1| 1|   5    |   5    |   3    |    5    |   7    |
 
 use std::cmp::{max, min};
-use crate::definitions::cpu::cpu_definition::{build_register_file, RegisterFile, CPUMode};
-use crate::definitions::{op_codes, masks};
-use crate::fetcher::InstructionWord;
-use crate::instructions::Format;
-use crate::utility::bit_operations::mask_and_shift;
-use crate::definitions::codes::ExecutionSignal;
-use crate::definitions::trap_cause::TrapCause;
-use crate::utility::bit_operations::{extract_sub_bytes};
-use crate::utility::types::{ByteType};
-use crate::definitions::cpu::bus::BUSState;
-use crate::definitions::cpu::csr::CSRState;
+use crate::cpu::definitions::cpu::cpu_definition::{build_register_file, RegisterFile, CPUMode};
+use crate::cpu::definitions::{op_codes, masks};
+use crate::cpu::fetcher::InstructionWord;
+use crate::cpu::instructions::Format;
+use crate::cpu::utility::bit_operations::mask_and_shift;
+use crate::cpu::definitions::codes::ExecutionSignal;
+use crate::cpu::definitions::trap_cause::TrapCause;
+use crate::cpu::utility::bit_operations::{extract_sub_bytes};
+use crate::cpu::utility::types::{ByteType};
+use crate::cpu::definitions::cpu::bus::BUSState;
+use crate::cpu::definitions::cpu::csr::CSRState;
 
 #[derive(Debug, PartialEq)]
 pub enum AOp {
@@ -244,8 +244,8 @@ pub fn inst_a_amomaxu(rd: usize, rs1: usize, rs2: usize, reg_file: &mut Register
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::definitions::cpu::bus::{build_bus_state, BASE_ADDRESS};
-    use crate::definitions::cpu::csr::build_csr_state;
+    use crate::cpu::definitions::cpu::bus::{build_bus_state, BASE_ADDRESS};
+    use crate::cpu::definitions::cpu::csr::build_csr_state;
 
     #[test]
     fn test_inst_a_lr() {

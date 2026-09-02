@@ -1,6 +1,6 @@
-use rv32i_emulator::definitions::cpu::cpu_definition::{build_cpu_state};
-use rv32i_emulator::elf::{load_elf, find_symbol};
-use rv32i_emulator::core::step;
+use rv32i_emulator::cpu::definitions::cpu::cpu_definition::{build_cpu_state};
+use rv32i_emulator::cpu::elf::{load_elf, find_symbol};
+use rv32i_emulator::cpu::core::step;
 
 #[derive(Debug, PartialEq)]
 pub enum TestOutcome {

@@ -1,9 +1,9 @@
-use crate::definitions::cpu::cpu_definition::{PCState, RegisterFile};
-use crate::instructions::Format;
-use crate::instructions::b::BOp;
-use crate::definitions::trap_cause::TrapCause;
-use crate::instructions::r::AluOp;
-use crate::instructions::i::system::{SystemOp};
+use crate::cpu::definitions::cpu::cpu_definition::{PCState, RegisterFile};
+use crate::cpu::instructions::Format;
+use crate::cpu::instructions::b::BOp;
+use crate::cpu::definitions::trap_cause::TrapCause;
+use crate::cpu::instructions::r::AluOp;
+use crate::cpu::instructions::i::system::{SystemOp};
 
 pub fn advance_pc(pc: &mut PCState, instruction: &Format, reg_file: &RegisterFile) -> Result<usize, TrapCause> {
     let pc_value = pc.read() as u32;
@@ -38,10 +38,10 @@ pub fn advance_pc(pc: &mut PCState, instruction: &Format, reg_file: &RegisterFil
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::definitions::cpu::cpu_definition::build_pc_state;
-    use crate::definitions::cpu::cpu_definition::build_register_file;
-    use crate::instructions::j::JOp;
-    use crate::instructions::u::UOp;
+    use crate::cpu::definitions::cpu::cpu_definition::build_pc_state;
+    use crate::cpu::definitions::cpu::cpu_definition::build_register_file;
+    use crate::cpu::instructions::j::JOp;
+    use crate::cpu::instructions::u::UOp;
 
     // --- boundary tests ---
 

@@ -1,15 +1,19 @@
-use crate::definitions::cpu::cpu_definition::{CPUState, CPUMode};
-use crate::definitions::codes::ExecutionSignal;
-use crate::definitions::addresses;
-use crate::fetcher::fetch_word_from_memory;
-use crate::decoder::decode_word_to_instruction;
-use crate::instructions::pc::advance_pc;
-use crate::definitions::trap_cause::{TrapCause, TrapDestination};
-use crate::utility::bit_operations::{set_bit_range, mask_and_shift};
-use crate::definitions::cpu::csr::{CPUCycles, CSRState, MIPBits};
-use crate::definitions::masks::{GLOBAL_MIE, MPIE, MTIP, MTIE, MTI, MPP, SPP, GLOBAL_SIE, SPIE};
-use crate::instructions::i::system::{inst_i_xret};
-use crate::definitions::trap_cause::{M_TRAP, S_TRAP};
+use std::collections::HashMap;
+use crate::cpu::definitions::cpu::cpu_definition::{CPUState, CPUMode};
+use crate::cpu::definitions::codes::ExecutionSignal;
+use crate::cpu::definitions::addresses;
+use crate::cpu::fetcher::fetch_word_from_memory;
+use crate::cpu::decoder::decode_word_to_instruction;
+use crate::cpu::definitions::addresses::{MIE, MIP, MSTATUS, SSTATUS};
+use crate::cpu::instructions::pc::advance_pc;
+use crate::cpu::definitions::trap_cause::{TrapCause, TrapDestination};
+use crate::cpu::utility::bit_operations::{set_bit_range, mask_and_shift, mask};
+use crate::cpu::definitions::cpu::csr::{CPUCycles, CSRState, MIPBits};
+use crate::cpu::definitions::masks::{GLOBAL_MIE, MPIE, MTIP, MTIE, MTI, MPP, SPP, GLOBAL_SIE, SPIE, MEIP, SEIP, MEIE, SEIE};
+use crate::cpu::instructions::i::system::{inst_i_xret};
+use crate::cpu::definitions::trap_cause::{M_TRAP, S_TRAP};
+use crate::cpu::instructions::Format::CsrType;
+use crate::peripherals::plic::{M_CONTEXT, S_CONTEXT};
 
 fn perform_step(cpu: &mut CPUState) -> Result<ExecutionSignal, TrapCause> {
     // mut allows cpu to change in the local scope
@@ -64,7 +68,7 @@ fn set_tval(cpu: &mut CPUState, dest: &TrapDestination, trap_cause: &TrapCause) 
         TrapCause::IllegalInstruction { instruction } => instruction.unwrap_or(0),
         TrapCause::Breakpoint | TrapCause::EnvironmentCallFromMMode |
         TrapCause::EnvironmentCallFromSMode | TrapCause::EnvironmentCallFromUMode |
-        TrapCause::MachineTimerInterrupt
+        TrapCause::MachineTimerInterrupt | TrapCause::MachineExternalInterrupt | TrapCause::SupervisorExternalInterrupt
             => 0,
     };
     cpu.csr.guest_write(dest.tval, trap_val, dest.mode)
@@ -147,7 +151,10 @@ pub fn handle_trap(cpu: &mut CPUState, trap_cause: TrapCause) -> ExecutionSignal
     // typically signaled by the os. interrupt => mideleg, exceptions => medeleg
     // both are bit fields. each bit represents a different trap code
     let register_value = match trap_cause {
-        TrapCause::MachineTimerInterrupt => cpu.csr.read(addresses::MIDELEG, CPUMode::M),
+        TrapCause::MachineTimerInterrupt |
+        TrapCause::MachineExternalInterrupt |
+        TrapCause::SupervisorExternalInterrupt
+            => cpu.csr.read(addresses::MIDELEG, CPUMode::M),
         _ => cpu.csr.read(addresses::MEDELEG, CPUMode::M),
     }.expect("mideleg and medeleg are defined");
     // the mcause code is the location in its corresponding leg
@@ -155,6 +162,8 @@ pub fn handle_trap(cpu: &mut CPUState, trap_cause: TrapCause) -> ExecutionSignal
     // strip the tag bit
     let corresponding_mask = match trap_cause {
         TrapCause::MachineTimerInterrupt => MTI,
+        TrapCause::MachineExternalInterrupt => MEIP,
+        TrapCause::SupervisorExternalInterrupt => SEIP,
         _ => 1 << trap_cause.mcause_code(),
     };
     let relevant_bit_set = mask_and_shift(register_value, corresponding_mask) == 1;
@@ -178,12 +187,13 @@ pub fn step(cpu: &mut CPUState) -> Result<ExecutionSignal, TrapCause> {
     cpu.csr.update_cycle(CPUCycles::Cycle);
     cpu.bus.clint.update_time();
     cpu.csr.update_mip_pending_bit(MIPBits::MTI, (cpu.bus.clint.mtime >= cpu.bus.clint.mtimecmp) as u32);
-    let interrupt_detected = mask_and_shift(cpu.csr.read(addresses::MSTATUS, CPUMode::M).expect("MSTATUS defined"), GLOBAL_MIE) == 1 &&
-                             mask_and_shift(cpu.csr.read(addresses::MIP, CPUMode::M).expect("MIP defined"), MTIP) == 1 &&
-                             mask_and_shift(cpu.csr.read(addresses::MIE, CPUMode::M).expect("MIE defined"), MTIE) == 1;
-    if interrupt_detected && !cpu.flags.in_trap {
-        return Ok(handle_trap(cpu, TrapCause::MachineTimerInterrupt))
+    cpu.csr.update_mip_pending_bit(MIPBits::MEI, cpu.bus.plic.compute_eip(M_CONTEXT) as u32);
+    cpu.csr.update_mip_pending_bit(MIPBits::SEI, cpu.bus.plic.compute_eip(S_CONTEXT) as u32);
+
+    if let Some(cause) = select_pending_interrupt(cpu) {
+       return Ok(handle_trap(cpu, cause))
     }
+
     match perform_step(cpu) {
         Ok(signal) => {
             if (!cpu.csr.take_and_reset_instret_state()) {
@@ -196,17 +206,65 @@ pub fn step(cpu: &mut CPUState) -> Result<ExecutionSignal, TrapCause> {
 
 }
 
+fn select_pending_interrupt(cpu: &CPUState) -> Option<TrapCause> {
+    let mid_trap = cpu.flags.in_trap;
+    if mid_trap {
+        return None;
+    }
+    let mip = cpu.csr.read(MIP, CPUMode::M).expect("MIP defined");
+    let mie = cpu.csr.read(MIE, CPUMode::M).expect("MIE defined");
+    // bit field to get what's pending
+
+    // RISC-V Instruction Set Manual, Privileged Architecture, §3.1.9 "Machine Interrupt (mip and mie) Registers," page 699
+    let interrupts_by_priority = [
+        (TrapCause::MachineExternalInterrupt, MEIE, MEIP),
+        (TrapCause::MachineTimerInterrupt, MTIE, MTIP),
+        (TrapCause::SupervisorExternalInterrupt, SEIE, SEIP),
+    ];
+    interrupts_by_priority.iter().find_map(|(cause, enabled_mask, pending_mask)| {
+        check_interrupt(mip, mie, *pending_mask, *enabled_mask, cpu, *cause)
+    })
+}
+
+pub fn check_interrupt(mip: u32,
+                       mie: u32,
+                       pending_mask: u32,
+                       enabled_mask: u32,
+                       cpu: &CPUState,
+                       cause: TrapCause) -> Option<TrapCause> {
+    let is_pending = mask_and_shift(mip, pending_mask) == 1;
+    // whether or not we're willing to listen
+    let is_enabled = mask_and_shift(mie, enabled_mask) == 1;
+
+    // if current_mode < target_mode, cpu cannot block the interrupt, must handle
+    let current_level = cpu.mode.as_privilege_level();
+    let target_level = TrapCause::target_mode_for(cause).as_privilege_level();
+    let (status_field, global_field) = match cpu.mode {
+        CPUMode::M => (MSTATUS, GLOBAL_MIE),
+        CPUMode::S => (SSTATUS, GLOBAL_SIE),
+        CPUMode::U => (0, 0),
+    };
+    let must_handle_interrupt = current_level < target_level
+        || (current_level == target_level
+            && mask_and_shift(cpu.csr.read(status_field, CPUMode::M).expect("STATUS defined"), global_field) == 1);
+    if is_pending  && is_enabled && must_handle_interrupt {
+        return Some(cause);
+    }
+    None
+}
+
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::definitions::cpu::cpu_definition::build_cpu_state;
-    use crate::definitions::cpu::bus::BASE_ADDRESS;
-    use crate::utility::bit_operations::{store_in_mem, mask_and_shift};
-    use crate::programs::instructions::ADD_X3_X1_X2;
-    use crate::programs::instructions::NO_OP;
-    use crate::programs::instructions::JALR_X1_X1_0;
-    use crate::definitions::masks;
-    use crate::definitions::addresses::{CYCLE, INSTRET};
+    use crate::cpu::definitions::cpu::cpu_definition::build_cpu_state;
+    use crate::cpu::definitions::cpu::bus::BASE_ADDRESS;
+    use crate::cpu::utility::bit_operations::{store_in_mem, mask_and_shift};
+    use crate::cpu::programs::instructions::ADD_X3_X1_X2;
+    use crate::cpu::programs::instructions::NO_OP;
+    use crate::cpu::programs::instructions::JALR_X1_X1_0;
+    use crate::cpu::definitions::masks;
+    use crate::cpu::definitions::addresses::{CYCLE, INSTRET};
 
     #[test]
     fn test_step_executes_add_and_advances_pc() {

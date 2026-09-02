@@ -1,7 +1,7 @@
-use crate::instructions::Format;
-use crate::fetcher::InstructionWord;
-use crate::definitions::trap_cause::TrapCause;
-use crate::definitions::codes::ExecutionSignal;
+use crate::cpu::instructions::Format;
+use crate::cpu::fetcher::InstructionWord;
+use crate::cpu::definitions::trap_cause::TrapCause;
+use crate::cpu::definitions::codes::ExecutionSignal;
 
 // Table 72. RISC-V base opcode map, inst[1:0]=11
 // inst[6:5] = 00, 01, 10, 11

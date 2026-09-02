@@ -1,22 +1,22 @@
 // In RISC, the first two bits are reserved to discern 16bit from 32bit.
 // We use 32 bit, so the first two should always be 11
 
-use crate::definitions::{op_codes, masks};
-use crate::instructions::r::{inst_r_add, parse_r_inst};
-use crate::instructions::Format;
-use crate::instructions::i::load::parse_load_inst;
-use crate::instructions::i::alu_imm_or_shift::parse_alu_imm_or_shift_inst;
-use crate::instructions::i::system::parse_system_inst;
-use crate::instructions::i::jalr::parse_jalr_inst;
-use crate::instructions::s::parse_s_inst;
-use crate::instructions::u::parse_u_inst;
-use crate::instructions::j::parse_j_inst;
-use crate::instructions::b::parse_b_inst;
-use crate::instructions::fence::parse_fence_inst;
-use crate::utility::bit_operations::mask;
-use crate::fetcher::InstructionWord;
-use crate::definitions::trap_cause::TrapCause;
-use crate::instructions::a::parse_a_inst;
+use crate::cpu::definitions::{op_codes, masks};
+use crate::cpu::instructions::r::{inst_r_add, parse_r_inst};
+use crate::cpu::instructions::Format;
+use crate::cpu::instructions::i::load::parse_load_inst;
+use crate::cpu::instructions::i::alu_imm_or_shift::parse_alu_imm_or_shift_inst;
+use crate::cpu::instructions::i::system::parse_system_inst;
+use crate::cpu::instructions::i::jalr::parse_jalr_inst;
+use crate::cpu::instructions::s::parse_s_inst;
+use crate::cpu::instructions::u::parse_u_inst;
+use crate::cpu::instructions::j::parse_j_inst;
+use crate::cpu::instructions::b::parse_b_inst;
+use crate::cpu::instructions::fence::parse_fence_inst;
+use crate::cpu::utility::bit_operations::mask;
+use crate::cpu::fetcher::InstructionWord;
+use crate::cpu::definitions::trap_cause::TrapCause;
+use crate::cpu::instructions::a::parse_a_inst;
 
 pub fn decode_word_to_instruction(raw_word: InstructionWord) -> Result<Format, TrapCause> {
     // op code is 7 bits wide.
@@ -46,7 +46,7 @@ mod tests {
 
     #[test]
     fn test_decode_routes_r_to_parse_r_inst() {
-        use crate::programs::instructions::ADD_X3_X1_X2;
+        use crate::cpu::programs::instructions::ADD_X3_X1_X2;
 
         let raw_word = InstructionWord(ADD_X3_X1_X2);
         let result = decode_word_to_instruction(raw_word);
@@ -130,7 +130,7 @@ mod tests {
 
     #[test]
     fn test_decode_routes_lui_to_parse_u_inst() {
-        use crate::instructions::u::UOp;
+        use crate::cpu::instructions::u::UOp;
 
         // lui x1, 5 -- checking op specifically (not just the UType variant)
         // since LUI and AUIPC share Format::UType; a bare variant match
@@ -142,7 +142,7 @@ mod tests {
 
     #[test]
     fn test_decode_routes_auipc_to_parse_u_inst() {
-        use crate::instructions::u::UOp;
+        use crate::cpu::instructions::u::UOp;
 
         // auipc x1, 5 -- same reasoning as the lui test above
         let raw_word = InstructionWord(0x00005097);

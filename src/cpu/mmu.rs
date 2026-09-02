@@ -1,13 +1,13 @@
-use crate::definitions::addresses::{MSTATUS, SATP};
-use crate::definitions::cpu::bus::BUSState;
-use crate::definitions::cpu::cpu_definition::CPUMode;
-use crate::definitions::cpu::csr::CSRState;
-use crate::definitions::cpu::memory::MemoryAccessType;
-use crate::definitions::masks::{MSTATUS_SUM, PTE_A, PTE_D, PTE_PPN_ONE, PTE_PPN_ZERO,
+use crate::cpu::definitions::addresses::{MSTATUS, SATP};
+use crate::cpu::definitions::cpu::bus::BUSState;
+use crate::cpu::definitions::cpu::cpu_definition::CPUMode;
+use crate::cpu::definitions::cpu::csr::CSRState;
+use crate::cpu::definitions::cpu::memory::MemoryAccessType;
+use crate::cpu::definitions::masks::{MSTATUS_SUM, PTE_A, PTE_D, PTE_PPN_ONE, PTE_PPN_ZERO,
                                 SATP_MODE, SATP_PPN, VIRT_ADDR_OFFSET, VPN_ONE, VPN_ZERO};
-use crate::definitions::trap_cause::TrapCause;
-use crate::utility::bit_operations::{extract_sub_bytes, mask_and_shift};
-use crate::utility::types::ByteType;
+use crate::cpu::definitions::trap_cause::TrapCause;
+use crate::cpu::utility::bit_operations::{extract_sub_bytes, mask_and_shift};
+use crate::cpu::utility::types::ByteType;
 
 // A page is 4096 bytes, it's forced by virt_addr's
 // `offset` field being 12 bits wide (2^12 = 4096):
