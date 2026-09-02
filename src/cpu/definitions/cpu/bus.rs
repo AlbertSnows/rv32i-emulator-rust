@@ -8,7 +8,7 @@ use crate::cpu::mmu;
 use crate::cpu::utility::types::{ByteType, as_byte_type };
 use crate::cpu::utility::bit_operations::{as_window, extract_sub_bytes, mask_and_shift};
 use crate::peripherals::plic::{PlicState, NUM_SOURCES, NUM_CONTEXTS};
-use crate::peripherals::uart::{UartState};
+use crate::peripherals::uart::{UartState, UART_SOURCE_ID};
 
 // every riscv-tests binary links at exactly this address.
 // The low half of the 32-bit address
@@ -41,12 +41,17 @@ pub fn build_bus_state() -> BUSState {
             armed: [true; NUM_SOURCES + 1]
         },
         uart: UartState {
-            rx_buffer: None
+            rx_buffer: std::collections::VecDeque::new()
         }
     }
 }
 
 impl BUSState {
+
+    pub fn receive_uart_byte(&mut self, byte: u8) {
+        self.uart.receive_byte(byte);
+        self.plic.set_pending(UART_SOURCE_ID);
+    }
 
     // For instruction fetch only. Tagged
     // MemoryAccessType::Fetch, so the walker checks the PTE's X
@@ -128,7 +133,7 @@ impl BUSState {
         self.direct_write(phs_addr as usize, bytes)
     }
 
-    pub fn direct_read(&self, address: usize, num_bytes: usize) -> Result<u32, TrapCause> {
+    pub fn direct_read(&mut self, address: usize, num_bytes: usize) -> Result<u32, TrapCause> {
         match address {
             // X..=Y means range X to Y, inclusive Y
             MTIME..=MTIME_END => {
@@ -273,5 +278,43 @@ mod tests {
         let mut bus = build_bus_state();
         bus.clint.mtimecmp = 0xAABBCCDD11223344;
         assert_eq!(bus.direct_read(MTIMECMP, 4).unwrap(), 0x11223344);
+    }
+
+    #[test]
+    fn test_direct_read_from_uart_lsr_offset_returns_ready() {
+        let mut bus = build_bus_state();
+        // offset 5 = LSR; 0x60 = THRE|TEMT bits set, "always ready to send"
+        assert_eq!(bus.direct_read(UART + 5, 1).unwrap(), 0x60);
+    }
+
+    #[test]
+    fn test_direct_read_from_uart_other_offset_returns_zero() {
+        let mut bus = build_bus_state();
+        assert_eq!(bus.direct_read(UART + 1, 1).unwrap(), 0);
+    }
+
+    #[test]
+    fn test_direct_write_to_uart_thr_offset_succeeds() {
+        let mut bus = build_bus_state();
+        // offset 0 = THR; writing here is what triggers printing the byte
+        assert!(bus.direct_write(UART, &[b'H']).is_ok());
+    }
+
+    #[test]
+    fn test_direct_write_to_uart_other_offset_succeeds() {
+        let mut bus = build_bus_state();
+        // any offset other than 0 is currently a no-op, but must not error/panic
+        assert!(bus.direct_write(UART + 1, &[0]).is_ok());
+    }
+
+    #[test]
+    fn test_uart_address_range_is_distinct_from_ram() {
+        let mut bus = build_bus_state();
+        // a write just past UART_END should fall through to the normal
+        // BASE_ADDRESS/RAM path, not be swallowed as a UART access
+        assert_eq!(
+            bus.direct_write(UART_END + 1, &[0]).unwrap_err(),
+            TrapCause::LoadAccessFault { address: UART_END + 1 }
+        );
     }
 }
