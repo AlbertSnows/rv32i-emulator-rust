@@ -1,6 +1,6 @@
 use crate::cpu::definitions::cpu::memory::{build_memory_state, MemoryAccessType, MemoryState};
 use crate::cpu::definitions::trap_cause::{TrapCause};
-use crate::cpu::definitions::addresses::{MTIME, MTIMECMP, MTIME_END, MTIMECMP_END, MSTATUS};
+use crate::cpu::definitions::addresses::{MTIME, MTIMECMP, MTIME_END, MTIMECMP_END, MSTATUS, UART_END, UART};
 use crate::cpu::definitions::cpu::cpu_definition::{CPUMode, CPUState};
 use crate::cpu::definitions::cpu::csr::CSRState;
 use crate::cpu::definitions::masks::{MPP, MSTATUS_MPRV};
@@ -8,6 +8,7 @@ use crate::cpu::mmu;
 use crate::cpu::utility::types::{ByteType, as_byte_type };
 use crate::cpu::utility::bit_operations::{as_window, extract_sub_bytes, mask_and_shift};
 use crate::peripherals::plic::{PlicState, NUM_SOURCES, NUM_CONTEXTS};
+use crate::peripherals::uart::{UartState};
 
 // every riscv-tests binary links at exactly this address.
 // The low half of the 32-bit address
@@ -25,6 +26,7 @@ pub struct BUSState {
     pub ram: MemoryState,
     pub clint: ClintState,
     pub plic: PlicState,
+    pub uart: UartState,
 }
 
 pub fn build_bus_state() -> BUSState {
@@ -37,6 +39,9 @@ pub fn build_bus_state() -> BUSState {
             enabled: [[false; NUM_SOURCES + 1]; NUM_CONTEXTS],
             threshold: [0; NUM_CONTEXTS],
             armed: [true; NUM_SOURCES + 1]
+        },
+        uart: UartState {
+            rx_buffer: None
         }
     }
 }
@@ -134,6 +139,10 @@ impl BUSState {
                 let mtimecmp_offset = address - MTIMECMP;
                 self.clint.read_mtimecmp(mtimecmp_offset, num_bytes)
             },
+            UART..=UART_END => {
+                let offset = address - UART;
+                Ok(self.uart.read(offset as u32, num_bytes))
+            },
             _ => {
                 if address < BASE_ADDRESS as usize {
                     return Err(TrapCause::LoadAccessFault { address });
@@ -152,6 +161,10 @@ impl BUSState {
             MTIMECMP..=MTIMECMP_END => {
                 let mtimecmp_offset = address - MTIMECMP;
                 self.clint.write_mtimecmp(mtimecmp_offset, bytes)
+            },
+            UART..=UART_END => {
+                let offset = address - UART;
+                Ok(self.uart.write(offset as u32, bytes))
             },
             _ => {
                 if address < BASE_ADDRESS as usize {

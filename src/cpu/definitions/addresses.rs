@@ -121,3 +121,7 @@ pub const SATP: usize = 0x180;
 pub const MSTATUSH: usize = 0x310;
 
 pub const TIMEH: usize = 0xC81;
+// uart is the console
+pub const UART: usize = 0x10000000;
+// include up to but not including the 0x100
+pub const UART_END: usize = UART + 0x100 - 1;
