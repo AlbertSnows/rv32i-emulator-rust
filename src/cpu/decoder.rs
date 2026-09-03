@@ -3,7 +3,8 @@
 
 use crate::cpu::definitions::trap_cause::TrapCause;
 use crate::cpu::definitions::{masks, op_codes};
-use crate::cpu::fetcher::InstructionWord;
+use crate::cpu::fetcher::Instruction;
+use crate::utility::types::ByteType;
 use crate::cpu::instructions::Format;
 use crate::cpu::instructions::a::parse_a_inst;
 use crate::cpu::instructions::b::parse_b_inst;
@@ -16,11 +17,15 @@ use crate::cpu::instructions::j::parse_j_inst;
 use crate::cpu::instructions::r::parse_r_inst;
 use crate::cpu::instructions::s::parse_s_inst;
 use crate::cpu::instructions::u::parse_u_inst;
+use crate::cpu::instructions::c::parse_c_inst;
 use crate::utility::bit_operations::mask;
 
-pub fn decode_word_to_instruction(raw_word: InstructionWord) -> Result<Format, TrapCause> {
+pub fn decode_word_to_instruction(raw_word: Instruction) -> Result<Format, TrapCause> {
     // op code is 7 bits wide.
     // the mask will keep the first 7 bits, toss the rest.
+    if raw_word.1 == ByteType::HalfWord {
+        return parse_c_inst(raw_word);
+    }
     let opcode = mask(raw_word.0, masks::OP_CODE);
     let instruction_bits = raw_word.0;
     match opcode {
@@ -48,7 +53,7 @@ mod tests {
     fn test_decode_routes_r_to_parse_r_inst() {
         use crate::cpu::programs::instructions::ADD_X3_X1_X2;
 
-        let raw_word = InstructionWord(ADD_X3_X1_X2);
+        let raw_word = Instruction(ADD_X3_X1_X2, ByteType::Word);
         let result = decode_word_to_instruction(raw_word);
         assert!(matches!(result, Ok(Format::RType { .. })));
     }
@@ -58,7 +63,7 @@ mod tests {
         // 0b0000000 isn't any of the 10 real RV32I opcodes (doesn't even
         // end in 11), so this should hit the catch-all and return Err
         // rather than a decoded Instruction.
-        let raw_word = InstructionWord(0b0000000);
+        let raw_word = Instruction(0b0000000, ByteType::Word);
         let result = decode_word_to_instruction(raw_word);
         assert!(result.is_err());
     }
@@ -66,7 +71,7 @@ mod tests {
     #[test]
     fn test_decode_routes_load_to_parse_load_inst() {
         // lb x1, 4(x2)
-        let raw_word = InstructionWord(0x00410083);
+        let raw_word = Instruction(0x00410083, ByteType::Word);
         let result = decode_word_to_instruction(raw_word);
         assert!(matches!(result, Ok(Format::LoadType { .. })));
     }
@@ -74,7 +79,7 @@ mod tests {
     #[test]
     fn test_decode_routes_alu_imm_to_parse_alu_imm_or_shift_inst() {
         // addi x5, x1, 10
-        let raw_word = InstructionWord(0x00A08293);
+        let raw_word = Instruction(0x00A08293, ByteType::Word);
         let result = decode_word_to_instruction(raw_word);
         assert!(matches!(result, Ok(Format::AluImmType { .. })));
     }
@@ -82,7 +87,7 @@ mod tests {
     #[test]
     fn test_decode_routes_system_to_parse_system_inst() {
         // ecall
-        let raw_word = InstructionWord(0x00000073);
+        let raw_word = Instruction(0x00000073, ByteType::Word);
         let result = decode_word_to_instruction(raw_word);
         assert!(matches!(result, Ok(Format::SystemType { .. })));
     }
@@ -99,7 +104,7 @@ mod tests {
         // funct3     bits 14:12 = 001                     
         // rd         bits 11:7  = 00001          = 1      
         // opcode     bits 6:0   = 1110011        = 0x73   
-        let raw_word = InstructionWord(0x300110F3);
+        let raw_word = Instruction(0x300110F3, ByteType::Word);
         let result = decode_word_to_instruction(raw_word);
         assert!(matches!(result, Ok(Format::CsrType { .. })));
     }
@@ -107,7 +112,7 @@ mod tests {
     #[test]
     fn test_decode_routes_jalr_to_parse_jalr_inst() {
         // jalr x1, x2, 8
-        let raw_word = InstructionWord(0x008100E7);
+        let raw_word = Instruction(0x008100E7, ByteType::Word);
         let result = decode_word_to_instruction(raw_word);
         assert!(matches!(result, Ok(Format::JalrType { .. })));
     }
@@ -115,7 +120,7 @@ mod tests {
     #[test]
     fn test_decode_routes_s_to_parse_s_inst() {
         // sw x2, 4(x1)
-        let raw_word = InstructionWord(0x0020A223);
+        let raw_word = Instruction(0x0020A223, ByteType::Word);
         let result = decode_word_to_instruction(raw_word);
         assert!(matches!(result, Ok(Format::SType { .. })));
     }
@@ -123,7 +128,7 @@ mod tests {
     #[test]
     fn test_decode_routes_b_to_parse_b_inst() {
         // beq x1, x2, 8
-        let raw_word = InstructionWord(0x00208463);
+        let raw_word = Instruction(0x00208463, ByteType::Word);
         let result = decode_word_to_instruction(raw_word);
         assert!(matches!(result, Ok(Format::BType { .. })));
     }
@@ -135,7 +140,7 @@ mod tests {
         // lui x1, 5 -- checking op specifically (not just the UType variant)
         // since LUI and AUIPC share Format::UType; a bare variant match
         // wouldn't catch the two opcodes getting swapped in the dispatch.
-        let raw_word = InstructionWord(0x000050B7);
+        let raw_word = Instruction(0x000050B7, ByteType::Word);
         let result = decode_word_to_instruction(raw_word);
         assert!(matches!(result, Ok(Format::UType { op: UOp::Lui, .. })));
     }
@@ -145,7 +150,7 @@ mod tests {
         use crate::cpu::instructions::u::UOp;
 
         // auipc x1, 5 -- same reasoning as the lui test above
-        let raw_word = InstructionWord(0x00005097);
+        let raw_word = Instruction(0x00005097, ByteType::Word);
         let result = decode_word_to_instruction(raw_word);
         assert!(matches!(result, Ok(Format::UType { op: UOp::Auipc, .. })));
     }
@@ -153,7 +158,7 @@ mod tests {
     #[test]
     fn test_decode_routes_j_to_parse_j_inst() {
         // jal x1, 16
-        let raw_word = InstructionWord(0x010000EF);
+        let raw_word = Instruction(0x010000EF, ByteType::Word);
         let result = decode_word_to_instruction(raw_word);
         assert!(matches!(result, Ok(Format::JType { .. })));
     }

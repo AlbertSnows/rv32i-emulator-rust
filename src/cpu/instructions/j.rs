@@ -2,7 +2,8 @@ use crate::cpu::definitions::codes::ExecutionSignal;
 use crate::cpu::definitions::cpu::cpu_definition::{PCState, RegisterFile};
 use crate::cpu::definitions::masks;
 use crate::cpu::definitions::trap_cause::TrapCause;
-use crate::cpu::fetcher::InstructionWord;
+use crate::cpu::fetcher::Instruction;
+use crate::utility::types::ByteType;
 // J-type
 //
 //  31                                         12 11     7 6      0
@@ -22,7 +23,7 @@ pub enum JOp {
     Jal
 }
 
-pub fn parse_j_inst(raw_word: InstructionWord) -> Result<Format, TrapCause> {
+pub fn parse_j_inst(raw_word: Instruction) -> Result<Format, TrapCause> {
     let content = raw_word.0;
     let reg_dest = mask_and_shift(content, masks::REG_DESTINATION);
     // [|20|10:1|11|19:12]
@@ -68,7 +69,7 @@ mod tests {
     fn test_parse_j_inst() {
         // jal x1, 16
         // opcode = 1101111 (J), rd = 1, imm = 16
-        let raw_word = InstructionWord(0x010000EF);
+        let raw_word = Instruction(0x010000EF, ByteType::Word);
         let result = parse_j_inst(raw_word);
         assert_eq!(result, Ok(Format::JType { op: JOp::Jal, rd: 1, imm: 16 }));
     }

@@ -2,7 +2,8 @@ use crate::cpu::definitions::codes::ExecutionSignal;
 use crate::cpu::definitions::cpu::cpu_definition::RegisterFile;
 use crate::cpu::definitions::masks;
 use crate::cpu::definitions::trap_cause::TrapCause;
-use crate::cpu::fetcher::InstructionWord;
+use crate::cpu::fetcher::Instruction;
+use crate::utility::types::ByteType;
 use crate::cpu::instructions::Format;
 use crate::utility::bit_operations::{mask_and_shift, shake_to_signed};
 
@@ -23,7 +24,7 @@ pub enum IShOp {
     Srai
 }
 
-pub fn parse_alu_imm_or_shift_inst(raw_word: InstructionWord) -> Result<Format, TrapCause> {
+pub fn parse_alu_imm_or_shift_inst(raw_word: Instruction) -> Result<Format, TrapCause> {
     let content = raw_word.0;
     let funct_three = mask_and_shift(content, masks::FUNCT_THREE);
     let reg_dest = mask_and_shift(content, masks::REG_DESTINATION);
@@ -139,7 +140,7 @@ mod tests {
     #[test]
     fn test_parse_alu_imm_or_shift_inst_routes_to_alu_imm() {
         // addi x5, x1, 10 -- funct3 = 000, routes to parse_i_alu_imm
-        let raw_word = InstructionWord(0x00A08293);
+        let raw_word = Instruction(0x00A08293, ByteType::Word);
         let result = parse_alu_imm_or_shift_inst(raw_word);
         assert_eq!(result, Ok(Format::AluImmType { op: AluImmOp::Addi, rd: 5, rs1: 1, imm: 10 }));
     }
@@ -147,7 +148,7 @@ mod tests {
     #[test]
     fn test_parse_alu_imm_or_shift_inst_routes_to_shift() {
         // slli x1, x2, 3 -- funct3 = 001, funct7 = 0000000, routes to parse_i_shift
-        let raw_word = InstructionWord(0x00311093);
+        let raw_word = Instruction(0x00311093, ByteType::Word);
         let result = parse_alu_imm_or_shift_inst(raw_word);
         assert_eq!(result, Ok(Format::IShiftType { op: IShOp::Slli, rd: 1, rs1: 2, shamt: 3 }));
     }

@@ -7,6 +7,7 @@ pub mod u;
 pub mod pc;
 pub mod fence;
 pub mod a;
+pub(crate) mod c;
 
 use a::AOp;
 use r::AluOp;
@@ -36,7 +37,7 @@ pub enum Format {
     IShiftType { op: IShOp, rd: usize, rs1: usize, shamt: usize },
     SystemType { op: SystemOp },
     CsrType { op: CsrOp, rd: usize, rs1_or_uimm: usize, csr: usize },
-    FENCEType
+    FENCEType,
 }
 
 impl Format {

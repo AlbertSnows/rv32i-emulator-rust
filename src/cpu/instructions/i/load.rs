@@ -4,7 +4,8 @@ use crate::cpu::definitions::cpu::cpu_definition::{CPUMode, RegisterFile};
 use crate::cpu::definitions::cpu::csr::CSRState;
 use crate::cpu::definitions::masks;
 use crate::cpu::definitions::trap_cause::TrapCause;
-use crate::cpu::fetcher::InstructionWord;
+use crate::cpu::fetcher::Instruction;
+use crate::utility::types::ByteType;
 use crate::cpu::instructions::Format;
 use crate::utility::bit_operations::{mask_and_shift, shake_to_signed};
 
@@ -17,7 +18,7 @@ pub enum LoadOp {
     Lhu
 }
 
-pub fn parse_load_inst(raw_word: InstructionWord) -> Result<Format, TrapCause> {
+pub fn parse_load_inst(raw_word: Instruction) -> Result<Format, TrapCause> {
     let content = raw_word.0;
     let reg_dest = mask_and_shift(content, masks::REG_DESTINATION);
     let imm_unsigned = mask_and_shift(content, masks::I_TYPE_LOAD);
@@ -120,7 +121,7 @@ mod tests {
     #[test]
     fn test_parse_load_inst() {
         // lb x1, 4(x2) -- opcode = 0000011 (LOAD), funct3 = 000 (lb), rd = 1, rs1 = 2, imm = 4
-        let raw_word = InstructionWord(0x00410083);
+        let raw_word = Instruction(0x00410083, ByteType::Word);
         let result = parse_load_inst(raw_word);
         assert_eq!(result, Ok(Format::LoadType { op: LoadOp::Lb, rd: 1, rs1: 2, imm: 4 }));
     }

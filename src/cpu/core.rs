@@ -12,6 +12,7 @@ use crate::cpu::instructions::i::system::inst_i_xret;
 use crate::cpu::instructions::pc::advance_pc;
 use crate::peripherals::plic::{M_CONTEXT, S_CONTEXT};
 use crate::utility::bit_operations::{mask_and_shift, set_bit_range};
+use crate::utility::types::ByteType;
 
 fn perform_step(cpu: &mut CPUState) -> Result<ExecutionSignal, TrapCause> {
     // mut allows cpu to change in the local scope
@@ -23,7 +24,10 @@ fn perform_step(cpu: &mut CPUState) -> Result<ExecutionSignal, TrapCause> {
         TrapCause::IllegalInstruction { instruction: None } => TrapCause::IllegalInstruction { instruction: Some(raw_word.0) },
         other => other,
     })?;
-    advance_pc(&mut cpu.pc, &instruction, &cpu.register)?;
+    let advance_amount =
+        if raw_word.1 == ByteType::Word { ByteType::Word.as_num() }
+        else { ByteType::HalfWord.as_num() };
+    advance_pc(&mut cpu.pc, &instruction, &cpu.register, advance_amount as u32)?;
     Ok(execution_outcome)
 }
 

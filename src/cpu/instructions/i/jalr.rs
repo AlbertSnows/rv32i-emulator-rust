@@ -2,14 +2,15 @@ use crate::cpu::definitions::codes::ExecutionSignal;
 use crate::cpu::definitions::cpu::cpu_definition::{PCState, RegisterFile};
 use crate::cpu::definitions::masks;
 use crate::cpu::definitions::trap_cause::TrapCause;
-use crate::cpu::fetcher::InstructionWord;
+use crate::cpu::fetcher::Instruction;
+use crate::utility::types::ByteType;
 use crate::cpu::instructions::Format;
 use crate::utility::bit_operations::{mask_and_shift, shake_to_signed};
 
 // jalr -- the only instruction under its opcode, so no op enum needed
 // (same reasoning as JType). Not yet implemented.
 
-pub fn parse_jalr_inst(raw_word: InstructionWord) -> Result<Format, TrapCause> {
+pub fn parse_jalr_inst(raw_word: Instruction) -> Result<Format, TrapCause> {
     let content = raw_word.0;
     let reg_dest = mask_and_shift(content, masks::REG_DESTINATION);
     let imm_unsigned = mask_and_shift(content, masks::I_TYPE_JALR);
@@ -45,7 +46,7 @@ mod tests {
     #[test]
     fn test_parse_jalr_inst() {
         // jalr x1, x2, 8 -- opcode = 1100111 (JALR), rd = 1, rs1 = 2, imm = 8
-        let raw_word = InstructionWord(0x008100E7);
+        let raw_word = Instruction(0x008100E7, ByteType::Word);
         let result = parse_jalr_inst(raw_word);
         assert_eq!(result, Ok(Format::JalrType { rd: 1, rs1: 2, imm: 8 }));
     }

@@ -1,3 +1,4 @@
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum ByteType {
     Byte,
     HalfWord,

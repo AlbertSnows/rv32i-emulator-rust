@@ -13,7 +13,7 @@ use crate::cpu::definitions::codes::ExecutionSignal;
 use crate::cpu::definitions::cpu::cpu_definition::{RegisterFile, build_register_file};
 use crate::cpu::definitions::trap_cause::TrapCause;
 use crate::cpu::definitions::masks;
-use crate::cpu::fetcher::InstructionWord;
+use crate::cpu::fetcher::Instruction;
 use crate::cpu::instructions::Format;
 use crate::utility::bit_operations::mask_and_shift;
 use crate::utility::bit_operations::extract_sub_bytes;
@@ -41,7 +41,7 @@ pub enum AluOp {
     Remu
 }
 
-pub fn parse_r_inst(raw_word: InstructionWord) -> Result<Format, TrapCause> {
+pub fn parse_r_inst(raw_word: Instruction) -> Result<Format, TrapCause> {
     let content = raw_word.0;
     let reg_dest = mask_and_shift(content, masks::REG_DESTINATION);
     let funct_three = mask_and_shift(content, masks::FUNCT_THREE);
@@ -325,7 +325,7 @@ mod tests {
         use crate::cpu::programs::instructions::ADD_X3_X1_X2;
 
         // add x3, x1, x2
-        let raw_word = InstructionWord(ADD_X3_X1_X2);
+        let raw_word = Instruction(ADD_X3_X1_X2, ByteType::Word);
         let result = parse_r_inst(raw_word);
         assert_eq!(result.unwrap(), Format::RType { op: AluOp::Add, rd: 3, rs1: 1, rs2: 2 });
     }
@@ -335,7 +335,7 @@ mod tests {
         // sub x5, x1, x2 -- funct7=0b0100000, funct3=0b000, rd=5, rs1=1, rs2=2,
         // opcode=0b0110011. Same field-packing process as the add x3,x1,x2
         // walkthrough, just with sub's funct7 instead of add's.
-        let raw_word = InstructionWord(0x402082B3);
+        let raw_word = Instruction(0x402082B3, ByteType::Word);
         let result = parse_r_inst(raw_word);
         assert_eq!(result.unwrap(), Format::RType { op: AluOp::Sub, rd: 5, rs1: 1, rs2: 2 });
     }
@@ -345,7 +345,7 @@ mod tests {
         // funct7=0b1111111, funct3=0b000 -- not a real combination for any
         // R-type instruction (only 0b0000000 and 0b0100000 are valid funct7
         // values), so this should hit the catch-all err
-        let raw_word = InstructionWord(0x04_00_00_33);
+        let raw_word = Instruction(0x04_00_00_33, ByteType::Word);
         let outcome = parse_r_inst(raw_word);
         assert!(outcome.is_err());
     }

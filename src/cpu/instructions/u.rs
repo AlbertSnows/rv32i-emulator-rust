@@ -2,7 +2,8 @@ use crate::cpu::definitions::codes::ExecutionSignal;
 use crate::cpu::definitions::cpu::cpu_definition::{PCState, RegisterFile};
 use crate::cpu::definitions::trap_cause::TrapCause;
 use crate::cpu::definitions::{masks, op_codes};
-use crate::cpu::fetcher::InstructionWord;
+use crate::cpu::fetcher::Instruction;
+use crate::utility::types::ByteType;
 // U-type
 //
 //  31                                12 11     7 6      0
@@ -24,7 +25,7 @@ pub enum UOp {
     Auipc
 }
 
-pub fn parse_u_inst(raw_word: InstructionWord, opcode: u32) -> Result<Format, TrapCause> {
+pub fn parse_u_inst(raw_word: Instruction, opcode: u32) -> Result<Format, TrapCause> {
     let content = raw_word.0;
     let reg_dest = mask_and_shift(content, masks::REG_DESTINATION);
     let imm_as_upper_bits = (content & masks::U_TYPE_IMM) as i32;
@@ -66,7 +67,7 @@ mod tests {
     #[test]
     fn test_parse_u_inst_lui() {
         // lui x1, 5 -- opcode = 0110111 (LUI), rd = 1, imm_upper = 5 << 12
-        let raw_word = InstructionWord(0x000050B7);
+        let raw_word = Instruction(0x000050B7, ByteType::Word);
         let result = parse_u_inst(raw_word, op_codes::LUI);
         assert_eq!(result, Ok(Format::UType { op: UOp::Lui, rd: 1, imm_upper: 5 << 12 }));
     }
@@ -74,7 +75,7 @@ mod tests {
     #[test]
     fn test_parse_u_inst_auipc() {
         // auipc x1, 5 -- opcode = 0010111 (AUIPC), same shape as lui otherwise
-        let raw_word = InstructionWord(0x00005097);
+        let raw_word = Instruction(0x00005097, ByteType::Word);
         let result = parse_u_inst(raw_word, op_codes::AUIPC);
         assert_eq!(result, Ok(Format::UType { op: UOp::Auipc, rd: 1, imm_upper: 5 << 12 }));
     }

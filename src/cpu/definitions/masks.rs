@@ -23,6 +23,12 @@ const TWENTY_TWO_TO_THIRTY_ONE: u32 = 0b1111_1111_1100_0000_0000_0000_0000_0000;
 const TWELVE_TO_TWENTY_ONE: u32 = 0b0000_0000_0011_1111_1111_0000_0000_0000; // bits 21:12
 const TEN_TO_NINETEEN: u32 = 0b0000_0000_0000_1111_1111_1100_0000_0000; // bits 19:10
 
+// RVC (compressed instruction) formats
+const TWO_TO_FOUR: u32 = 0b0001_1100; // bits 4:2
+const FIVE_TO_TWELVE: u32 = 0b0001_1111_1110_0000; // bits 12:5
+const SEVEN_TO_NINE: u32 = 0b0000_0011_1000_0000; // bits 9:7
+const ZERO_TO_ONE: u32 = 0b0000_0011; // bits 1:0
+
 // 0xB3 = 1011 0011
 // mask = 0111 1111 <- 7 bits
 // yields 0011 0011
@@ -138,3 +144,21 @@ pub const MSTATUS_TSR: u32 = 0b1_00_0000_0000_0000_0000_0000; // bit 22
 
 pub const MEIP: u32 = 0b1000_0000_0000;
 pub const MEIE: u32 = MEIP;
+
+// RVC's compressed 3-bit register field (CIW/CL/CS/CA/CB formats) --
+// only addresses the 8 "popular" registers, x8-x15; real register
+// number is 8 + this field's value (see docs/plans/c_extension.md).
+pub const C_REG: u32 = TWO_TO_FOUR;
+// C.ADDI4SPN's own scrambled 8-bit immediate field, inst[12:5]. The
+// bits inside still need reassembling in spec order
+// (nzuimm[5|4|9|8|7|6|2|3]) -- this mask only isolates the whole field.
+pub const C_ADDI4SPN_IMM: u32 = FIVE_TO_TWELVE;
+// The compressed "base register" field used by CL/CS formats (C.LW's and
+// C.SW's rs1'), at bits 9:7 -- a different position from C_REG's bits
+// 4:2, but the same 8-popular-registers convention (real register = 8 +
+// this field's value).
+pub const C_REG_BASE: u32 = SEVEN_TO_NINE;
+// Which of the 3 usable RVC quadrants (00/01/10) a compressed
+// instruction belongs to -- the same funct3 value means a different
+// instruction in each quadrant, so this has to be checked first.
+pub const C_QUADRANT: u32 = ZERO_TO_ONE;

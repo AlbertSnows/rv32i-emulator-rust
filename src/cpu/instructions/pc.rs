@@ -5,7 +5,11 @@ use crate::cpu::definitions::trap_cause::TrapCause;
 use crate::cpu::instructions::r::AluOp;
 use crate::cpu::instructions::i::system::{SystemOp};
 
-pub fn advance_pc(pc: &mut PCState, instruction: &Format, reg_file: &RegisterFile) -> Result<usize, TrapCause> {
+pub fn advance_pc(pc: &mut PCState, 
+                  instruction: &Format, 
+                  reg_file: &RegisterFile, 
+                  advance_amount: u32) 
+    -> Result<usize, TrapCause> {
     let pc_value = pc.read() as u32;
     let new_value = match instruction {
         Format::JType { op, rd, imm } => pc_value.wrapping_add(*imm as u32),
@@ -14,20 +18,26 @@ pub fn advance_pc(pc: &mut PCState, instruction: &Format, reg_file: &RegisterFil
             let rs2_val = reg_file.read(*rs2);
             let imm_val = *imm as u32;
             match op {
-                BOp::Beq => if rs1_val == rs2_val { pc_value.wrapping_add(imm_val) } else { pc_value.wrapping_add(4) },
-                BOp::Bne => if rs1_val != rs2_val { pc_value.wrapping_add(imm_val) } else { pc_value.wrapping_add(4) },
-                BOp::Bltu => if rs1_val < rs2_val { pc_value.wrapping_add(imm_val) } else { pc_value.wrapping_add(4) },
-                BOp::Bgeu => if rs1_val >= rs2_val { pc_value.wrapping_add(imm_val) } else { pc_value.wrapping_add(4) },
-                BOp::Blt => if (rs1_val as i32) < (rs2_val as i32) { pc_value.wrapping_add(imm_val) } else { pc_value.wrapping_add(4) },
-                BOp::Bge => if (rs1_val as i32) >= (rs2_val as i32) { pc_value.wrapping_add(imm_val) } else { pc_value.wrapping_add(4) }
+                BOp::Beq => if rs1_val == rs2_val { pc_value.wrapping_add(imm_val) } else { pc_value.wrapping_add(advance_amount) },
+                BOp::Bne => if rs1_val != rs2_val { pc_value.wrapping_add(imm_val) } else { pc_value.wrapping_add(advance_amount) },
+                BOp::Bltu => if rs1_val < rs2_val { pc_value.wrapping_add(imm_val) } else { pc_value.wrapping_add(advance_amount) },
+                BOp::Bgeu => if rs1_val >= rs2_val { pc_value.wrapping_add(imm_val) } else { pc_value.wrapping_add(advance_amount) },
+                BOp::Blt => if (rs1_val as i32) < (rs2_val as i32) { pc_value.wrapping_add(imm_val) } else { pc_value.wrapping_add(advance_amount) },
+                BOp::Bge => if (rs1_val as i32) >= (rs2_val as i32) { pc_value.wrapping_add(imm_val) } else { pc_value.wrapping_add(advance_amount) }
             }
         },
         Format::JalrType { rd, rs1, imm } => pc_value,
         Format::SystemType { op: SystemOp::MRet } => pc_value,
         Format::SystemType { op: SystemOp::SRet } => pc_value,
-        _ => pc_value.wrapping_add(4)
+        _ => pc_value.wrapping_add(advance_amount)
     };
-    let is_invalid_pc_state = new_value % 4 != 0;
+    // Once the C extension exists, jump/branch targets can legally land
+    // on a 2-byte boundary that isn't 4-byte aligned (IALIGN=16, per
+    // .claude/riscv-unprivileged.txt Chapter 28.1, p.152: "no
+    // instructions can raise instruction-address-misaligned
+    // exceptions" once C is present) -- so this only rejects genuinely
+    // odd addresses now, not merely non-multiples-of-4.
+    let is_invalid_pc_state = new_value % 2 != 0;
     if is_invalid_pc_state {
         return Err(TrapCause::InstructionAddressMisaligned { address: new_value as usize });
     }
@@ -52,7 +62,7 @@ mod tests {
         pc.write(i32::MAX as usize);
         let reg_file = build_register_file();
         let instruction = Format::JType { op: JOp::Jal, rd: 1, imm: 1 };
-        let result = advance_pc(&mut pc, &instruction, &reg_file);
+        let result = advance_pc(&mut pc, &instruction, &reg_file, 4);
         // adding 1 carries through every one-bit and flips the sign bit:
         // 0b0111_...1111 + 1 = 0b1000_0000_0000_0000_0000_0000_0000_0000
         // = 0x8000_0000 = i32::MIN
@@ -67,7 +77,7 @@ mod tests {
         // i32::MAX = 0x7FFF_FFFF = 0b0111_1111_1111_1111_1111_1111_1111_1111
         reg_file.write(2, i32::MAX as u32);
         let instruction = Format::JalrType { rd: 1, rs1: 2, imm: 1 };
-        let result = advance_pc(&mut pc, &instruction, &reg_file);
+        let result = advance_pc(&mut pc, &instruction, &reg_file, 4);
         // = i32::MIN, and & !1 leaves it unchanged since bit 0 is already 0
         assert_eq!(result.unwrap() as i32, 0);
     }
@@ -80,7 +90,7 @@ mod tests {
         reg_file.write(2, 5);
         reg_file.write(3, 5);
         let instruction = Format::BType { op: BOp::Beq, imm: 1, rs1: 2, rs2: 3 };
-        let result = advance_pc(&mut pc, &instruction, &reg_file);
+        let result = advance_pc(&mut pc, &instruction, &reg_file, 4);
         assert_eq!(result.unwrap() as i32, i32::MIN);
     }
 
@@ -92,7 +102,7 @@ mod tests {
         reg_file.write(2, 5);
         reg_file.write(3, 9); // not equal -- branch not taken, falls through to pc + 4
         let instruction = Format::BType { op: BOp::Beq, imm: 100, rs1: 2, rs2: 3 };
-        let result = advance_pc(&mut pc, &instruction, &reg_file);
+        let result = advance_pc(&mut pc, &instruction, &reg_file, 4);
         println!("{:?}", result);
         assert_eq!(result.unwrap() as i32, -2147483648);
     }
@@ -105,7 +115,7 @@ mod tests {
         reg_file.write(2, 5);
         reg_file.write(3, 9); // not equal -- branch not taken, falls through to pc + 4
         let instruction = Format::BType { op: BOp::Beq, imm: 100, rs1: 2, rs2: 3 };
-        let result = advance_pc(&mut pc, &instruction, &reg_file);
+        let result = advance_pc(&mut pc, &instruction, &reg_file, 4);
         // i32::MAX (0x7FFFFFFF) + 4 wraps to 0x80000003
         assert_eq!(result, Err(TrapCause::InstructionAddressMisaligned { address: 2147483651 }));
     }
@@ -116,25 +126,41 @@ mod tests {
         pc.write((i32::MAX - 3) as usize);
         let reg_file = build_register_file();
         let instruction = Format::UType { op: UOp::Lui, rd: 1, imm_upper: 0 };
-        let result = advance_pc(&mut pc, &instruction, &reg_file);
+        let result = advance_pc(&mut pc, &instruction, &reg_file, 4);
         assert_eq!(result.unwrap() as i32, -2147483648);
     }
 
     #[test]
     fn test_advance_pc_rejects_misaligned_starting_pc() {
         // an ordinary, non-branching instruction (e.g. an R-type add),
-        // starting from a pc that isn't 4-byte aligned -- advance_pc
-        // should return Err(InstructionAddressMisaligned { address }),
-        // not silently succeed. This is the general case, distinct from
-        // the i32::MAX-wrapping tests above.
+        // starting from an odd pc -- advance_pc should return
+        // Err(InstructionAddressMisaligned { address }), not silently
+        // succeed. This is the general case, distinct from the
+        // i32::MAX-wrapping tests above. Only odd addresses are rejected
+        // now (2-byte alignment, not 4-byte) -- see the comment on the
+        // `% 2` check in advance_pc itself for why.
         let mut pc = build_pc_state();
         pc.write(1);
         let mut reg_file = build_register_file();
         let instruction = Format::RType { op: AluOp::Add, rs1: 2, rs2: 3, rd: 23};
         reg_file.write(2, 1);
         reg_file.write(3, 2);
-        let result = advance_pc(&mut pc, &instruction, &reg_file);
+        let result = advance_pc(&mut pc, &instruction, &reg_file, 4);
         assert_eq!(pc.read(), 1);
         assert_eq!(result, Err(TrapCause::InstructionAddressMisaligned { address: 5 }));
+    }
+
+    #[test]
+    fn test_advance_pc_compressed_instruction_advances_by_two() {
+        // A 2-byte (compressed) non-branching instruction should land on
+        // pc+2, not pc+4 -- and that address (4-byte-unaligned but still
+        // 2-byte-aligned) must NOT be rejected as misaligned, since C
+        // permits any 2-byte-aligned instruction address.
+        let mut pc = build_pc_state();
+        pc.write(2);
+        let reg_file = build_register_file();
+        let instruction = Format::RType { op: AluOp::Add, rs1: 2, rs2: 3, rd: 23 };
+        let result = advance_pc(&mut pc, &instruction, &reg_file, 2);
+        assert_eq!(result.unwrap(), 4);
     }
 }

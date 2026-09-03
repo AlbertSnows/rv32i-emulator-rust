@@ -70,6 +70,17 @@ same way. What's needed on this project's side:
   anything written for this project; they just need real hardware
   underneath that behaves the way those drivers expect
 
+**Status (2026-09-03): the kernel now boots to the same expected end
+state as real hardware** (given no root filesystem, it panics with
+`VFS: Unable to mount root fs`, matching real QEMU exactly). Reaching
+an actual interactive shell needs a root filesystem — an initramfs
+with a statically-linked busybox — which surfaced a new requirement
+not listed above: real Linux userspace toolchains all assume the "C"
+(compressed instructions) extension is available, unlike OpenSBI/the
+kernel, which could be told not to use it since this project controls
+their builds. See `docs/plans/c_extension.md` for the scope and
+implementation plan.
+
 ## [ ] 14. Refactor CSRState (Postponed)
 
 Attempt after item #8 is done. Motivation: building `mip` surfaced how

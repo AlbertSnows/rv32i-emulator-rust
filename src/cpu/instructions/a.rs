@@ -10,7 +10,7 @@ use crate::cpu::definitions::cpu::cpu_definition::{CPUMode, RegisterFile, build_
 use crate::cpu::definitions::cpu::csr::CSRState;
 use crate::cpu::definitions::trap_cause::TrapCause;
 use crate::cpu::definitions::masks;
-use crate::cpu::fetcher::InstructionWord;
+use crate::cpu::fetcher::Instruction;
 use crate::cpu::instructions::Format;
 use crate::utility::bit_operations::mask_and_shift;
 use crate::utility::types::ByteType;
@@ -31,7 +31,7 @@ pub enum AOp {
     Amomaxu
 }
 
-pub fn parse_a_inst(raw_word: InstructionWord) -> Result<Format, TrapCause> {
+pub fn parse_a_inst(raw_word: Instruction) -> Result<Format, TrapCause> {
     let content = raw_word.0;
     let reg_dest = mask_and_shift(content, masks::REG_DESTINATION);
     let funct_three = mask_and_shift(content, masks::FUNCT_THREE);

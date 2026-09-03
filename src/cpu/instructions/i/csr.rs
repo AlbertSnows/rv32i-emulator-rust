@@ -11,7 +11,8 @@ use crate::cpu::definitions::cpu::cpu_definition::{CPUMode, RegisterFile};
 use crate::cpu::definitions::cpu::csr::CSRState;
 use crate::cpu::definitions::masks;
 use crate::cpu::definitions::trap_cause::TrapCause;
-use crate::cpu::fetcher::InstructionWord;
+use crate::cpu::fetcher::Instruction;
+use crate::utility::types::ByteType;
 use crate::cpu::instructions::Format;
 use crate::utility::bit_operations::mask_and_shift;
 
@@ -25,7 +26,7 @@ pub enum CsrOp {
     Csrrci
 }
 
-pub fn parse_csr_inst(raw_word: InstructionWord) -> Result<Format, TrapCause> {
+pub fn parse_csr_inst(raw_word: Instruction) -> Result<Format, TrapCause> {
     let content = raw_word.0;
     let reg_dest = mask_and_shift(content, masks::REG_DESTINATION);
     let rs1_or_uimm = mask_and_shift(content, masks::REG_SOURCE_ONE);
@@ -156,19 +157,19 @@ mod tests {
 
         let expected = |op| Ok(Format::CsrType { op, rd: 1, rs1_or_uimm: 2, csr: 0x300 });
 
-        assert_eq!(parse_csr_inst(InstructionWord(0x300110F3)), expected(CsrOp::Csrrw));  // funct3 = 001
-        assert_eq!(parse_csr_inst(InstructionWord(0x300120F3)), expected(CsrOp::Csrrs));  // funct3 = 010
-        assert_eq!(parse_csr_inst(InstructionWord(0x300130F3)), expected(CsrOp::Csrrc));  // funct3 = 011
-        assert_eq!(parse_csr_inst(InstructionWord(0x300150F3)), expected(CsrOp::Csrrwi)); // funct3 = 101
-        assert_eq!(parse_csr_inst(InstructionWord(0x300160F3)), expected(CsrOp::Csrrsi)); // funct3 = 110
-        assert_eq!(parse_csr_inst(InstructionWord(0x300170F3)), expected(CsrOp::Csrrci)); // funct3 = 111
+        assert_eq!(parse_csr_inst(Instruction(0x300110F3, ByteType::Word)), expected(CsrOp::Csrrw));  // funct3 = 001
+        assert_eq!(parse_csr_inst(Instruction(0x300120F3, ByteType::Word)), expected(CsrOp::Csrrs));  // funct3 = 010
+        assert_eq!(parse_csr_inst(Instruction(0x300130F3, ByteType::Word)), expected(CsrOp::Csrrc));  // funct3 = 011
+        assert_eq!(parse_csr_inst(Instruction(0x300150F3, ByteType::Word)), expected(CsrOp::Csrrwi)); // funct3 = 101
+        assert_eq!(parse_csr_inst(Instruction(0x300160F3, ByteType::Word)), expected(CsrOp::Csrrsi)); // funct3 = 110
+        assert_eq!(parse_csr_inst(Instruction(0x300170F3, ByteType::Word)), expected(CsrOp::Csrrci)); // funct3 = 111
     }
 
     #[test]
     fn test_parse_csr_inst_invalid_funct3_returns_err() {
         // funct3 = 100 -- not a real CSR op (000 is ecall/ebreak, handled
         // upstream in parse_system_inst; 100 is simply undefined)
-        let raw_word = InstructionWord(0x300140F3);
+        let raw_word = Instruction(0x300140F3, ByteType::Word);
         let result = parse_csr_inst(raw_word);
         assert!(result.is_err());
     }
