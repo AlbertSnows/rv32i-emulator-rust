@@ -1,5 +1,4 @@
 use crate::cpu::definitions::trap_cause::TrapCause;
-use crate::cpu::utility::bit_operations::mask_and_shift;
 
 #[derive(PartialEq, Copy, Clone)]
 pub enum MemoryAccessType {
@@ -71,7 +70,7 @@ impl MemoryState {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_write_bytes_single_byte() {
         let mut mem = build_memory_state();

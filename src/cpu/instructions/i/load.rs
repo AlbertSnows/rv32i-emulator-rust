@@ -1,12 +1,12 @@
-use crate::cpu::definitions::cpu::cpu_definition::{CPUMode, RegisterFile};
-use crate::cpu::definitions::cpu::bus::BUSState;
-use crate::cpu::fetcher::InstructionWord;
-use crate::cpu::instructions::Format;
 use crate::cpu::definitions::codes::ExecutionSignal;
+use crate::cpu::definitions::cpu::bus::BUSState;
+use crate::cpu::definitions::cpu::cpu_definition::{CPUMode, RegisterFile};
 use crate::cpu::definitions::cpu::csr::CSRState;
-use crate::cpu::utility::bit_operations::{mask_and_shift, shake_to_signed};
 use crate::cpu::definitions::masks;
 use crate::cpu::definitions::trap_cause::TrapCause;
+use crate::cpu::fetcher::InstructionWord;
+use crate::cpu::instructions::Format;
+use crate::utility::bit_operations::{mask_and_shift, shake_to_signed};
 
 #[derive(Debug, PartialEq)]
 pub enum LoadOp {
@@ -113,8 +113,8 @@ pub fn inst_i_lhu(rd: usize, rs1: usize, imm_i: i32, bus: &mut BUSState, reg_fil
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::cpu::definitions::cpu::bus::{BASE_ADDRESS, build_bus_state};
     use crate::cpu::definitions::cpu::cpu_definition::build_register_file;
-    use crate::cpu::definitions::cpu::bus::{build_bus_state, BASE_ADDRESS};
     use crate::cpu::definitions::cpu::csr::build_csr_state;
 
     #[test]

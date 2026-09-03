@@ -6,14 +6,14 @@
 // rd <- CSR[csr] (old value, always read first); CSR[csr] <- new value
 // rs1/uimm is a register index for csrrw/csrrs/csrrc, but a 5-bit
 
-use crate::cpu::definitions::cpu::cpu_definition::{RegisterFile, CPUState, CPUMode};
-use crate::cpu::definitions::cpu::csr::CSRState;
-use crate::cpu::fetcher::InstructionWord;
-use crate::cpu::instructions::Format;
 use crate::cpu::definitions::codes::ExecutionSignal;
-use crate::cpu::utility::bit_operations::mask_and_shift;
+use crate::cpu::definitions::cpu::cpu_definition::{CPUMode, RegisterFile};
+use crate::cpu::definitions::cpu::csr::CSRState;
 use crate::cpu::definitions::masks;
 use crate::cpu::definitions::trap_cause::TrapCause;
+use crate::cpu::fetcher::InstructionWord;
+use crate::cpu::instructions::Format;
+use crate::utility::bit_operations::mask_and_shift;
 
 #[derive(Debug, PartialEq)]
 pub enum CsrOp {

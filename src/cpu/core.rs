@@ -1,19 +1,17 @@
-use std::collections::HashMap;
-use crate::cpu::definitions::cpu::cpu_definition::{CPUState, CPUMode};
-use crate::cpu::definitions::codes::ExecutionSignal;
-use crate::cpu::definitions::addresses;
-use crate::cpu::fetcher::fetch_word_from_memory;
 use crate::cpu::decoder::decode_word_to_instruction;
+use crate::cpu::definitions::addresses;
 use crate::cpu::definitions::addresses::{MIE, MIP, MSTATUS, SSTATUS};
-use crate::cpu::instructions::pc::advance_pc;
-use crate::cpu::definitions::trap_cause::{TrapCause, TrapDestination};
-use crate::cpu::utility::bit_operations::{set_bit_range, mask_and_shift, mask};
-use crate::cpu::definitions::cpu::csr::{CPUCycles, CSRState, MIPBits};
-use crate::cpu::definitions::masks::{GLOBAL_MIE, MPIE, MTIP, MTIE, MTI, MPP, SPP, GLOBAL_SIE, SPIE, MEIP, SEIP, MEIE, SEIE};
-use crate::cpu::instructions::i::system::{inst_i_xret};
+use crate::cpu::definitions::codes::ExecutionSignal;
+use crate::cpu::definitions::cpu::cpu_definition::{CPUMode, CPUState};
+use crate::cpu::definitions::cpu::csr::{CPUCycles, MIPBits};
+use crate::cpu::definitions::masks::{GLOBAL_MIE, GLOBAL_SIE, MEIE, MEIP, MPIE, MTI, MTIE, MTIP, SEIE, SEIP, SPIE};
 use crate::cpu::definitions::trap_cause::{M_TRAP, S_TRAP};
-use crate::cpu::instructions::Format::CsrType;
+use crate::cpu::definitions::trap_cause::{TrapCause, TrapDestination};
+use crate::cpu::fetcher::fetch_word_from_memory;
+use crate::cpu::instructions::i::system::inst_i_xret;
+use crate::cpu::instructions::pc::advance_pc;
 use crate::peripherals::plic::{M_CONTEXT, S_CONTEXT};
+use crate::utility::bit_operations::{mask_and_shift, set_bit_range};
 
 fn perform_step(cpu: &mut CPUState) -> Result<ExecutionSignal, TrapCause> {
     // mut allows cpu to change in the local scope
@@ -257,14 +255,14 @@ pub fn check_interrupt(mip: u32,
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::cpu::definitions::cpu::cpu_definition::build_cpu_state;
-    use crate::cpu::definitions::cpu::bus::BASE_ADDRESS;
-    use crate::cpu::utility::bit_operations::{store_in_mem, mask_and_shift};
-    use crate::cpu::programs::instructions::ADD_X3_X1_X2;
-    use crate::cpu::programs::instructions::NO_OP;
-    use crate::cpu::programs::instructions::JALR_X1_X1_0;
-    use crate::cpu::definitions::masks;
     use crate::cpu::definitions::addresses::{CYCLE, INSTRET};
+    use crate::cpu::definitions::cpu::bus::BASE_ADDRESS;
+    use crate::cpu::definitions::cpu::cpu_definition::build_cpu_state;
+    use crate::cpu::definitions::masks;
+    use crate::cpu::programs::instructions::ADD_X3_X1_X2;
+    use crate::cpu::programs::instructions::JALR_X1_X1_0;
+    use crate::cpu::programs::instructions::NO_OP;
+    use crate::utility::bit_operations::{mask_and_shift, store_in_mem};
 
     #[test]
     fn test_step_executes_add_and_advances_pc() {

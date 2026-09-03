@@ -1,11 +1,9 @@
-
-use crate::cpu::definitions::cpu::cpu_definition::{build_pc_state, CPUState, PCState, CPUMode};
-use crate::cpu::definitions::cpu::memory::{MemoryAccessType, FULL_MEM_SIZE};
-use crate::cpu::definitions::cpu::bus::{BUSState, build_bus_state, BASE_ADDRESS};
+use crate::cpu::definitions::cpu::bus::{BASE_ADDRESS, BUSState, build_bus_state};
+use crate::cpu::definitions::cpu::cpu_definition::{CPUMode, PCState, build_pc_state};
 use crate::cpu::definitions::cpu::csr::CSRState;
+use crate::cpu::definitions::cpu::memory::FULL_MEM_SIZE;
 use crate::cpu::definitions::trap_cause::TrapCause;
-use crate::cpu::mmu;
-use crate::cpu::utility::types::ByteType;
+use crate::utility::types::ByteType;
 
 // word in this context refers to the fixed-sized chunk of data to interface with
 // words for us are 32bits of data that we'll have to decode later, for now it's just raw bits
@@ -61,8 +59,8 @@ pub fn fetch_word_from_memory(pc: &PCState, bus: &mut BUSState, state: &CSRState
 
 #[cfg(test)]
 mod tests {
-    use crate::cpu::definitions::cpu::csr::build_csr_state;
     use super::*;
+    use crate::cpu::definitions::cpu::csr::build_csr_state;
 
     #[test]
     fn test_fetch_word_from_memory_instructional() {

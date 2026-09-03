@@ -1,10 +1,10 @@
-use crate::cpu::definitions::cpu::cpu_definition::RegisterFile;
-use crate::cpu::fetcher::InstructionWord;
-use crate::cpu::instructions::Format;
 use crate::cpu::definitions::codes::ExecutionSignal;
-use crate::cpu::utility::bit_operations::{mask_and_shift, shake_to_signed};
+use crate::cpu::definitions::cpu::cpu_definition::RegisterFile;
 use crate::cpu::definitions::masks;
 use crate::cpu::definitions::trap_cause::TrapCause;
+use crate::cpu::fetcher::InstructionWord;
+use crate::cpu::instructions::Format;
+use crate::utility::bit_operations::{mask_and_shift, shake_to_signed};
 
 #[derive(Debug, PartialEq)]
 pub enum AluImmOp {

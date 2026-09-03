@@ -1,14 +1,14 @@
-use crate::cpu::definitions::cpu::memory::{build_memory_state, MemoryAccessType, MemoryState};
-use crate::cpu::definitions::trap_cause::{TrapCause};
-use crate::cpu::definitions::addresses::{MTIME, MTIMECMP, MTIME_END, MTIMECMP_END, MSTATUS, UART_END, UART};
-use crate::cpu::definitions::cpu::cpu_definition::{CPUMode, CPUState};
+use crate::cpu::definitions::addresses::{MSTATUS, MTIME, MTIMECMP, MTIMECMP_END, MTIME_END, UART, UART_END};
+use crate::cpu::definitions::cpu::cpu_definition::CPUMode;
 use crate::cpu::definitions::cpu::csr::CSRState;
+use crate::cpu::definitions::cpu::memory::{MemoryAccessType, MemoryState, build_memory_state};
 use crate::cpu::definitions::masks::{MPP, MSTATUS_MPRV};
+use crate::cpu::definitions::trap_cause::TrapCause;
 use crate::cpu::mmu;
-use crate::cpu::utility::types::{ByteType, as_byte_type };
-use crate::cpu::utility::bit_operations::{as_window, extract_sub_bytes, mask_and_shift};
-use crate::peripherals::plic::{PlicState, NUM_SOURCES, NUM_CONTEXTS};
-use crate::peripherals::uart::{UartState, UART_SOURCE_ID};
+use crate::peripherals::plic::{NUM_CONTEXTS, NUM_SOURCES, PlicState};
+use crate::peripherals::uart::{UART_SOURCE_ID, UartState};
+use crate::utility::bit_operations::{extract_sub_bytes, mask_and_shift};
+use crate::utility::types::as_byte_type;
 
 // every riscv-tests binary links at exactly this address.
 // The low half of the 32-bit address

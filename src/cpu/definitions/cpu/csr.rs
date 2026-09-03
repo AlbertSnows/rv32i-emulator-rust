@@ -1,10 +1,10 @@
-use crate::cpu::definitions::trap_cause::TrapCause;
-use crate::cpu::definitions::cpu::cpu_definition::CPUMode;
 use crate::cpu::definitions::addresses;
 use crate::cpu::definitions::codes::MISA_STATE;
-use crate::cpu::utility::bit_operations::{mask_and_shift, set_bit_range};
+use crate::cpu::definitions::cpu::cpu_definition::CPUMode;
 use crate::cpu::definitions::masks;
 use crate::cpu::definitions::masks::{MEIP, MSTATUS_TVM, MTI, SEIP};
+use crate::cpu::definitions::trap_cause::TrapCause;
+use crate::utility::bit_operations::{mask_and_shift, set_bit_range};
 
 const ACCESS_TYPE_LOCATION: u32 = 10;
 const MINIMUM_PRIVILEGE_LOCATION: u32 = 8;

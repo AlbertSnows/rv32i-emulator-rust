@@ -7,6 +7,18 @@
 (Distant goal, see `project_goal_boot_linux.md` — not near-term
 architecture, just a list for later.)
 
+**This entire phase is deliberately modeled on QEMU's `virt` machine** —
+not designed from scratch. Peripheral addresses (UART, PLIC, CLINT),
+the boot/handoff sequence, and the device tree layout all match what
+QEMU's `virt` board already does. The payoff: real, unmodified software
+that already targets `virt` (OpenSBI, Linux, generated device trees)
+should work here with little to no changes, instead of needing a
+bespoke machine description and a custom-ported firmware. See
+`docs/dev/peripherals_specs.md`, `docs/dev/peripherals_no_spec.md`, and
+`docs/dev/multi_image_loader.md` for the specific addresses/conventions
+being matched, each cited back to QEMU's own source
+(`hw/riscv/virt.c`, `hw/riscv/boot.c`).
+
 **Peripherals:**
 
 - memory-mapped I/O device model (UART/console minimum)

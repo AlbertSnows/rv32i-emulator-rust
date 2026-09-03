@@ -1,3 +1,8 @@
+use crate::cpu::definitions::codes::ExecutionSignal;
+use crate::cpu::definitions::cpu::cpu_definition::RegisterFile;
+use crate::cpu::definitions::masks;
+use crate::cpu::definitions::trap_cause::TrapCause;
+use crate::cpu::fetcher::InstructionWord;
 // B-type
 //
 //  31            25 24    20 19    15 14   12 11          7 6      0
@@ -10,12 +15,7 @@
 // range for free. immediate bits arrive scrambled: [12][10:5] ... [4:1][11].
 // e.g. beq, bne, blt, bge, bltu, bgeu
 use crate::cpu::instructions::Format;
-use crate::cpu::fetcher::InstructionWord;
-use crate::cpu::definitions::cpu::cpu_definition::RegisterFile;
-use crate::cpu::definitions::codes::ExecutionSignal;
-use crate::cpu::utility::bit_operations::{mask_and_shift, merge_bits, shake_to_signed};
-use crate::cpu::definitions::masks;
-use crate::cpu::definitions::trap_cause::TrapCause;
+use crate::utility::bit_operations::{mask_and_shift, merge_bits, shake_to_signed};
 
 #[derive(Debug, PartialEq)]
 pub enum BOp {

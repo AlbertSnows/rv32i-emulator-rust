@@ -1,4 +1,4 @@
-use crate::cpu::utility::types::ByteType;
+use crate::utility::types::ByteType;
 
 // Machine-level addresses. 
 // Remember: addresses are just a number

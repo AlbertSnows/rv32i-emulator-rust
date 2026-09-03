@@ -1,3 +1,10 @@
+use crate::cpu::definitions::codes::ExecutionSignal;
+use crate::cpu::definitions::cpu::bus::BUSState;
+use crate::cpu::definitions::cpu::cpu_definition::{CPUMode, RegisterFile};
+use crate::cpu::definitions::cpu::csr::CSRState;
+use crate::cpu::definitions::masks;
+use crate::cpu::definitions::trap_cause::TrapCause;
+use crate::cpu::fetcher::InstructionWord;
 // S-type
 //
 //  31        25 24    20 19    15 14   12 11      7 6      0
@@ -9,14 +16,7 @@
 // split across two non-adjacent chunks.
 // e.g. sb, sh, sw
 use crate::cpu::instructions::Format;
-use crate::cpu::fetcher::InstructionWord;
-use crate::cpu::definitions::cpu::cpu_definition::{CPUMode, PCState, RegisterFile};
-use crate::cpu::definitions::cpu::bus::BUSState;
-use crate::cpu::definitions::codes::ExecutionSignal;
-use crate::cpu::definitions::cpu::csr::CSRState;
-use crate::cpu::utility::bit_operations::{mask_and_shift, merge_bits, shake_to_signed};
-use crate::cpu::definitions::masks;
-use crate::cpu::definitions::trap_cause::TrapCause;
+use crate::utility::bit_operations::{mask_and_shift, merge_bits, shake_to_signed};
 
 #[derive(Debug, PartialEq)]
 pub enum SOp {
@@ -113,8 +113,8 @@ pub fn inst_s_sw(rs1: usize,
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::cpu::definitions::cpu::cpu_definition::{build_register_file, build_pc_state};
-    use crate::cpu::definitions::cpu::bus::{build_bus_state, BASE_ADDRESS};
+    use crate::cpu::definitions::cpu::bus::{BASE_ADDRESS, build_bus_state};
+    use crate::cpu::definitions::cpu::cpu_definition::build_register_file;
     use crate::cpu::definitions::cpu::csr::build_csr_state;
 
     #[test]

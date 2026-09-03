@@ -1,3 +1,8 @@
+use crate::cpu::definitions::codes::ExecutionSignal;
+use crate::cpu::definitions::cpu::cpu_definition::{PCState, RegisterFile};
+use crate::cpu::definitions::trap_cause::TrapCause;
+use crate::cpu::definitions::{masks, op_codes};
+use crate::cpu::fetcher::InstructionWord;
 // U-type
 //
 //  31                                12 11     7 6      0
@@ -11,13 +16,7 @@
 // to build large constants two instructions at a time.
 // e.g. lui, auipc
 use crate::cpu::instructions::Format;
-use crate::cpu::fetcher::InstructionWord;
-use crate::cpu::definitions::cpu::cpu_definition::{RegisterFile, PCState};
-use crate::cpu::instructions::i::system::SystemOp;
-use crate::cpu::definitions::codes::ExecutionSignal;
-use crate::cpu::utility::bit_operations::mask_and_shift;
-use crate::cpu::definitions::{masks, op_codes};
-use crate::cpu::definitions::trap_cause::TrapCause;
+use crate::utility::bit_operations::mask_and_shift;
 
 #[derive(Debug, PartialEq)]
 pub enum UOp {

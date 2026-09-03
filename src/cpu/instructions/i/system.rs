@@ -1,14 +1,13 @@
-use crate::cpu::definitions::cpu::cpu_definition::{RegisterFile, CPUState, PCState, CPUMode};
+use crate::cpu::definitions::addresses::{MEPC, MSTATUS, SEPC};
+use crate::cpu::definitions::codes::ExecutionSignal;
+use crate::cpu::definitions::cpu::cpu_definition::{CPUMode, CPUState};
+use crate::cpu::definitions::masks;
+use crate::cpu::definitions::masks::{MSTATUS_TSR, MSTATUS_TVM};
+use crate::cpu::definitions::trap_cause::{M_TRAP, S_TRAP, TrapCause, TrapDestination};
 use crate::cpu::fetcher::InstructionWord;
 use crate::cpu::instructions::Format;
-use crate::cpu::utility::bit_operations::{mask_and_shift, set_bit_range };
-use crate::cpu::definitions::masks;
 use crate::cpu::instructions::i::csr;
-use crate::cpu::definitions::trap_cause::{TrapCause, TrapDestination, M_TRAP, S_TRAP};
-use crate::cpu::definitions::codes::{ ExecutionSignal };
-use crate::cpu::definitions::addresses::{MSTATUS, MEPC, SEPC, SSTATUS};
-use crate::cpu::definitions::cpu::csr::CSRState;
-use crate::cpu::definitions::masks::{MSTATUS_TVM, MSTATUS_TSR};
+use crate::utility::bit_operations::{mask_and_shift, set_bit_range};
 
 #[derive(Debug, PartialEq)]
 pub enum SystemOp {

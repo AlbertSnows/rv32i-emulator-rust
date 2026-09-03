@@ -9,15 +9,15 @@
 // e.g. add, sub, and, or, xor, sll, srl, sra, slt, sltu
 // rs is an index
 
-use crate::cpu::definitions::cpu::cpu_definition::{build_register_file, RegisterFile};
-use crate::cpu::definitions::{op_codes, masks};
+use crate::cpu::definitions::codes::ExecutionSignal;
+use crate::cpu::definitions::cpu::cpu_definition::{RegisterFile, build_register_file};
+use crate::cpu::definitions::trap_cause::TrapCause;
+use crate::cpu::definitions::masks;
 use crate::cpu::fetcher::InstructionWord;
 use crate::cpu::instructions::Format;
-use crate::cpu::utility::bit_operations::mask_and_shift;
-use crate::cpu::definitions::codes::ExecutionSignal;
-use crate::cpu::definitions::trap_cause::TrapCause;
-use crate::cpu::utility::bit_operations::{extract_sub_bytes};
-use crate::cpu::utility::types::{ByteType};
+use crate::utility::bit_operations::mask_and_shift;
+use crate::utility::bit_operations::extract_sub_bytes;
+use crate::utility::types::ByteType;
 
 #[derive(Debug, PartialEq)]
 pub enum AluOp {

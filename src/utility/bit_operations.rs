@@ -1,9 +1,14 @@
 use crate::cpu::definitions::cpu::memory::MemoryState;
-use crate::cpu::utility::types::ByteType;
+use crate::utility::types::ByteType;
 
 // words are bit terminology; a word is a 32bit number
 pub const WORD: usize = 4;
 pub const DOUBLEWORD: usize = 8;
+
+pub fn read_u64(bytes: &[u8], offset: usize) -> u64 {
+    let index_range = offset..offset + ByteType::DoubleWord.as_num();
+    u64::from_le_bytes(bytes[index_range].try_into().unwrap())
+}
 
 pub fn resolve_string_from_bytes(bytes: &[u8], offset: usize) -> &str {
     let mut end = offset;
