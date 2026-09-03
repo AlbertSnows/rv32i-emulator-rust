@@ -1,0 +1,8 @@
+name: rv32i-emulator
+compiler_exe: riscv-none-elf-gcc
+objdump_exe: riscv-none-elf-objdump
+ref_model_exe: sail_riscv_sim
+udb_config: rv32i-emulator.yaml
+linker_script: link.ld
+dut_include_dir: .
+include_priv_tests: True

@@ -34,7 +34,7 @@ $GCC -march=rv32g -mabi=ilp32 -static -mcmodel=medany -fvisibility=hidden \
   doesn't need to change per-extension).
 - `-Ienv/p -Tenv/p/link.ld` — the "physical" (`p`) test environment:
   no OS, a fixed linker script, and `tohost`/`fromhost` signaling (see
-  `docs/plans/test_suite.txt` for what that protocol is and why the
+  `docs/plans/test_suite.md` for what that protocol is and why the
   loader/harness care about the `tohost` symbol specifically).
 - `-Iisa/macros/scalar` — pulls in `riscv_test.h` and the
   `TEST_*` assembly macros the `.S` files are written against.

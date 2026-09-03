@@ -1,0 +1,1 @@
+/var/home/ajsnow/Documents/programming/rv32i-emulator/target/debug/arch_test_runner

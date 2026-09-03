@@ -1,10 +1,4 @@
-#![allow(unused)]
-pub mod decoder;
-pub mod fetcher;
-pub mod instructions;
-pub mod definitions;
+pub mod cpu;
+pub mod peripherals;
+pub mod loader;
 pub mod utility;
-pub mod programs;
-pub mod core;
-pub mod elf;
-pub mod mmu;

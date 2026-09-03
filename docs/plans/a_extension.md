@@ -1,0 +1,153 @@
+# A extension (atomics) (item #10) — intent, semantics, and where it fits
+
+## Why
+
+Multiprocessor synchronization primitives: read-modify-write memory ops
+that other harts can't observe half-finished. RISC-V splits this out as
+its own extension ("A") for the same reason as M: some implementations
+(bare microcontrollers with no cache, no bus arbitration story) can't
+cheaply support it. But Linux's riscv port hardcodes atomics
+unconditionally into `atomic.h`/`bitops`, even on a single-hart/non-SMP
+build.
+
+Source: `docs/books/riscv-unprivileged.pdf`, Chapter 13 ("A" Standard
+Extension for Atomic Instructions), pp. 67-73. (Chapter numbering per
+the version 20260120 release; older printings may number this Chapter
+14.)
+
+## 1. Two different shapes, one new opcode
+
+Unlike M (which reused R-type's exact shape), A brings a genuinely new
+encoding this codebase hasn't seen yet — still 2-in/1-out on registers
+like R-type, but with a 5-bit `funct5` instead of `funct7`, and two
+standalone ordering bits (`aq`, `rl`) sitting where R-type's remaining
+`funct7` bits would be:
+
+```
+31     27 26 25 24    20 19    15 14    12 11      7 6      0
+| funct5 |aq|rl|  rs2   |  rs1   | funct3 |   rd    | opcode |
+|   5    | 1| 1|   5    |   5    |   3    |    5    |   7    |
+```
+
+New opcode, not shared with anything existing:
+
+```
+AMO = 0b0101111   (add to op_codes.rs, alongside R/S/B/etc.)
+```
+
+`funct3 = 0b010` selects the word-width form (`.W`) — the only one that
+matters here, since this is RV32 (the `.D` forms are RV64-only and
+don't exist in this ISA at all). `funct5` then picks the operation:
+
+| `funct5`  | Instruction |
+| --------- | ----------- |
+| `00010`   | LR.W (rs2 field ignored/must be 0 — no second source register, real hardware doesn't enforce this either, so this codebase doesn't need to) |
+| `00011`   | SC.W |
+| `00001`   | AMOSWAP.W |
+| `00000`   | AMOADD.W |
+| `00100`   | AMOXOR.W |
+| `01100`   | AMOAND.W |
+| `01000`   | AMOOR.W |
+| `10000`   | AMOMIN.W |
+| `10100`   | AMOMAX.W |
+| `11000`   | AMOMINU.W |
+| `11100`   | AMOMAXU.W |
+
+(`funct5` values verified directly against `riscv-none-elf-as`'s actual
+encoder output.)
+
+Because this shape doesn't fit the existing `RType`/`SType`/etc. cases
+in `src/instructions/mod.rs::Format`, it needs its own variant —
+something like:
+
+```rust
+AType { op: AmoOp, rd: usize, rs1: usize, rs2: usize, aq: bool, rl: bool }
+```
+
+— and its own module, `src/instructions/a.rs`, mirroring how `r.rs` and
+`s.rs` are structured (an `AmoOp` enum, `parse_a_inst`,
+`execute_a_type`, one `inst_a_*` function per operation).
+
+## 2. What each instruction does
+
+**LR.W** (load-reserved): loads a word from the address in `rs1`,
+sign-extends it into `rd` (moot on RV32 — a word is already the full
+register width, so sign-extension is a no-op here, but the spec states
+it that way for RV64 symmetry), and registers a reservation on that
+address.
+
+**SC.W** (store-conditional): if the reservation from the most recent
+LR.W is still valid *and* covers this address, writes `rs2`'s value to
+the address in `rs1` and writes 0 to `rd` (success). Otherwise, writes
+nothing to memory and writes a nonzero value to `rd` (failure; any
+nonzero value, but this codebase should just always use 1 — the spec
+explicitly reserves 1 to mean "unspecified failure" and says portable
+software only checks non-zero).
+
+**The 9 AMOs** (AMOSWAP/AMOADD/AMOXOR/AMOAND/AMOOR/AMOMIN/AMOMAX/
+AMOMINU/AMOMAXU): all follow the same shape:
+
+1. load the word at the address in `rs1`
+2. put that *original* loaded value into `rd`
+3. apply the named binary op between that loaded value and `rs2`'s
+   value
+4. store the result back to the address in `rs1`
+
+AMOSWAP is the degenerate case (the "operation" just discards the
+loaded value and stores `rs2` verbatim). MIN/MAX vs MINU/MAXU is the
+same signed/unsigned split as SLT vs SLTU or DIV vs DIVU elsewhere in
+this codebase.
+
+## 3. The single-hart simplification
+
+This is the one place A is *easier* to implement here than the spec's
+framing suggests. Every complication in the spec text — `aq`/`rl`
+memory ordering, reservation-set granularity, livelock freedom
+guarantees, "can be observed by another hart" — exists to define
+behavior across *multiple* concurrent harts. This emulator runs one
+hart, executing one instruction at a time, nothing interleaves.
+Concretely:
+
+- **`aq`/`rl` bits**: decode and store them (they're part of the
+  encoding, and real software sets them), but they have no observable
+  effect to implement — there's no other hart's memory ordering to
+  constrain against. Parse them, don't act on them.
+- **The reservation set**: doesn't need real granularity tracking. A
+  single `Option<u32>` (the reserved address, or `None`) on `CPUState`
+  is enough: LR.W sets it to `Some(addr)`, SC.W checks whether it's
+  `Some(addr_matching_rs1)` to decide success/failure, and clears it to
+  `None` afterward regardless of outcome (per spec: "Regardless of
+  success or failure, executing an SC.W instruction invalidates any
+  reservation held by this hart").
+- **Livelock/forward-progress guarantees** (Section 13.3's "constrained
+  LR/SC loop" rules): exist to bound pathological multi-hart
+  contention. With nothing else able to write between this hart's LR
+  and SC, an SC here only ever fails because *this* hart's own reserved
+  address didn't match — so there's nothing to guarantee against.
+
+## 4. Alignment
+
+Same requirement as ordinary loads/stores: the address in `rs1` must be
+word-aligned (4-byte aligned) for both LR/SC and every AMO. A
+misaligned address raises an address-misaligned exception — the exact
+same failure mode this codebase's load/store path
+(`src/instructions/s.rs`, `src/instructions/i/load.rs`) already
+produces, so the memory-access helper they call should already do the
+right thing; just route through it rather than re-deriving alignment
+logic.
+
+## 5. What needs to change in this codebase
+
+- `src/definitions/op_codes.rs`: add `AMO = 0b0101111`.
+- `src/decoder.rs`: new match arm, `op_codes::AMO => parse_a_inst(raw_word)`.
+- `src/instructions/mod.rs`: new `Format::AType` variant (fields above)
+  plus its `execute()` match arm.
+- `src/instructions/a.rs` (new file): `AmoOp` enum (11 variants),
+  `parse_a_inst` (funct5+funct3 -> `AmoOp`, same match-tuple shape
+  `r.rs::parse_r_inst` already uses for funct7+funct3), `execute_a_type`
+  dispatch table, and the 11 `inst_a_*` functions.
+- `src/definitions/cpu/cpu_definition.rs`: add a reservation field to
+  `CPUState` (e.g. `reservation: Option<u32>`), initialized to `None`
+  in `build_cpu_state`.
+- No new `TrapCause` variants needed — misaligned-address traps already
+  exist and cover this.
