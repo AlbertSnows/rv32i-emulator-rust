@@ -12,7 +12,7 @@ fn main() {
     let elf_path = Path::new(&args[1]); // todo: why?
     let elf_bytes = std::fs::read(elf_path).unwrap();
     let mut cpu = build_cpu_state();
-    load_elf(&elf_bytes, &mut cpu).expect("load elf should succeed");
+    load_elf(&elf_bytes, &mut cpu, 0).expect("load elf should succeed");
     let tohost_addr = find_symbol(&elf_bytes, "tohost").expect("tohost should resolve") as usize;
     let name = elf_path.file_name().unwrap().to_str().unwrap();
     for _ in 0..MAX_ITERATIONS {

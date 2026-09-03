@@ -2,22 +2,22 @@ use crate::cpu::definitions::cpu::cpu_definition::CPUState;
 use crate::cpu::definitions::trap_cause::TrapCause;
 use crate::cpu::elf::load_elf;
 use std::path::Path;
+use crate::cpu::definitions::cpu::bus::BASE_ADDRESS;
 use crate::utility::bit_operations::read_u64;
 
 // trying to copy kernel image into emulator memory
 pub fn load_sbi(open_sbi_path: &Path, cpu: &mut CPUState) -> Result<usize, TrapCause> {
     let open_sbi_bytes = std::fs::read(open_sbi_path).unwrap();
-    let sbi_end = load_elf(&open_sbi_bytes, cpu)?;
+    let sbi_end = load_elf(&open_sbi_bytes, cpu, BASE_ADDRESS as usize)?;
     let a0 = 10;
     cpu.register.write(a0, 0);
     Ok(sbi_end)
 }
 
 pub fn boot_kernel(cpu: &mut CPUState) -> Result<(), TrapCause> {
-    let sbi_path = "build/platform/generic/firmware/fw_dynamic.elf";
-    let kernel_path = "path/to/Image";
-    let dtb_location = "path/to/your.dtb";
-    let sbi_path = "build/platform/generic/firmware/fw_dynamic.elf";
+    let sbi_path = "/var/home/ajsnow/opt/opensbi/build/platform/generic/firmware/fw_dynamic.elf";
+    let kernel_path = "/var/home/ajsnow/opt/linux/arch/riscv/boot/Image";
+    let dtb_location = "/var/home/ajsnow/opt/virt.dtb";
     let open_sbi_end = load_sbi(sbi_path.as_ref(), cpu)?;
     let (kernel_start, kernel_size) = load_kernel(kernel_path, open_sbi_end as u32, cpu)?;
     let (dtb_start, dtb_size) = load_dtb(kernel_start, kernel_size, dtb_location, cpu)?;
@@ -83,7 +83,7 @@ fn load_kernel(kernel_path: &str, open_sbi_end: u32, cpu: &mut CPUState)
 // end_addr: where the end of the last piece of data was stored
 fn align_up(addr: usize, alignment: usize) -> usize {
     // the -1 prevents the probe from moving 2 multiples over if addr is already a mult of align
-    let probing_addr = (addr + alignment - 1);
+    let probing_addr = addr + alignment - 1;
     let alignment_groups = probing_addr / alignment;
     let nearest_multiple = alignment_groups * alignment;
     nearest_multiple

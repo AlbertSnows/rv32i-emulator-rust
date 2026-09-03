@@ -32,7 +32,89 @@ pub struct PlicState {
     pub armed: [bool; NUM_SOURCES + 1],
 }
 
+
+const ENABLE_REGION_END: u32 = 0x2000 + 0x80 * NUM_CONTEXTS as u32 - 1;
+const CONTEXT_REGION_END: u32 = 0x20_0000 + 0x1000 * NUM_CONTEXTS as u32 - 1;
+
 impl PlicState {
+
+    pub fn read(&mut self, offset: u32, _num_bytes: usize) -> u32 {
+        match offset {
+            0x000..0xFFC => {
+                let word_index = offset / 4;
+                self.priority[word_index as usize]
+            },
+            0x1000..0x107C => {
+                let word_index = (offset - 0x1000) / 4;
+                let mut result: u32 = 0;
+                for i in 0..32 {
+                    let source_id = 32 * word_index as usize + i;
+                    if source_id <= NUM_SOURCES && self.pending[source_id] {
+                        result |= 1 << i;
+                    }
+                }
+                result
+            },
+            0x2000..=ENABLE_REGION_END => {
+                let context = ((offset - 0x2000) / 0x80) as usize;
+                let word_index = (offset - 0x2000 - (0x80 * context as u32)) / 4;
+                let mut result: u32 = 0;
+                for i in 0..32 {
+                    let source_id = 32 * word_index as usize + i;
+                    if source_id <= NUM_SOURCES && self.enabled[context][source_id] {
+                        result |= 1 << i;
+                    }
+                }
+                result
+            },
+            0x20_0000..=CONTEXT_REGION_END => {
+                let context = ((offset - 0x20_000) / 0x1000) as usize;
+                let local = (offset - 0x20_0000) % 0x1000;
+                if (local == 0) {
+                    self.threshold[context]
+                } else if (local == 4) {
+                    self.claim(context as usize)
+                } else {
+                    0
+                }
+            },
+            _ => 0,
+        }
+    }
+
+    pub fn write(&mut self, offset: u32, bytes: &[u8]) {
+        let value = u32::from_le_bytes(bytes.try_into().unwrap());
+        match offset {
+            0x000..0xFFC => {
+                let word_index = offset / 4;
+                self.priority[word_index as usize] = value;
+            },
+            0x1000..0x107C => {}, // pending is read only
+            0x2000..=ENABLE_REGION_END => {
+                let context = ((offset - 0x2000) / 0x80) as usize;
+                let word_index = (offset - 0x2000 - 0x80 * context as u32) / 4;
+                for i in 0..32 {
+                    let source_id = 32 * word_index as usize + i;
+                    if source_id <= NUM_SOURCES {
+                        self.enabled[context][source_id] = (value >> i) & 1 == 1;
+                    }
+                }
+
+            },
+            0x20_0000..=CONTEXT_REGION_END => {
+                let context = ((offset - 0x20_000) / 0x1000) as usize;
+                let local = (offset - 0x20_0000) % 0x1000;
+                if (local == 0) {
+                    self.threshold[context] = value;
+                } else if (local == 4) {
+                    self.complete(context, value)
+                }
+            },
+            _ => {},
+        };
+
+    }
+
     // claim is responsible for selecting  whatever is the highest priority interrupt
     pub fn claim(&mut self, context: usize) -> u32 {
         let mut best = 0;
@@ -42,7 +124,7 @@ impl PlicState {
                 best = source_id;
             }
         }
-        if (best == 0) {
+        if best == 0 {
             return 0;
         }
         self.pending[best] = false;
@@ -51,7 +133,7 @@ impl PlicState {
 
     pub fn complete(&mut self, context: usize, source_id: u32) {
         let is_subbed = self.enabled[context][source_id as usize];
-        if (is_subbed) {
+        if is_subbed {
             self.armed[source_id as usize] = true;
         }
     }
@@ -86,7 +168,7 @@ impl PlicState {
     //
     pub fn set_pending(&mut self, source_id: usize) {
         let already_handling = !self.armed[source_id];
-        if (!already_handling) {
+        if !already_handling {
             self.pending[source_id] = true;
             self.armed[source_id] = false;
         }

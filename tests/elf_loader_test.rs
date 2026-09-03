@@ -51,7 +51,7 @@ fn build_synthetic_elf_with_bss() -> Vec<u8> {
 fn test_load_elf_sets_pc_to_entry() {
     let mut cpu = build_cpu_state();
     let elf_bytes = build_synthetic_elf_with_bss();
-    load_elf(&elf_bytes, &mut cpu).expect("load_elf should succeed");
+    load_elf(&elf_bytes, &mut cpu, 0 ).expect("load_elf should succeed");
     assert_eq!(cpu.pc.read(), BASE_ADDRESS as usize);
 }
 
@@ -59,7 +59,7 @@ fn test_load_elf_sets_pc_to_entry() {
 fn test_load_elf_copies_segment_bytes_into_memory() {
     let mut cpu = build_cpu_state();
     let elf_bytes = build_synthetic_elf_with_bss();
-    load_elf(&elf_bytes, &mut cpu).expect("load_elf should succeed");
+    load_elf(&elf_bytes, &mut cpu, 0).expect("load_elf should succeed");
     assert_eq!(cpu.bus.direct_read(BASE_ADDRESS as usize, 4).unwrap(), 0x44332211);
 }
 
@@ -67,6 +67,6 @@ fn test_load_elf_copies_segment_bytes_into_memory() {
 fn test_load_elf_zero_fills_bss_gap() {
     let mut cpu = build_cpu_state();
     let elf_bytes = build_synthetic_elf_with_bss();
-    load_elf(&elf_bytes, &mut cpu).expect("load_elf should succeed");
+    load_elf(&elf_bytes, &mut cpu, 0).expect("load_elf should succeed");
     assert_eq!(cpu.bus.direct_read(BASE_ADDRESS as usize + 4, 4).unwrap(), 0);
 }

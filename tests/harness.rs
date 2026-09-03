@@ -14,7 +14,7 @@ pub const MAX_ITERATIONS: u32 = 10000;
 pub fn run_tests(elf_bytes: &[u8]) -> TestOutcome {
     // let elf_bytes = todo!(); // get bytes from test file
     let mut cpu = build_cpu_state();
-    load_elf(elf_bytes, &mut cpu).expect("load elf should succeed");
+    load_elf(elf_bytes, &mut cpu, 0).expect("load elf should succeed");
     let tohost_addr = find_symbol(elf_bytes, "tohost").expect("tohost should resolve") as usize;
     for _ in 0..MAX_ITERATIONS {
         let _ = step(&mut cpu);

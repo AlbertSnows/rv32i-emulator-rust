@@ -18,17 +18,17 @@ impl MemoryAccessType {
 }
 
 const TEST_MEM_SIZE: usize = 4096;
-pub const FULL_MEM_SIZE: usize = 0x4_00_00;
+pub const FULL_MEM_SIZE: usize = 0x08_00_00_00;
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct MemoryState {
-    pub storage: [u8; FULL_MEM_SIZE],
+    pub storage: Vec<u8>
 
 }
 
 pub fn build_memory_state() -> MemoryState {
     MemoryState { 
-        storage: [0; FULL_MEM_SIZE],
+        storage: vec![0u8; FULL_MEM_SIZE],
     }
 }
 

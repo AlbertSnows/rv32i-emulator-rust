@@ -18,7 +18,7 @@ pub const PT_LOAD: u32 = 1;
 pub const SHT_SYMTAB: u32 = 2;
 // segments exist for the loader
 // these bytes go in memory
-pub fn load_elf(elf_bytes: &[u8], cpu: &mut CPUState) -> Result<usize, TrapCause> {
+pub fn load_elf(elf_bytes: &[u8], cpu: &mut CPUState, base_address: usize) -> Result<usize, TrapCause> {
     let e_entry = read_u32(elf_bytes, 24); // pc start address
     let e_phoff = read_u32(elf_bytes, 28); // byte offset to the header table
     let e_phentsize = read_u16(elf_bytes, 42); // size of an entry
@@ -39,17 +39,17 @@ pub fn load_elf(elf_bytes: &[u8], cpu: &mut CPUState) -> Result<usize, TrapCause
         let p_filesz = read_u32(elf_bytes, current_segment_location + 16) as usize; // size of the segment in elf
         // p_memsz: always >= p_filez, indicates how large the segment is once in memory 
         let p_memsz = read_u32(elf_bytes, current_segment_location + 20) as usize;
-        let end = p_vaddr + p_memsz;
+        let end = base_address + p_vaddr + p_memsz;
         if end > highest_end {
             highest_end = end;
         }
-        cpu.bus.direct_write(p_vaddr, &elf_bytes[p_offset..p_offset + p_filesz])?; // write elf data to mem
+        cpu.bus.direct_write(base_address + p_vaddr, &elf_bytes[p_offset..p_offset + p_filesz])?; // write elf data to mem
         // If the segment's memory size p_memsz is larger than the file size p_filesz, 
         /// the 'extra' bytes are defined to hold the value 0 and to follow the segment's initialized area.
         let zero_count = p_memsz - p_filesz;
-        cpu.bus.direct_write(p_vaddr + p_filesz, &vec![0u8; zero_count])?; 
+        cpu.bus.direct_write(base_address + p_vaddr + p_filesz, &vec![0u8; zero_count])?;
     }
-    cpu.pc.write(e_entry as usize);
+    cpu.pc.write(base_address + e_entry as usize);
     Ok(highest_end)
 }
 

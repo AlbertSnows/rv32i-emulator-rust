@@ -14,7 +14,7 @@ impl UartState {
         self.rx_buffer.push_back(byte);
     }
 
-    pub fn read(&mut self, offset: u32, num_bytes: usize) -> u32 {
+    pub fn read(&mut self, offset: u32, _num_bytes: usize) -> u32 {
         if offset == 5 {
             0x60
         } else if offset == 0 {

@@ -125,3 +125,7 @@ pub const TIMEH: usize = 0xC81;
 pub const UART: usize = 0x10000000;
 // include up to but not including the 0x100
 pub const UART_END: usize = UART + 0x100 - 1;
+
+pub const PLIC: usize = 0x0c00_0000;
+pub const PLIC_END: usize = PLIC + 0x201007; // covers both contexts' claim registers
+

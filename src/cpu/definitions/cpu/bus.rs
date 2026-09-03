@@ -1,4 +1,4 @@
-use crate::cpu::definitions::addresses::{MSTATUS, MTIME, MTIMECMP, MTIMECMP_END, MTIME_END, UART, UART_END};
+use crate::cpu::definitions::addresses::{MSTATUS, MTIME, MTIMECMP, MTIMECMP_END, MTIME_END, PLIC, PLIC_END, UART, UART_END};
 use crate::cpu::definitions::cpu::cpu_definition::CPUMode;
 use crate::cpu::definitions::cpu::csr::CSRState;
 use crate::cpu::definitions::cpu::memory::{MemoryAccessType, MemoryState, build_memory_state};
@@ -148,6 +148,10 @@ impl BUSState {
                 let offset = address - UART;
                 Ok(self.uart.read(offset as u32, num_bytes))
             },
+            PLIC..=PLIC_END => {
+                let offset = address - PLIC;
+                Ok(self.plic.read(offset as u32, num_bytes))
+            },
             _ => {
                 if address < BASE_ADDRESS as usize {
                     return Err(TrapCause::LoadAccessFault { address });
@@ -170,6 +174,10 @@ impl BUSState {
             UART..=UART_END => {
                 let offset = address - UART;
                 Ok(self.uart.write(offset as u32, bytes))
+            },
+            PLIC..=PLIC_END => {
+                let offset = address - PLIC;
+                Ok(self.plic.write(offset as u32, bytes))
             },
             _ => {
                 if address < BASE_ADDRESS as usize {
