@@ -161,23 +161,6 @@ change — compressed jump/branch immediates already encode the real
 byte offset, so once expanded into `JType`/`BType`/`JalrType` they
 behave identically to their 32-bit counterparts.
 
-## Suggested implementation order
-
-
-2. Quadrant 0 (`C.ADDI4SPN`, `C.LW`, `C.SW`) — smallest quadrant, only
-   two formats (`CIW`, `CL`/`CS`), good first slice to validate the
-   general approach (bit-scrambled immediate reassembly, x8-x15
-   mapping) before the bigger quadrants.
-3. Quadrant 2 (`C.SLLI`, `C.LWSP`, `C.JR`, `C.MV`, `C.EBREAK`,
-   `C.JALR`, `C.ADD`, `C.SWSP`) — uses full 5-bit registers throughout
-   (`CR`/`CI`/`CSS`), no x8-x15 mapping needed, a useful contrast case.
-4. Quadrant 1 (the largest and most varied — constant generation,
-   register-immediate ops, the `MISC-ALU` sub-group, jumps, branches).
-5. PC-advancement fix in `pc.rs`, wiring the real instruction length
-   through.
-6. HINT/reserved/illegal code-point behavior — confirm via targeted
-   tests that these fall out correctly from the expansion approach
-   rather than needing special-casing (see the HINT note above).
 
 ## Testing
 

@@ -28,6 +28,8 @@ const TWO_TO_FOUR: u32 = 0b0001_1100; // bits 4:2
 const FIVE_TO_TWELVE: u32 = 0b0001_1111_1110_0000; // bits 12:5
 const SEVEN_TO_NINE: u32 = 0b0000_0011_1000_0000; // bits 9:7
 const ZERO_TO_ONE: u32 = 0b0000_0011; // bits 1:0
+const TWO_TO_SIX: u32 = 0b0111_1100; // bits 6:2
+const THIRTEEN_TO_FIFTEEN: u32 = 0b1110_0000_0000_0000; // bits 15:13
 
 // 0xB3 = 1011 0011
 // mask = 0111 1111 <- 7 bits
@@ -162,3 +164,17 @@ pub const C_REG_BASE: u32 = SEVEN_TO_NINE;
 // instruction belongs to -- the same funct3 value means a different
 // instruction in each quadrant, so this has to be checked first.
 pub const C_QUADRANT: u32 = ZERO_TO_ONE;
+// The low 5 bits of quadrant 2's shift-amount field (C.SLLI's
+// inst[6:2]) -- these map directly, in order, to shamt[4:0], unlike
+// most other RVC immediates. Only shamt's top bit (inst[12]) needs
+// separate handling.
+pub const C_SHAMT_LOW: u32 = TWO_TO_SIX;
+// Quadrant 2's full 5-bit register field at inst[6:2] -- same bits as
+// C_SHAMT_LOW, but used where this field is a real register (C.SWSP's
+// rs2, C.MV/C.ADD's rs2) rather than part of a shift amount. Full
+// 32-register space, no x8-x15 remapping (quadrant 2 never remaps).
+pub const C_REG_FULL: u32 = TWO_TO_SIX;
+// RVC's own funct3 field, inst[15:13] -- NOT the same bits as the base
+// 32-bit ISA's FUNCT_THREE (inst[14:12]). Reusing FUNCT_THREE here would
+// silently extract the wrong 3 bits for every compressed instruction.
+pub const C_FUNCT_THREE: u32 = THIRTEEN_TO_FIFTEEN;
