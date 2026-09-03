@@ -17,7 +17,7 @@ pub fn load_sbi(open_sbi_path: &Path, cpu: &mut CPUState) -> Result<usize, TrapC
 pub fn boot_kernel(cpu: &mut CPUState) -> Result<(), TrapCause> {
     let sbi_path = "/var/home/ajsnow/opt/opensbi/build/platform/generic/firmware/fw_dynamic.elf";
     let kernel_path = "/var/home/ajsnow/opt/linux/arch/riscv/boot/Image";
-    let dtb_location = "/var/home/ajsnow/opt/virt.dtb";
+    let dtb_location = "/var/home/ajsnow/opt/virt_earlycon_narrowed.dtb";
     let open_sbi_end = load_sbi(sbi_path.as_ref(), cpu)?;
     let (kernel_start, kernel_size) = load_kernel(kernel_path, open_sbi_end as u32, cpu)?;
     let (dtb_start, dtb_size) = load_dtb(kernel_start, kernel_size, dtb_location, cpu)?;
@@ -60,14 +60,15 @@ fn load_dtb(kernel_start: usize, kernel_size: usize, dtb_location: &str, cpu: &m
 // of text offset location is 4 + 4 = 8
 const TEXT_OFFSET_LOCATION: u32 = 8;
 
-fn load_kernel(kernel_path: &str, open_sbi_end: u32, cpu: &mut CPUState)
+fn load_kernel(kernel_path: &str, _open_sbi_end: u32, cpu: &mut CPUState)
     -> Result<(usize, usize), TrapCause> {
     let kernel_bytes = std::fs::read(kernel_path).unwrap();
     let text_offset = read_u64(&kernel_bytes, TEXT_OFFSET_LOCATION as usize);
-    let mib = 1024 * 1024;
-    let kernel_start = align_up(open_sbi_end as usize, 4 * mib) + (text_offset as usize);
+    // let mib = 1024 * 1024;
+    let kernel_start = BASE_ADDRESS as usize + (text_offset as usize);
     cpu.bus.direct_write(kernel_start, &kernel_bytes)?;
-    Ok((kernel_start, kernel_bytes.len()))
+    let image_size = read_u64(&kernel_bytes, 16);
+    Ok((kernel_start, image_size as usize))
 }
 
 /// Rounds `addr` up to the nearest multiple of `alignment`.
@@ -81,7 +82,7 @@ fn load_kernel(kernel_path: &str, open_sbi_end: u32, cpu: &mut CPUState)
 /// it in memory (e.g. OpenSBI) -- rounding up guarantees the result never
 /// falls before `addr`, only at or after it.
 // end_addr: where the end of the last piece of data was stored
-fn align_up(addr: usize, alignment: usize) -> usize {
+fn _align_up(addr: usize, alignment: usize) -> usize {
     // the -1 prevents the probe from moving 2 multiples over if addr is already a mult of align
     let probing_addr = addr + alignment - 1;
     let alignment_groups = probing_addr / alignment;

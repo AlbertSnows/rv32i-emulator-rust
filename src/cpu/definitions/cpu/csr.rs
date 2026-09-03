@@ -50,8 +50,8 @@ pub fn build_csr_state() -> CSRState {
         mscratch: 0,
         mcounteren: 0,
         scounteren: 0,
-        pmpcfg0: 0,
-        pmpaddr0: 0,
+        pmpcfg: [0; 4],
+        pmpaddr: [0; 16],
         satp: 0,
         mstatush: 0,
     }
@@ -92,8 +92,8 @@ pub struct CSRState {
     mscratch: u32,
     mcounteren: u32,
     scounteren: u32,
-    pmpcfg0: u32,
-    pmpaddr0: u32,
+    pmpcfg: [u32; 4],
+    pmpaddr: [u32; 16],
     satp: u32,
     mstatush: u32
 }
@@ -144,8 +144,8 @@ impl CSRState {
             addresses::MSCRATCH => Ok(&mut self.mscratch),
             addresses::MCOUNTEREN => Ok(&mut self.mcounteren),
             addresses::SCOUNTNEREN => Ok(&mut self.scounteren),
-            addresses::PMPCFG0 => Ok(&mut self.pmpcfg0),
-            addresses::PMPADDR0 => Ok(&mut self.pmpaddr0),
+            addresses::PMPCFG0..=0x3A3 => Ok(&mut self.pmpcfg[address - addresses::PMPCFG0]),
+            addresses::PMPADDR0..=0x3BF => Ok(&mut self.pmpaddr[address - addresses::PMPADDR0]),
             addresses::SATP => Ok(&mut self.satp),
             addresses::MSTATUSH => Ok(&mut self.mstatush),
             _ => Err(TrapCause::IllegalInstruction { instruction: None }),
@@ -215,8 +215,8 @@ impl CSRState {
             addresses::MCOUNTEREN => Ok(self.mcounteren),
             addresses::SCOUNTNEREN => Ok(self.scounteren),
 
-            addresses::PMPCFG0 => Ok(self.pmpcfg0),
-            addresses::PMPADDR0 => Ok(self.pmpaddr0),
+            addresses::PMPCFG0..=0x3A3 => Ok(self.pmpcfg[address - addresses::PMPCFG0]),
+            addresses::PMPADDR0..=0x3BF => Ok(self.pmpaddr[address - addresses::PMPADDR0]),
 
             addresses::SATP => {
                 if current_mode == CPUMode::S && mask_and_shift(self.mstatus, masks::MSTATUS_TVM) == 1 {

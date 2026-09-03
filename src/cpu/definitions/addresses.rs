@@ -128,4 +128,5 @@ pub const UART_END: usize = UART + 0x100 - 1;
 
 pub const PLIC: usize = 0x0c00_0000;
 pub const PLIC_END: usize = PLIC + 0x201007; // covers both contexts' claim registers
-
+pub const MSIP: usize = 0x0200_0000;
+pub const MSIP_END: usize = MSIP + ByteType::DoubleWord.as_num() - 1;

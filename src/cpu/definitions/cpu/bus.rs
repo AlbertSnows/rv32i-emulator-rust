@@ -1,4 +1,4 @@
-use crate::cpu::definitions::addresses::{MSTATUS, MTIME, MTIMECMP, MTIMECMP_END, MTIME_END, PLIC, PLIC_END, UART, UART_END};
+use crate::cpu::definitions::addresses::{MSIP, MSIP_END, MSTATUS, MTIME, MTIMECMP, MTIMECMP_END, MTIME_END, PLIC, PLIC_END, UART, UART_END};
 use crate::cpu::definitions::cpu::cpu_definition::CPUMode;
 use crate::cpu::definitions::cpu::csr::CSRState;
 use crate::cpu::definitions::cpu::memory::{MemoryAccessType, MemoryState, build_memory_state};
@@ -32,7 +32,7 @@ pub struct BUSState {
 pub fn build_bus_state() -> BUSState {
     BUSState {
         ram: build_memory_state(),
-        clint: ClintState { mtime: 0, mtimecmp: 0 },
+        clint: ClintState { mtime: 0, mtimecmp: 0, msip: 0 },
         plic: PlicState {
             priority: [0; NUM_SOURCES + 1],
             pending: [false; NUM_SOURCES + 1],
@@ -144,6 +144,10 @@ impl BUSState {
                 let mtimecmp_offset = address - MTIMECMP;
                 self.clint.read_mtimecmp(mtimecmp_offset, num_bytes)
             },
+            MSIP..=MSIP_END => {
+                let msip_offset = address - MSIP;
+                self.clint.read_msip(msip_offset, num_bytes)
+            },
             UART..=UART_END => {
                 let offset = address - UART;
                 Ok(self.uart.read(offset as u32, num_bytes))
@@ -171,6 +175,10 @@ impl BUSState {
                 let mtimecmp_offset = address - MTIMECMP;
                 self.clint.write_mtimecmp(mtimecmp_offset, bytes)
             },
+            MSIP..=MSIP_END => {
+                let msip_offset = address - MSIP;
+                self.clint.write_msip(msip_offset, bytes)
+            },
             UART..=UART_END => {
                 let offset = address - UART;
                 Ok(self.uart.write(offset as u32, bytes))
@@ -194,9 +202,20 @@ impl BUSState {
 pub struct ClintState {
     pub mtime: u64,
     pub mtimecmp: u64,
+    pub msip: u32
 }
 
 impl ClintState {
+
+    pub fn read_msip(&self, offset: usize, num_bytes: usize) -> Result<u32, TrapCause> {
+        Self::read_register(self.msip as u64, offset, num_bytes)
+    }
+
+    pub fn write_msip(&mut self, offset: usize, bytes: &[u8]) -> Result<(), TrapCause> {
+        self.msip = Self::write_register(self.msip as u64, offset, bytes)? as u32;
+        Ok(())
+    }
+
     pub fn update_time(&mut self) {
         self.mtime += 1;
     }

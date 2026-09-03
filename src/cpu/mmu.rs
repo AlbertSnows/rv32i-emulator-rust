@@ -185,7 +185,7 @@ pub fn lookup_virt_to_phys(virt_addr: u32,
             let access_permitted = relevant_bit == 1;
             if (access_permitted) {
                 let pte_ppn = mask_and_shift(pte_two, PTE_PPN_ONE | PTE_PPN_ZERO);
-                Ok(pte_ppn << PAGESIZE  | offset)
+                Ok(pte_ppn << PAGESIZE | offset)
             } else {
                 Err(page_fault(access_type, virt_addr))
             }

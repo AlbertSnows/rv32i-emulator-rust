@@ -68,11 +68,11 @@ impl PlicState {
                 result
             },
             0x20_0000..=CONTEXT_REGION_END => {
-                let context = ((offset - 0x20_000) / 0x1000) as usize;
+                let context = ((offset - 0x20_0000) / 0x1000) as usize;
                 let local = (offset - 0x20_0000) % 0x1000;
-                if (local == 0) {
+                if local == 0 {
                     self.threshold[context]
-                } else if (local == 4) {
+                } else if local == 4 {
                     self.claim(context as usize)
                 } else {
                     0
@@ -102,11 +102,11 @@ impl PlicState {
 
             },
             0x20_0000..=CONTEXT_REGION_END => {
-                let context = ((offset - 0x20_000) / 0x1000) as usize;
+                let context = ((offset - 0x20_0000) / 0x1000) as usize;
                 let local = (offset - 0x20_0000) % 0x1000;
-                if (local == 0) {
+                if local == 0 {
                     self.threshold[context] = value;
-                } else if (local == 4) {
+                } else if local == 4 {
                     self.complete(context, value)
                 }
             },
