@@ -1,3 +1,4 @@
+use crate::cpu::definitions::codes::ExecutionSignal;
 use crate::cpu::definitions::cpu::cpu_definition::{PCState, RegisterFile};
 use crate::cpu::instructions::Format;
 use crate::cpu::instructions::b::BOp;
@@ -5,14 +6,18 @@ use crate::cpu::definitions::trap_cause::TrapCause;
 use crate::cpu::instructions::r::AluOp;
 use crate::cpu::instructions::i::system::{SystemOp};
 
-pub fn advance_pc(pc: &mut PCState, 
-                  instruction: &Format, 
-                  reg_file: &RegisterFile, 
-                  advance_amount: u32) 
-    -> Result<usize, TrapCause> {
+pub fn advance_pc(pc: &mut PCState,
+                  instruction: &Format,
+                  reg_file: &mut RegisterFile,
+                  advance_amount: u32)
+                  -> Result<usize, TrapCause> {
     let pc_value = pc.read() as u32;
     let new_value = match instruction {
-        Format::JType { op, rd, imm } => pc_value.wrapping_add(*imm as u32),
+        Format::JType { op, rd, imm } => {
+            let jump_target = (pc.read() as u32).wrapping_add(*imm as u32);
+            reg_file.write(*rd, (pc.read() as u32).wrapping_add(advance_amount));
+            pc_value.wrapping_add(*imm as u32)
+        },
         Format::BType { op, imm, rs1, rs2 } => {
             let rs1_val = reg_file.read(*rs1);
             let rs2_val = reg_file.read(*rs2);
@@ -26,7 +31,15 @@ pub fn advance_pc(pc: &mut PCState,
                 BOp::Bge => if (rs1_val as i32) >= (rs2_val as i32) { pc_value.wrapping_add(imm_val) } else { pc_value.wrapping_add(advance_amount) }
             }
         },
-        Format::JalrType { rd, rs1, imm } => pc_value,
+        Format::JalrType { rd, rs1, imm } => {
+            let rs1_val = reg_file.read(*rs1);
+            // 1 = ..001, !1 = ..110
+            // (combine rs1 and imm) -> and with !1 which means keep all bits in (rs1 + imm) but force it to be even (rounded down)
+            let new_value = (rs1_val.wrapping_add(*imm as u32)) & !1;
+            reg_file.write(*rd, (pc_value.wrapping_add(advance_amount)));
+            pc.write(new_value as usize);
+            pc.read() as u32
+        },
         Format::SystemType { op: SystemOp::MRet } => pc_value,
         Format::SystemType { op: SystemOp::SRet } => pc_value,
         _ => pc_value.wrapping_add(advance_amount)
@@ -60,26 +73,34 @@ mod tests {
         let mut pc = build_pc_state();
         // i32::MAX = 0x7FFF_FFFF = 0b0111_1111_1111_1111_1111_1111_1111_1111
         pc.write(i32::MAX as usize);
-        let reg_file = build_register_file();
+        let mut reg_file = build_register_file();
         let instruction = Format::JType { op: JOp::Jal, rd: 1, imm: 1 };
-        let result = advance_pc(&mut pc, &instruction, &reg_file, 4);
+        let result = advance_pc(&mut pc, &instruction, &mut reg_file, 4);
         // adding 1 carries through every one-bit and flips the sign bit:
         // 0b0111_...1111 + 1 = 0b1000_0000_0000_0000_0000_0000_0000_0000
         // = 0x8000_0000 = i32::MIN
         assert_eq!(result.unwrap() as i32, i32::MIN);
+        // rd gets the link (return) address: old pc + advance_amount,
+        // wrapping the same way the jump target itself does
+        assert_eq!(reg_file.read(1) as i32, i32::MIN.wrapping_add(3));
     }
 
     #[test]
     fn test_advance_pc_jalrtype_wraps_at_i32_max() {
-        // jalr is a no op now
+        // jalr's target comes from rs1 + imm (register-indirect), not
+        // pc + imm like jal -- and it now actually computes/writes that
+        // target here, plus the link register, rather than being a no-op
         let mut pc = build_pc_state();
         let mut reg_file = build_register_file();
         // i32::MAX = 0x7FFF_FFFF = 0b0111_1111_1111_1111_1111_1111_1111_1111
         reg_file.write(2, i32::MAX as u32);
         let instruction = Format::JalrType { rd: 1, rs1: 2, imm: 1 };
-        let result = advance_pc(&mut pc, &instruction, &reg_file, 4);
-        // = i32::MIN, and & !1 leaves it unchanged since bit 0 is already 0
-        assert_eq!(result.unwrap() as i32, 0);
+        let result = advance_pc(&mut pc, &instruction, &mut reg_file, 4);
+        // (i32::MAX + 1) & !1 = i32::MIN, and & !1 leaves it unchanged
+        // since bit 0 is already 0
+        assert_eq!(result.unwrap() as i32, i32::MIN);
+        // rd gets the link address: old pc (0) + advance_amount
+        assert_eq!(reg_file.read(1), 4);
     }
 
     #[test]
@@ -90,7 +111,7 @@ mod tests {
         reg_file.write(2, 5);
         reg_file.write(3, 5);
         let instruction = Format::BType { op: BOp::Beq, imm: 1, rs1: 2, rs2: 3 };
-        let result = advance_pc(&mut pc, &instruction, &reg_file, 4);
+        let result = advance_pc(&mut pc, &instruction, &mut reg_file, 4);
         assert_eq!(result.unwrap() as i32, i32::MIN);
     }
 
@@ -102,7 +123,7 @@ mod tests {
         reg_file.write(2, 5);
         reg_file.write(3, 9); // not equal -- branch not taken, falls through to pc + 4
         let instruction = Format::BType { op: BOp::Beq, imm: 100, rs1: 2, rs2: 3 };
-        let result = advance_pc(&mut pc, &instruction, &reg_file, 4);
+        let result = advance_pc(&mut pc, &instruction, &mut reg_file, 4);
         println!("{:?}", result);
         assert_eq!(result.unwrap() as i32, -2147483648);
     }
@@ -115,7 +136,7 @@ mod tests {
         reg_file.write(2, 5);
         reg_file.write(3, 9); // not equal -- branch not taken, falls through to pc + 4
         let instruction = Format::BType { op: BOp::Beq, imm: 100, rs1: 2, rs2: 3 };
-        let result = advance_pc(&mut pc, &instruction, &reg_file, 4);
+        let result = advance_pc(&mut pc, &instruction, &mut reg_file, 4);
         // i32::MAX (0x7FFFFFFF) + 4 wraps to 0x80000003
         assert_eq!(result, Err(TrapCause::InstructionAddressMisaligned { address: 2147483651 }));
     }
@@ -124,9 +145,9 @@ mod tests {
     fn test_advance_pc_default_case_wraps_at_i32_max() {
         let mut pc = build_pc_state();
         pc.write((i32::MAX - 3) as usize);
-        let reg_file = build_register_file();
+        let mut reg_file = build_register_file();
         let instruction = Format::UType { op: UOp::Lui, rd: 1, imm_upper: 0 };
-        let result = advance_pc(&mut pc, &instruction, &reg_file, 4);
+        let result = advance_pc(&mut pc, &instruction, &mut reg_file, 4);
         assert_eq!(result.unwrap() as i32, -2147483648);
     }
 
@@ -145,7 +166,7 @@ mod tests {
         let instruction = Format::RType { op: AluOp::Add, rs1: 2, rs2: 3, rd: 23};
         reg_file.write(2, 1);
         reg_file.write(3, 2);
-        let result = advance_pc(&mut pc, &instruction, &reg_file, 4);
+        let result = advance_pc(&mut pc, &instruction, &mut reg_file, 4);
         assert_eq!(pc.read(), 1);
         assert_eq!(result, Err(TrapCause::InstructionAddressMisaligned { address: 5 }));
     }
@@ -158,9 +179,50 @@ mod tests {
         // permits any 2-byte-aligned instruction address.
         let mut pc = build_pc_state();
         pc.write(2);
-        let reg_file = build_register_file();
+        let mut reg_file = build_register_file();
         let instruction = Format::RType { op: AluOp::Add, rs1: 2, rs2: 3, rd: 23 };
-        let result = advance_pc(&mut pc, &instruction, &reg_file, 2);
+        let result = advance_pc(&mut pc, &instruction, &mut reg_file, 2);
         assert_eq!(result.unwrap(), 4);
+    }
+
+    #[test]
+    fn test_advance_pc_jtype_writes_link_register_using_advance_amount() {
+        // Exercises the actual bug this fix targets: a compressed C.JAL
+        // (advance_amount=2) must link to pc+2, not a hardcoded pc+4.
+        let mut pc = build_pc_state();
+        pc.write(100);
+        let mut reg_file = build_register_file();
+        let instruction = Format::JType { op: JOp::Jal, rd: 1, imm: 10 };
+        let result = advance_pc(&mut pc, &instruction, &mut reg_file, 2);
+        assert_eq!(result.unwrap(), 110);
+        assert_eq!(reg_file.read(1), 102);
+    }
+
+    #[test]
+    fn test_advance_pc_jalrtype_writes_link_register_using_advance_amount() {
+        // Same bug, for C.JALR/C.JR's shared JalrType path.
+        let mut pc = build_pc_state();
+        pc.write(100);
+        let mut reg_file = build_register_file();
+        reg_file.write(2, 50);
+        let instruction = Format::JalrType { rd: 1, rs1: 2, imm: 10 };
+        let result = advance_pc(&mut pc, &instruction, &mut reg_file, 2);
+        // target = (rs1 + imm) & !1 = (50 + 10) & !1 = 60
+        assert_eq!(result.unwrap(), 60);
+        assert_eq!(reg_file.read(1), 102);
+    }
+
+    #[test]
+    fn test_advance_pc_jalrtype_clears_low_bit_of_target() {
+        // JALR's target is rounded down to an even address regardless of
+        // rs1/imm's low bit -- this is unconditional (not a C-extension
+        // relaxation), per the spec's own definition of the instruction.
+        let mut pc = build_pc_state();
+        pc.write(0);
+        let mut reg_file = build_register_file();
+        reg_file.write(2, 51); // odd
+        let instruction = Format::JalrType { rd: 0, rs1: 2, imm: 0 };
+        let result = advance_pc(&mut pc, &instruction, &mut reg_file, 4);
+        assert_eq!(result.unwrap(), 50);
     }
 }

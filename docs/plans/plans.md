@@ -81,6 +81,18 @@ kernel, which could be told not to use it since this project controls
 their builds. See `docs/plans/c_extension.md` for the scope and
 implementation plan.
 
+**Status (2026-09-04): the C extension is implemented and busybox now
+boots as `/init`.** Fixing it surfaced (and fixed) two real bugs
+unrelated to the C extension itself, both never exercised until real
+Linux+busybox scheduling activity did: a missing supervisor-timer-
+interrupt check in the interrupt-selection logic, and a stale
+pre-C-extension `% 4` alignment check plus hardcoded `pc+4` link
+address in `j.rs`/`jalr.rs` (both now consolidated into `advance_pc`,
+which already had the correct `% 2` check and `advance_amount`). What's
+left to reach an actual prompt isn't a CPU-correctness bug at all —
+it's missing interactive-console I/O plumbing. See
+`docs/plans/interactive_console.md`.
+
 ## [ ] 14. Refactor CSRState (Postponed)
 
 Attempt after item #8 is done. Motivation: building `mip` surfaced how

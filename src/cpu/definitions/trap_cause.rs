@@ -56,8 +56,9 @@ pub enum TrapCause {
     LoadPageFault { address: usize },
     StorePageFault { address: usize },
     MachineExternalInterrupt,
-    SupervisorExternalInterrupt
+    SupervisorExternalInterrupt,
 
+    SupervisorTimerInterrupt,
 }
 
 impl TrapCause {
@@ -68,6 +69,7 @@ impl TrapCause {
             TrapCause::MachineTimerInterrupt => CPUMode::M,
             TrapCause::MachineExternalInterrupt => CPUMode::M,
             TrapCause::SupervisorExternalInterrupt => CPUMode::S,
+            TrapCause::SupervisorTimerInterrupt => CPUMode::S,
             _ => panic!("not an interrupt cause")
         }
     }
@@ -91,6 +93,7 @@ impl TrapCause {
             TrapCause::StorePageFault { .. } => 15,
             TrapCause::MachineExternalInterrupt => MCAUSE_INTERRUPT | 11,
             TrapCause::SupervisorExternalInterrupt => MCAUSE_INTERRUPT | 9,
+            TrapCause::SupervisorTimerInterrupt => MCAUSE_INTERRUPT | 5,
         }
     }
 }

@@ -16,7 +16,9 @@ impl UartState {
 
     pub fn read(&mut self, offset: u32, _num_bytes: usize) -> u32 {
         if offset == 5 {
-            0x60
+            // 60 when there's no data writing
+            // 61 where there is data waiting
+            if self.rx_buffer.is_empty() { 0x60 } else { 0x61 }
         } else if offset == 0 {
             self.rx_buffer.pop_front().unwrap_or(0) as u32
         } else {

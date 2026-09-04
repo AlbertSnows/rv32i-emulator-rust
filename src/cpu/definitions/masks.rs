@@ -178,3 +178,5 @@ pub const C_REG_FULL: u32 = TWO_TO_SIX;
 // 32-bit ISA's FUNCT_THREE (inst[14:12]). Reusing FUNCT_THREE here would
 // silently extract the wrong 3 bits for every compressed instruction.
 pub const C_FUNCT_THREE: u32 = THIRTEEN_TO_FIFTEEN;
+
+pub const PER_SOURCE_MIP: u32 = SIP;

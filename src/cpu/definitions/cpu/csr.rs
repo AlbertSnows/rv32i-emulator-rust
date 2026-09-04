@@ -261,7 +261,13 @@ impl CSRState {
 
         let property = self.field_for(address)?;
         match address {
-            addresses::MIP => Ok(*property),
+            addresses::MIP => {
+                let bits_to_write = value & masks::PER_SOURCE_MIP;
+                let bits_minus_mip = *property & !masks::PER_SOURCE_MIP;
+                let updated_mip = bits_minus_mip | bits_to_write;
+                *property = updated_mip;
+                Ok(*property & masks::PER_SOURCE_MIP)
+            },
             addresses::SIP => Ok(*property & masks::SIP),
             addresses::SSTATUS => {
                 let bits_to_write = value & masks::SSTATUS;

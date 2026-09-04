@@ -4,7 +4,7 @@ use crate::cpu::definitions::addresses::{MIE, MIP, MSTATUS, SSTATUS};
 use crate::cpu::definitions::codes::ExecutionSignal;
 use crate::cpu::definitions::cpu::cpu_definition::{CPUMode, CPUState};
 use crate::cpu::definitions::cpu::csr::{CPUCycles, MIPBits};
-use crate::cpu::definitions::masks::{GLOBAL_MIE, GLOBAL_SIE, MEIE, MEIP, MPIE, MTI, MTIE, MTIP, SEIE, SEIP, SPIE};
+use crate::cpu::definitions::masks::{GLOBAL_MIE, GLOBAL_SIE, MEIE, MEIP, MPIE, MTI, MTIE, MTIP, SEIE, SEIP, SPIE, STIE, STIP};
 use crate::cpu::definitions::trap_cause::{M_TRAP, S_TRAP};
 use crate::cpu::definitions::trap_cause::{TrapCause, TrapDestination};
 use crate::cpu::fetcher::fetch_word_from_memory;
@@ -27,7 +27,7 @@ fn perform_step(cpu: &mut CPUState) -> Result<ExecutionSignal, TrapCause> {
     let advance_amount =
         if raw_word.1 == ByteType::Word { ByteType::Word.as_num() }
         else { ByteType::HalfWord.as_num() };
-    advance_pc(&mut cpu.pc, &instruction, &cpu.register, advance_amount as u32)?;
+    advance_pc(&mut cpu.pc, &instruction, &mut cpu.register, advance_amount as u32)?;
     Ok(execution_outcome)
 }
 
@@ -70,7 +70,10 @@ fn set_tval(cpu: &mut CPUState, dest: &TrapDestination, trap_cause: &TrapCause) 
         TrapCause::IllegalInstruction { instruction } => instruction.unwrap_or(0),
         TrapCause::Breakpoint | TrapCause::EnvironmentCallFromMMode |
         TrapCause::EnvironmentCallFromSMode | TrapCause::EnvironmentCallFromUMode |
-        TrapCause::MachineTimerInterrupt | TrapCause::MachineExternalInterrupt | TrapCause::SupervisorExternalInterrupt
+        TrapCause::MachineTimerInterrupt |
+        TrapCause::MachineExternalInterrupt |
+        TrapCause::SupervisorExternalInterrupt |
+        TrapCause::SupervisorTimerInterrupt
             => 0,
     };
     cpu.csr.guest_write(dest.tval, trap_val, dest.mode)
@@ -155,7 +158,8 @@ pub fn handle_trap(cpu: &mut CPUState, trap_cause: TrapCause) -> ExecutionSignal
     let register_value = match trap_cause {
         TrapCause::MachineTimerInterrupt |
         TrapCause::MachineExternalInterrupt |
-        TrapCause::SupervisorExternalInterrupt
+        TrapCause::SupervisorExternalInterrupt |
+        TrapCause::SupervisorTimerInterrupt
             => cpu.csr.read(addresses::MIDELEG, CPUMode::M),
         _ => cpu.csr.read(addresses::MEDELEG, CPUMode::M),
     }.expect("mideleg and medeleg are defined");
@@ -163,9 +167,10 @@ pub fn handle_trap(cpu: &mut CPUState, trap_cause: TrapCause) -> ExecutionSignal
     // in the case of interrupts, the 31st bit is the tag bit, to distinguish them, so we need to
     // strip the tag bit
     let corresponding_mask = match trap_cause {
-        TrapCause::MachineTimerInterrupt => MTI,
+        TrapCause::MachineTimerInterrupt => MTIP,
         TrapCause::MachineExternalInterrupt => MEIP,
         TrapCause::SupervisorExternalInterrupt => SEIP,
+        TrapCause::SupervisorTimerInterrupt => STIP,
         _ => 1 << trap_cause.mcause_code(),
     };
     let relevant_bit_set = mask_and_shift(register_value, corresponding_mask) == 1;
@@ -222,6 +227,7 @@ fn select_pending_interrupt(cpu: &CPUState) -> Option<TrapCause> {
         (TrapCause::MachineExternalInterrupt, MEIE, MEIP),
         (TrapCause::MachineTimerInterrupt, MTIE, MTIP),
         (TrapCause::SupervisorExternalInterrupt, SEIE, SEIP),
+        (TrapCause::SupervisorTimerInterrupt, STIE, STIP)
     ];
     interrupts_by_priority.iter().find_map(|(cause, enabled_mask, pending_mask)| {
         check_interrupt(mip, mie, *pending_mask, *enabled_mask, cpu, *cause)
