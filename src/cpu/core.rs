@@ -214,10 +214,6 @@ pub fn step(cpu: &mut CPUState) -> Result<ExecutionSignal, TrapCause> {
 }
 
 fn select_pending_interrupt(cpu: &CPUState) -> Option<TrapCause> {
-    let mid_trap = cpu.flags.in_trap;
-    if mid_trap {
-        return None;
-    }
     let mip = cpu.csr.read(MIP, CPUMode::M).expect("MIP defined");
     let mie = cpu.csr.read(MIE, CPUMode::M).expect("MIE defined");
     // bit field to get what's pending
@@ -523,29 +519,5 @@ mod tests {
         assert_eq!(mask_and_shift(mstatus_after_trap, GLOBAL_MIE), 0);
         inst_i_xret(&mut cpu, &M_TRAP);
         assert_eq!(mask_and_shift(cpu.csr.read(addresses::MSTATUS, CPUMode::M).unwrap(), GLOBAL_MIE), 1);
-    }
-
-    #[test]
-    fn test_step_defers_interrupt_while_already_in_trap() {
-        // cpu.flags.in_trap already true, then conditions for a timer
-        // interrupt become true 
-        // step() must not re-fire the interrupt
-        // (that would clobber mepc/mcause and starve whatever handler is
-        // already running of the chance to execute even one instruction).
-        // It should run the next instruction normally, same as if no
-        // interrupt were pending at all. The interrupt stays pending and
-        // will correctly fire once in_trap goes back to false via MRET.
-        let mut cpu = build_cpu_state();
-        cpu.flags.in_trap = true;
-        cpu.csr.guest_write(addresses::MIE, MTIE, CPUMode::M);
-        cpu.csr.guest_write(addresses::MSTATUS, GLOBAL_MIE, CPUMode::M);
-        cpu.register.write(1, 4);
-        cpu.register.write(2, 3);
-        store_in_mem(&ADD_X3_X1_X2.to_le_bytes(), &mut cpu.bus.ram, 4);
-        cpu.pc.write(BASE_ADDRESS as usize + 4);
-        let outcome = step(&mut cpu);
-        assert_eq!(outcome, Ok(ExecutionSignal::Continue));
-        assert_eq!(cpu.register.read(3), 7); 
-        assert_eq!(cpu.pc.read(), BASE_ADDRESS as usize + 8); // advanced normally, not jumped to mtvec
     }
 }

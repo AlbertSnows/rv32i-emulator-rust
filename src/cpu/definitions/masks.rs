@@ -180,3 +180,4 @@ pub const C_REG_FULL: u32 = TWO_TO_SIX;
 pub const C_FUNCT_THREE: u32 = THIRTEEN_TO_FIFTEEN;
 
 pub const PER_SOURCE_MIP: u32 = SIP;
+pub const PER_SOURCE_SIP: u32 = SIP;

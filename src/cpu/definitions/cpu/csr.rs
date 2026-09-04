@@ -268,7 +268,13 @@ impl CSRState {
                 *property = updated_mip;
                 Ok(*property & masks::PER_SOURCE_MIP)
             },
-            addresses::SIP => Ok(*property & masks::SIP),
+            addresses::SIP => {
+                let bits_to_write = value & masks::PER_SOURCE_SIP;
+                let bits_minus_sip = *property & !masks::PER_SOURCE_SIP;
+                let updated_sip = bits_minus_sip | bits_to_write;
+                *property = updated_sip;
+                Ok(*property & masks::SIP)
+            },
             addresses::SSTATUS => {
                 let bits_to_write = value & masks::SSTATUS;
                 let bits_minus_sstatus = *property & !masks::SSTATUS;

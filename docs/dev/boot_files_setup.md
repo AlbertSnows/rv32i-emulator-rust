@@ -31,7 +31,7 @@ each should be added to `.gitignore` rather than committed.
   ```bash
   toolbox create riscv-build   # if you don't already have one
   toolbox enter riscv-build
-  sudo dnf install -y clang lld llvm flex bison dtc qemu-system-riscv
+  sudo dnf install -y clang lld llvm flex bison dtc qemu-system-riscv gcc-riscv32-linux-gnu
   ```
 
   - `clang`/`lld`/`llvm` — OpenSBI's PIE requirement rules out the
@@ -41,10 +41,17 @@ each should be added to `.gitignore` rather than committed.
   - `flex`/`bison` — needed to build the kernel's own vendored `dtc`
     (`scripts/dtc`) as part of the kernel build itself.
   - `dtc` — the *host* device-tree-compiler package, for `fdtput`/
-    `fdtdump`, used in step 3 to patch the generated DTB.
+    `fdtdump`, used in step 4 to patch the generated DTB.
   - `qemu-system-riscv32` — to generate the real DTB, and optionally to
     cross-check emulator behavior against real hardware (see the last
     section).
+  - `gcc-riscv32-linux-gnu` — provides `riscv32-linux-gnu-gcc`/`-ar`/
+    `-ranlib`, used in step 3 to build musl and busybox. This is a
+    separate toolchain from the `clang`/OpenSBI/kernel one above: musl
+    and busybox are ordinary Linux userspace, not the freestanding/PIE
+    code OpenSBI needs, so the standard `-linux-gnu-` GCC cross
+    -toolchain works fine (and is what musl's own build system expects
+    by convention).
 
 ## 1. Build OpenSBI
 
@@ -71,26 +78,24 @@ git clone https://github.com/riscv-software-src/opensbi ~/opt/opensbi
 cd ~/opt/opensbi
 export CROSS_COMPILE=riscv32-unknown-elf-
 export PLATFORM_RISCV_XLEN=32
-export PLATFORM_RISCV_ISA=rv32ima_zicsr_zifencei
+export PLATFORM_RISCV_ISA=rv32imac_zicsr_zifencei
 make PLATFORM=generic FW_DYNAMIC=y LLVM=1
 ```
 
-**`PLATFORM_RISCV_ISA` is narrowed on purpose.** Left unset, OpenSBI's
-Makefile defaults to `rv$(XLEN)imafdc[_zicsr_zifencei]` — full
-multiply/atomics/float/compressed. This emulator only implements the
-base integer set plus `M` (multiply/divide) and `A` (atomics); it has
-no compressed-instruction decoder and no floating-point unit. A
-default-ISA OpenSBI build compiles compressed (2-byte) instructions
-into the very first bytes of its entry point, which this emulator
-can't decode at all — it isn't a bug to fix, it's a scope boundary:
-either build the emulator's own decoder for the `C` extension (a large
-feature, comparable in size to everything already built for the base
-ISA), or don't emit those instructions in the first place. Narrowing
-the ISA string is far cheaper and is what this project does.
-`zicsr_zifencei` stays in the string because CSR instructions are used
-everywhere in privileged code and modern toolchains require them
-spelled out explicitly (they were split out of the base `I` extension
-in a later revision of the ISA manual).
+**`PLATFORM_RISCV_ISA` is still narrowed, just not as far as it used
+to be.** Left unset, OpenSBI's Makefile defaults to
+`rv$(XLEN)imafdc[_zicsr_zifencei]` — full multiply/atomics/float
+/compressed. This emulator implements the base integer set plus `M`
+(multiply/divide), `A` (atomics), and (as of the `C` extension work)
+compressed instructions, but has no floating-point unit — so `fd` is
+still excluded, `c` no longer is. Before the emulator had a `C`
+decoder, a default-ISA build would compile compressed instructions
+into the very first bytes of OpenSBI's entry point that it couldn't
+decode at all; that constraint is gone now. `zicsr_zifencei` stays in
+the string because CSR instructions are used everywhere in privileged
+code and modern toolchains require them spelled out explicitly (they
+were split out of the base `I` extension in a later revision of the
+ISA manual).
 
 A few other things about this build that aren't obvious from the flags
 alone, each a real error hit while developing this:
@@ -225,7 +230,6 @@ scripts/config --disable CONFIG_USB
 scripts/config --disable CONFIG_NETDEVICES
 scripts/config --disable CONFIG_WLAN
 scripts/config --disable CONFIG_EFI
-scripts/config --disable CONFIG_RISCV_ISA_C
 scripts/config --disable CONFIG_FPU
 scripts/config --disable CONFIG_PCI
 scripts/config --disable CONFIG_VIRTIO_MMIO
@@ -248,17 +252,19 @@ Why each group:
   Disabling them also shrinks the build enormously.
 - **`EFI`** — real QEMU boots this way but this project's `loader.rs`
   loads OpenSBI/kernel directly (see `multi_image_loader.md`), so no
-  EFI runtime is needed. More importantly, `EFI`'s Kconfig entry
-  unconditionally `select`s `RISCV_ISA_C` — Kconfig `select` cannot be
-  overridden by disabling the target directly; you have to disable
-  whatever *selects* it. This was found the hard way: disabling
-  `RISCV_ISA_C` alone silently gets reverted back to `y` on the next
-  `olddefconfig` until `EFI` is also gone.
-- **`RISCV_ISA_C`, `FPU`** — matches the same ISA narrowing applied to
-  OpenSBI above (see that section for the full "why"): this emulator
-  has no compressed-instruction decoder and no FPU. Left enabled, the
-  compiler emits instructions the kernel will crash on the moment it
-  starts executing.
+  EFI runtime is needed. Note: `EFI`'s Kconfig entry unconditionally
+  `select`s `RISCV_ISA_C`, which mattered a great deal before this
+  emulator had a `C` decoder (disabling `RISCV_ISA_C` directly used to
+  silently get reverted back to `y` on the next `olddefconfig` until
+  `EFI` was also gone) — now that `C` is implemented and left enabled
+  (see below), that particular interaction is moot, but `EFI` is still
+  disabled on its own merits since nothing in this project uses it.
+- **`FPU`** — matches the same ISA narrowing applied to OpenSBI above
+  (see that section for the full "why"): this emulator has no
+  floating-point unit. Left enabled, the compiler emits instructions
+  the kernel will crash on the moment it starts executing.
+  `RISCV_ISA_C` is left *enabled* here (defconfig's default) now that
+  the emulator implements the `C` extension — no narrowing needed.
 - **`PCI`, `VIRTIO_MMIO`, `RTC_CLASS`** — these drivers actively *probe
   real memory-mapped registers* during kernel init (PCI ECAM at
   `0x30000000`, virtio-mmio slots from `0x10001000`, the goldfish RTC
@@ -273,18 +279,175 @@ Why each group:
   `RTC_CLASS` itself has to go, the same `select`-can't-be-overridden
   pattern as `EFI` above.
 
-Then build:
+Don't build yet — the kernel's own final build command bakes the
+initramfs (step 3, not built yet) directly into the `Image` via
+`CONFIG_INITRAMFS_SOURCE`, so building now would produce a kernel with
+no init process. Come back to `make LLVM=1 -j$(nproc)` at the end of
+step 3.
+
+## 3. Build the musl+busybox userspace (initramfs)
+
+This is the part `PLATFORM_RISCV_ISA`/`CONFIG_RISCV_ISA_C` narrowing
+used to matter for the most, and where the `C` extension actually
+simplifies things: **prebuilt cross-toolchains generally emit
+compressed instructions unconditionally** — there's no equivalent
+"narrow the ISA" flag for a distro's musl/busybox the way there is for
+building OpenSBI/the kernel from source, so before this emulator had a
+`C` decoder, userspace was the one piece that couldn't just be told to
+avoid `C`. Now that the emulator implements it, none of the steps
+below are working around a missing decoder — they're just what it
+takes to cross-build a static, musl-linked busybox for `rv32` at all.
+
+### 3a. Build musl libc
+
+Source: [`bminor/musl`](https://github.com/bminor/musl), tag `v1.2.5`.
+musl (not glibc) because it's small, straightforward to cross-compile
+statically, and its `riscv32` port defaults to the soft-float ABI
+(`riscv32-sf`) this emulator needs, since it has no FPU.
 
 ```bash
+git clone https://git.musl-libc.org/musl ~/opt/musl
+cd ~/opt/musl
+git checkout v1.2.5
+CC=riscv32-linux-gnu-gcc CFLAGS="-march=rv32imac_zicsr_zifencei -mabi=ilp32" \
+  ./configure --target=riscv32 --prefix=/var/home/ajsnow/opt/musl-install
+make AR=riscv32-linux-gnu-ar RANLIB=riscv32-linux-gnu-ranlib -j$(nproc)
+make AR=riscv32-linux-gnu-ar RANLIB=riscv32-linux-gnu-ranlib install
+```
+
+- **`AR`/`RANLIB` need overriding.** musl's `configure` otherwise
+  assumes plain `ar`/`ranlib` (the host's), which produces archive
+  members `riscv32-linux-gnu-gcc` can't link against.
+- **The `install` step's final `ln` for
+  `/lib/ld-musl-riscv32-sf.so.1` fails without root** — this is musl's
+  install script attempting a system-wide symlink at the real host
+  root, which the script itself tolerates (it's suffixed `|| true` in
+  `tools/install.sh`) and this project never uses (everything here is
+  statically linked). The artifact that actually matters,
+  `~/opt/musl-install/lib/libc.a`, is unaffected.
+- **`-march` here should match whatever busybox is built with in 3c**
+  (`rv32imac_zicsr_zifencei` — `M`/`A`/`C`, no `F`/`D`) so both halves
+  of the static link agree on what instructions are legal to emit;
+  they don't strictly have to match (a static link mixing march
+  variants is not a compile error), but leaving them mismatched invites
+  confusing, easy-to-avoid inconsistency for no benefit.
+
+### 3b. Point GCC at musl instead of glibc
+
+`riscv32-linux-gnu-gcc` is a glibc cross-toolchain by default — its
+built-in header/library search paths point at glibc, not the musl just
+installed. musl ships a small generator script that produces a GCC
+"specs" file redirecting those paths:
+
+```bash
+sh ~/opt/musl/tools/musl-gcc.specs.sh \
+  ~/opt/musl-install/include ~/opt/musl-install/lib \
+  ~/opt/musl-install/lib/libc.so > ~/opt/musl-riscv32.specs
+```
+
+Any subsequent `riscv32-linux-gnu-gcc -specs=/var/home/ajsnow/opt/musl-riscv32.specs ...`
+invocation compiles and links against musl instead of glibc.
+
+### 3c. Install kernel UAPI headers for musl
+
+musl doesn't ship Linux kernel UAPI headers (`linux/kd.h` and similar)
+the way glibc does — busybox's build needs them directly from the
+kernel source tree already checked out in step 2:
+
+```bash
+cd ~/opt/linux
+make ARCH=riscv INSTALL_HDR_PATH=/var/home/ajsnow/opt/musl-install headers_install
+```
+
+### 3d. Build busybox
+
+Source: [`mirror/busybox`](https://git.busybox.net/busybox), tag
+`1_36_1`.
+
+```bash
+git clone https://git.busybox.net/busybox ~/opt/busybox-1.36.1
+cd ~/opt/busybox-1.36.1
+git checkout 1_36_1
+make ARCH=riscv CROSS_COMPILE=riscv32-linux-gnu- defconfig
+scripts/config --disable CONFIG_HWCLOCK
+make ARCH=riscv CROSS_COMPILE=riscv32-linux-gnu- \
+  CC="riscv32-linux-gnu-gcc -march=rv32imac_zicsr_zifencei -mabi=ilp32 -specs=/var/home/ajsnow/opt/musl-riscv32.specs" \
+  -j$(nproc)
+```
+
+- **`CC` must be passed on the `make` command line, not exported.**
+  busybox's own `Makefile` sets `CC = $(CROSS_COMPILE)gcc`, and a plain
+  Makefile assignment overrides an exported environment variable of
+  the same name — an exported `CC` silently gets ignored, and the
+  build uses a bare `riscv32-linux-gnu-gcc` with no `-specs=`, linking
+  against glibc instead of musl. Only a `make`-command-line assignment
+  (which `make`'s variable-precedence rules treat as an override, not
+  a default) actually takes effect. `V=1` reveals which one happened —
+  no `-specs=` on the compile lines means the exported-only form was
+  used by mistake.
+- **`CONFIG_HWCLOCK` has to go.** The `hwclock` applet references
+  `SYS_settimeofday`, which musl's `riscv32` headers don't declare (a
+  genuine musl/arch header gap, unrelated to this project). Not needed
+  for a minimal interactive shell.
+
+Then install into the initramfs source tree (creates `bin/`, `sbin/`,
+symlinks each applet name to `busybox`):
+
+```bash
+make ARCH=riscv CROSS_COMPILE=riscv32-linux-gnu- \
+  CC="riscv32-linux-gnu-gcc -march=rv32imac_zicsr_zifencei -mabi=ilp32 -specs=/var/home/ajsnow/opt/musl-riscv32.specs" \
+  CONFIG_PREFIX=/var/home/ajsnow/opt/initramfs install
+```
+
+### 3e. Add device nodes and an init script
+
+The kernel's pre-`/init` console-open attempt (`console_on_rootfs()`)
+fails with `Warning: unable to open an initial console` if
+`/dev/console` doesn't exist yet — `devtmpfs` isn't mounted until
+`/init` itself runs, so the initramfs has to ship device nodes
+up-front rather than relying on `devtmpfs` to create them. Since the
+build environment has no root privileges to run a real `mknod`, the
+kernel's initramfs builder supports a separate `nod`-format file list
+for exactly this case — a second `CONFIG_INITRAMFS_SOURCE` entry that
+adds cpio device-node entries without needing `mknod` at all:
+
+```bash
+cat > ~/opt/initramfs-devnodes.txt <<'EOF'
+nod /dev/console 0600 0 0 c 5 1
+nod /dev/null 0666 0 0 c 1 3
+nod /dev/tty 0666 0 0 c 5 0
+EOF
+```
+
+`~/opt/initramfs/init` also needs to exist (a shell script — `#!/bin/sh`
+— that at minimum drops into `/bin/sh` after any setup) and be
+executable; this is the file the kernel actually runs as PID 1.
+
+### 3f. Point the kernel at the initramfs and rebuild
+
+```bash
+cd ~/opt/linux
+scripts/config --set-str CONFIG_INITRAMFS_SOURCE \
+  "/var/home/ajsnow/opt/initramfs /var/home/ajsnow/opt/initramfs-devnodes.txt"
+make LLVM=1 olddefconfig
 make LLVM=1 -j$(nproc)
 ```
 
-Output: `arch/riscv/boot/Image` — the raw, decompressed kernel image
-`load_kernel` reads (not `vmlinux`, the unstripped ELF debug build).
-See `docs/dev/multi_image_loader.md`'s Image-header section for what
-this file's own 64-byte header describes.
+The initramfs is baked directly into `arch/riscv/boot/Image` at this
+point — there's no separate initramfs file for `loader.rs` to load.
+**Any time busybox, musl, `~/opt/initramfs/init`, or
+`initramfs-devnodes.txt` changes, this kernel rebuild has to be
+re-run** to pick it up (`make` doesn't automatically re-trigger on
+changes inside `CONFIG_INITRAMFS_SOURCE`'s directories the way it
+tracks kernel source files).
 
-## 3. Generate and narrow the device tree blob
+Output: `arch/riscv/boot/Image` — the raw, decompressed kernel image
+`load_kernel` reads (not `vmlinux`, the unstripped ELF debug build),
+now with the busybox userspace baked in. See
+`docs/dev/multi_image_loader.md`'s Image-header section for what this
+file's own 64-byte header describes.
+
+## 4. Generate and narrow the device tree blob
 
 Since this project deliberately matches QEMU's `virt` machine
 addresses (see `docs/dev/peripherals_specs.md`, `peripherals_no_spec.md`),
@@ -327,6 +490,13 @@ capability than this emulator does.**
    fdtput -t s ~/opt/virt.dtb /cpus/cpu@0 riscv,isa-extensions i m a zicsr zifencei
    fdtput -t s ~/opt/virt.dtb /cpus/cpu@0 riscv,isa "rv32ima_zicsr_zifencei"
    ```
+
+   Unlike `f`/`d`/`sstc`, leaving `c` out of this string is a
+   documentation choice, not a requirement — the kernel's use of
+   compressed instructions is controlled by `CONFIG_RISCV_ISA_C` at
+   compile time (see step 2), not by reading this property back. It's
+   left out here because nothing reads this specific field for `c`
+   support and narrowing it to what's actually true costs nothing.
 
 Output: `~/opt/virt.dtb`, already in the binary flattened-tree form
 `load_dtb` reads directly — `dumpdtb` outputs the compiled `.dtb`

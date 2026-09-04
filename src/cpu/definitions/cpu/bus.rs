@@ -189,7 +189,7 @@ impl BUSState {
             },
             _ => {
                 if address < BASE_ADDRESS as usize {
-                    return Err(TrapCause::LoadAccessFault { address });
+                    return Err(TrapCause::StoreAccessFault { address });
                 }
                 let real_index = address - BASE_ADDRESS as usize;
                 self.ram.write_bytes(real_index, bytes)
@@ -341,7 +341,7 @@ mod tests {
         // BASE_ADDRESS/RAM path, not be swallowed as a UART access
         assert_eq!(
             bus.direct_write(UART_END + 1, &[0]).unwrap_err(),
-            TrapCause::LoadAccessFault { address: UART_END + 1 }
+            TrapCause::StoreAccessFault { address: UART_END + 1 }
         );
     }
 }
