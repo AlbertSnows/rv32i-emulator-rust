@@ -29,6 +29,8 @@ implemented_extensions:
   - { name: U, version: "= 1.0.0" }
   - { name: S, version: "= 1.12.0" }
   - { name: Sv32, version: "= 1.0" }
+  - { name: C, version: "= 2.0" }
+  - { name: Zca, version: "= 1.0.0" }
 
 params:
   # Sv32 params
@@ -42,6 +44,8 @@ params:
   MUTABLE_MISA_A: false
   # M params
   MUTABLE_MISA_M: false
+  # C params
+  MUTABLE_MISA_C: false
   # Zicntr params
   TIME_CSR_IMPLEMENTED: true
   # Sm params
