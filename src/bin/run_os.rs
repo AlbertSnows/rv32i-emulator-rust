@@ -5,6 +5,7 @@ use rv32i_emulator::cpu::core::step;
 use rv32i_emulator::cpu::definitions::codes::ExecutionSignal;
 use rv32i_emulator::cpu::definitions::cpu::cpu_definition::build_cpu_state;
 use rv32i_emulator::loader::boot_kernel;
+use rv32i_emulator::utility::host_io::read_stdin_loop;
 
 fn main() {
     println!("Hello, welcome to my emulation!");
@@ -30,18 +31,3 @@ fn main() {
     println!("{:?}", cpu.register);
 }
 
-fn read_stdin_loop(tx: mpsc::Sender<u8>) {
-    let stdin = std::io::stdin();
-    for byte in stdin.lock().bytes() {
-        match byte {
-            Ok(b) => {
-                // tx.send(b) pushes a byte to the channel, returns Result
-                // if failure, stop iterating over loop, thread ends
-                // only fails when rx fails
-                // rx only fails when main loop stops running
-                if tx.send(b).is_err() { break; }
-            },
-            Err(_) => break,
-        }
-    }
-}
