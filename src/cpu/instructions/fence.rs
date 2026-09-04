@@ -1,5 +1,6 @@
 use crate::cpu::instructions::Format;
-use crate::cpu::fetcher::InstructionWord;
+use crate::cpu::fetcher::Instruction;
+use crate::utility::types::ByteType;
 use crate::cpu::definitions::trap_cause::TrapCause;
 use crate::cpu::definitions::codes::ExecutionSignal;
 
@@ -10,7 +11,7 @@ use crate::cpu::definitions::codes::ExecutionSignal;
 // MISC-MEM = row 00, column 011
 // 6:0 = 00_011_11
 
-pub fn parse_fence_inst(raw_word: InstructionWord) -> Result<Format, TrapCause> {
+pub fn parse_fence_inst(raw_word: Instruction) -> Result<Format, TrapCause> {
     Ok(Format::FENCEType)
 }
 
@@ -25,7 +26,7 @@ mod tests {
 
     #[test]
     fn test_parse_fence_inst() {
-        let raw_word = InstructionWord(0b0001111);
+        let raw_word = Instruction(0b0001111, ByteType::Word);
         let result = parse_fence_inst(raw_word);
         assert_eq!(result, Ok(Format::FENCEType));
     }

@@ -4,7 +4,8 @@ use crate::cpu::definitions::cpu::cpu_definition::{CPUMode, CPUState};
 use crate::cpu::definitions::masks;
 use crate::cpu::definitions::masks::{MSTATUS_TSR, MSTATUS_TVM};
 use crate::cpu::definitions::trap_cause::{M_TRAP, S_TRAP, TrapCause, TrapDestination};
-use crate::cpu::fetcher::InstructionWord;
+use crate::cpu::fetcher::Instruction;
+use crate::utility::types::ByteType;
 use crate::cpu::instructions::Format;
 use crate::cpu::instructions::i::csr;
 use crate::utility::bit_operations::{mask_and_shift, set_bit_range};
@@ -19,7 +20,7 @@ pub enum SystemOp {
     SFenceVma,
 }
 
-pub fn parse_system_inst(raw_word: InstructionWord) -> Result<Format, TrapCause> {
+pub fn parse_system_inst(raw_word: Instruction) -> Result<Format, TrapCause> {
     let content = raw_word.0;
     // ecall/ebreak are funct3 = 000; every other funct3 under the SYSTEM
     // opcode is one of the six CSR instructions, handled in their own file.
@@ -113,7 +114,7 @@ mod tests {
     #[test]
     fn test_parse_system_inst_ecall() {
         // ecall -- bit 20 (the ecall/ebreak discriminator) = 0
-        let raw_word = InstructionWord(0x00000073);
+        let raw_word = Instruction(0x00000073, ByteType::Word);
         let result = parse_system_inst(raw_word);
         assert_eq!(result, Ok(Format::SystemType { op: SystemOp::ECall }));
     }
@@ -121,7 +122,7 @@ mod tests {
     #[test]
     fn test_parse_system_inst_ebreak() {
         // ebreak -- bit 20 = 1
-        let raw_word = InstructionWord(0x00100073);
+        let raw_word = Instruction(0x00100073, ByteType::Word);
         let result = parse_system_inst(raw_word);
         assert_eq!(result, Ok(Format::SystemType { op: SystemOp::EBreak }));
     }
@@ -129,7 +130,7 @@ mod tests {
     #[test]
     fn test_parse_system_inst_mret() {
         // mret -- funct12 = 0x302 (0011_0000_0010), rs1/rd/funct3 all zero
-        let raw_word = InstructionWord(0x30200073);
+        let raw_word = Instruction(0x30200073, ByteType::Word);
         let result = parse_system_inst(raw_word);
         assert_eq!(result, Ok(Format::SystemType { op: SystemOp::MRet }));
     }
@@ -137,7 +138,7 @@ mod tests {
     #[test]
     fn test_parse_system_inst_sret() {
         // sret -- funct12 = 0x102 (0001_0000_0010), rs1/rd/funct3 all zero
-        let raw_word = InstructionWord(0x10200073);
+        let raw_word = Instruction(0x10200073, ByteType::Word);
         let result = parse_system_inst(raw_word);
         assert_eq!(result, Ok(Format::SystemType { op: SystemOp::SRet }));
     }

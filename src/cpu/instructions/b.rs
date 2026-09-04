@@ -2,7 +2,8 @@ use crate::cpu::definitions::codes::ExecutionSignal;
 use crate::cpu::definitions::cpu::cpu_definition::RegisterFile;
 use crate::cpu::definitions::masks;
 use crate::cpu::definitions::trap_cause::TrapCause;
-use crate::cpu::fetcher::InstructionWord;
+use crate::cpu::fetcher::Instruction;
+use crate::utility::types::ByteType;
 // B-type
 //
 //  31            25 24    20 19    15 14   12 11          7 6      0
@@ -39,7 +40,7 @@ pub enum BOp {
 // 1     1     1    1    1    1    1
 // imm12 imm10 imm9 imm8 imm7 imm6 imm5
 
-pub fn parse_b_inst(raw_word: InstructionWord) -> Result<Format, TrapCause> {
+pub fn parse_b_inst(raw_word: Instruction) -> Result<Format, TrapCause> {
     let content = raw_word.0;
     let reg_source_one = mask_and_shift(content, masks::REG_SOURCE_ONE);
     let reg_source_two = mask_and_shift(content, masks::REG_SOURCE_TWO);
@@ -103,7 +104,7 @@ mod tests {
     fn test_parse_b_inst() {
         // beq x1, x2, 8
         // opcode = 1100011 (B), funct3 = 000 (beq), rs1 = 1, rs2 = 2, imm = 8
-        let raw_word = InstructionWord(0x00208463);
+        let raw_word = Instruction(0x00208463, ByteType::Word);
         let result = parse_b_inst(raw_word);
         assert_eq!(result, Ok(Format::BType { op: BOp::Beq, imm: 8, rs1: 1, rs2: 2 }));
     }

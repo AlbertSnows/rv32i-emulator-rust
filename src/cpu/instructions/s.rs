@@ -4,7 +4,8 @@ use crate::cpu::definitions::cpu::cpu_definition::{CPUMode, RegisterFile};
 use crate::cpu::definitions::cpu::csr::CSRState;
 use crate::cpu::definitions::masks;
 use crate::cpu::definitions::trap_cause::TrapCause;
-use crate::cpu::fetcher::InstructionWord;
+use crate::cpu::fetcher::Instruction;
+use crate::utility::types::ByteType;
 // S-type
 //
 //  31        25 24    20 19    15 14   12 11      7 6      0
@@ -25,7 +26,7 @@ pub enum SOp {
     Sw
 }
 
-pub fn parse_s_inst(raw_word: InstructionWord) -> Result<Format, TrapCause> {
+pub fn parse_s_inst(raw_word: Instruction) -> Result<Format, TrapCause> {
     let content = raw_word.0;
     let funct_three = mask_and_shift(content, masks::FUNCT_THREE);
     let reg_source_one = mask_and_shift(content, masks::REG_SOURCE_ONE);
@@ -121,7 +122,7 @@ mod tests {
     fn test_parse_s_inst() {
         // sw x2, 4(x1)
         // opcode = 0100011 (S), funct3 = 010 (sw), rs1 = 1, rs2 = 2, imm = 4
-        let raw_word = InstructionWord(0x0020A223);
+        let raw_word = Instruction(0x0020A223, ByteType::Word);
         let result = parse_s_inst(raw_word);
         assert_eq!(result, Ok(Format::SType { op: SOp::Sw, imm: 4, rs1: 1, rs2: 2 }));
     }

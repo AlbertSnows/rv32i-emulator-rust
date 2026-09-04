@@ -4,7 +4,7 @@ use crate::cpu::definitions::addresses::{MIE, MIP, MSTATUS, SSTATUS};
 use crate::cpu::definitions::codes::ExecutionSignal;
 use crate::cpu::definitions::cpu::cpu_definition::{CPUMode, CPUState};
 use crate::cpu::definitions::cpu::csr::{CPUCycles, MIPBits};
-use crate::cpu::definitions::masks::{GLOBAL_MIE, GLOBAL_SIE, MEIE, MEIP, MPIE, MTI, MTIE, MTIP, SEIE, SEIP, SPIE};
+use crate::cpu::definitions::masks::{GLOBAL_MIE, GLOBAL_SIE, MEIE, MEIP, MPIE, MTI, MTIE, MTIP, SEIE, SEIP, SPIE, STIE, STIP};
 use crate::cpu::definitions::trap_cause::{M_TRAP, S_TRAP};
 use crate::cpu::definitions::trap_cause::{TrapCause, TrapDestination};
 use crate::cpu::fetcher::fetch_word_from_memory;
@@ -12,6 +12,7 @@ use crate::cpu::instructions::i::system::inst_i_xret;
 use crate::cpu::instructions::pc::advance_pc;
 use crate::peripherals::plic::{M_CONTEXT, S_CONTEXT};
 use crate::utility::bit_operations::{mask_and_shift, set_bit_range};
+use crate::utility::types::ByteType;
 
 fn perform_step(cpu: &mut CPUState) -> Result<ExecutionSignal, TrapCause> {
     // mut allows cpu to change in the local scope
@@ -23,7 +24,10 @@ fn perform_step(cpu: &mut CPUState) -> Result<ExecutionSignal, TrapCause> {
         TrapCause::IllegalInstruction { instruction: None } => TrapCause::IllegalInstruction { instruction: Some(raw_word.0) },
         other => other,
     })?;
-    advance_pc(&mut cpu.pc, &instruction, &cpu.register)?;
+    let advance_amount =
+        if raw_word.1 == ByteType::Word { ByteType::Word.as_num() }
+        else { ByteType::HalfWord.as_num() };
+    advance_pc(&mut cpu.pc, &instruction, &mut cpu.register, advance_amount as u32)?;
     Ok(execution_outcome)
 }
 
@@ -66,7 +70,10 @@ fn set_tval(cpu: &mut CPUState, dest: &TrapDestination, trap_cause: &TrapCause) 
         TrapCause::IllegalInstruction { instruction } => instruction.unwrap_or(0),
         TrapCause::Breakpoint | TrapCause::EnvironmentCallFromMMode |
         TrapCause::EnvironmentCallFromSMode | TrapCause::EnvironmentCallFromUMode |
-        TrapCause::MachineTimerInterrupt | TrapCause::MachineExternalInterrupt | TrapCause::SupervisorExternalInterrupt
+        TrapCause::MachineTimerInterrupt |
+        TrapCause::MachineExternalInterrupt |
+        TrapCause::SupervisorExternalInterrupt |
+        TrapCause::SupervisorTimerInterrupt
             => 0,
     };
     cpu.csr.guest_write(dest.tval, trap_val, dest.mode)
@@ -151,7 +158,8 @@ pub fn handle_trap(cpu: &mut CPUState, trap_cause: TrapCause) -> ExecutionSignal
     let register_value = match trap_cause {
         TrapCause::MachineTimerInterrupt |
         TrapCause::MachineExternalInterrupt |
-        TrapCause::SupervisorExternalInterrupt
+        TrapCause::SupervisorExternalInterrupt |
+        TrapCause::SupervisorTimerInterrupt
             => cpu.csr.read(addresses::MIDELEG, CPUMode::M),
         _ => cpu.csr.read(addresses::MEDELEG, CPUMode::M),
     }.expect("mideleg and medeleg are defined");
@@ -159,9 +167,10 @@ pub fn handle_trap(cpu: &mut CPUState, trap_cause: TrapCause) -> ExecutionSignal
     // in the case of interrupts, the 31st bit is the tag bit, to distinguish them, so we need to
     // strip the tag bit
     let corresponding_mask = match trap_cause {
-        TrapCause::MachineTimerInterrupt => MTI,
+        TrapCause::MachineTimerInterrupt => MTIP,
         TrapCause::MachineExternalInterrupt => MEIP,
         TrapCause::SupervisorExternalInterrupt => SEIP,
+        TrapCause::SupervisorTimerInterrupt => STIP,
         _ => 1 << trap_cause.mcause_code(),
     };
     let relevant_bit_set = mask_and_shift(register_value, corresponding_mask) == 1;
@@ -205,10 +214,6 @@ pub fn step(cpu: &mut CPUState) -> Result<ExecutionSignal, TrapCause> {
 }
 
 fn select_pending_interrupt(cpu: &CPUState) -> Option<TrapCause> {
-    let mid_trap = cpu.flags.in_trap;
-    if mid_trap {
-        return None;
-    }
     let mip = cpu.csr.read(MIP, CPUMode::M).expect("MIP defined");
     let mie = cpu.csr.read(MIE, CPUMode::M).expect("MIE defined");
     // bit field to get what's pending
@@ -218,6 +223,7 @@ fn select_pending_interrupt(cpu: &CPUState) -> Option<TrapCause> {
         (TrapCause::MachineExternalInterrupt, MEIE, MEIP),
         (TrapCause::MachineTimerInterrupt, MTIE, MTIP),
         (TrapCause::SupervisorExternalInterrupt, SEIE, SEIP),
+        (TrapCause::SupervisorTimerInterrupt, STIE, STIP)
     ];
     interrupts_by_priority.iter().find_map(|(cause, enabled_mask, pending_mask)| {
         check_interrupt(mip, mie, *pending_mask, *enabled_mask, cpu, *cause)
@@ -513,29 +519,5 @@ mod tests {
         assert_eq!(mask_and_shift(mstatus_after_trap, GLOBAL_MIE), 0);
         inst_i_xret(&mut cpu, &M_TRAP);
         assert_eq!(mask_and_shift(cpu.csr.read(addresses::MSTATUS, CPUMode::M).unwrap(), GLOBAL_MIE), 1);
-    }
-
-    #[test]
-    fn test_step_defers_interrupt_while_already_in_trap() {
-        // cpu.flags.in_trap already true, then conditions for a timer
-        // interrupt become true 
-        // step() must not re-fire the interrupt
-        // (that would clobber mepc/mcause and starve whatever handler is
-        // already running of the chance to execute even one instruction).
-        // It should run the next instruction normally, same as if no
-        // interrupt were pending at all. The interrupt stays pending and
-        // will correctly fire once in_trap goes back to false via MRET.
-        let mut cpu = build_cpu_state();
-        cpu.flags.in_trap = true;
-        cpu.csr.guest_write(addresses::MIE, MTIE, CPUMode::M);
-        cpu.csr.guest_write(addresses::MSTATUS, GLOBAL_MIE, CPUMode::M);
-        cpu.register.write(1, 4);
-        cpu.register.write(2, 3);
-        store_in_mem(&ADD_X3_X1_X2.to_le_bytes(), &mut cpu.bus.ram, 4);
-        cpu.pc.write(BASE_ADDRESS as usize + 4);
-        let outcome = step(&mut cpu);
-        assert_eq!(outcome, Ok(ExecutionSignal::Continue));
-        assert_eq!(cpu.register.read(3), 7); 
-        assert_eq!(cpu.pc.read(), BASE_ADDRESS as usize + 8); // advanced normally, not jumped to mtvec
     }
 }
