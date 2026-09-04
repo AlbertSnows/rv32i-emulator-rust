@@ -33,19 +33,30 @@ pub struct PlicState {
 }
 
 
-const ENABLE_REGION_END: u32 = 0x2000 + 0x80 * NUM_CONTEXTS as u32 - 1;
-const CONTEXT_REGION_END: u32 = 0x20_0000 + 0x1000 * NUM_CONTEXTS as u32 - 1;
+// MMIO register layout (SiFive PLIC spec): four regions, each a base
+// offset plus (for the per-context regions) a stride between contexts.
+pub const PRIORITY_BASE: u32 = 0x000;
+pub const PENDING_BASE: u32 = 0x1000;
+pub const ENABLE_BASE: u32 = 0x2000;
+pub const ENABLE_STRIDE: u32 = 0x80;
+pub const CONTEXT_BASE: u32 = 0x20_0000;
+pub const CONTEXT_STRIDE: u32 = 0x1000;
+pub const THRESHOLD_LOCAL_OFFSET: u32 = 0;
+pub const CLAIM_COMPLETE_LOCAL_OFFSET: u32 = 4;
+
+const ENABLE_REGION_END: u32 = ENABLE_BASE + ENABLE_STRIDE * NUM_CONTEXTS as u32 - 1;
+const CONTEXT_REGION_END: u32 = CONTEXT_BASE + CONTEXT_STRIDE * NUM_CONTEXTS as u32 - 1;
 
 impl PlicState {
 
     pub fn read(&mut self, offset: u32, _num_bytes: usize) -> u32 {
         match offset {
-            0x000..0xFFC => {
+            PRIORITY_BASE..0xFFC => {
                 let word_index = offset / 4;
                 self.priority[word_index as usize]
             },
-            0x1000..0x107C => {
-                let word_index = (offset - 0x1000) / 4;
+            PENDING_BASE..0x107C => {
+                let word_index = (offset - PENDING_BASE) / 4;
                 let mut result: u32 = 0;
                 for i in 0..32 {
                     let source_id = 32 * word_index as usize + i;
@@ -55,9 +66,9 @@ impl PlicState {
                 }
                 result
             },
-            0x2000..=ENABLE_REGION_END => {
-                let context = ((offset - 0x2000) / 0x80) as usize;
-                let word_index = (offset - 0x2000 - (0x80 * context as u32)) / 4;
+            ENABLE_BASE..=ENABLE_REGION_END => {
+                let context = ((offset - ENABLE_BASE) / ENABLE_STRIDE) as usize;
+                let word_index = (offset - ENABLE_BASE - (ENABLE_STRIDE * context as u32)) / 4;
                 let mut result: u32 = 0;
                 for i in 0..32 {
                     let source_id = 32 * word_index as usize + i;
@@ -67,12 +78,12 @@ impl PlicState {
                 }
                 result
             },
-            0x20_0000..=CONTEXT_REGION_END => {
-                let context = ((offset - 0x20_0000) / 0x1000) as usize;
-                let local = (offset - 0x20_0000) % 0x1000;
-                if local == 0 {
+            CONTEXT_BASE..=CONTEXT_REGION_END => {
+                let context = ((offset - CONTEXT_BASE) / CONTEXT_STRIDE) as usize;
+                let local = (offset - CONTEXT_BASE) % CONTEXT_STRIDE;
+                if local == THRESHOLD_LOCAL_OFFSET {
                     self.threshold[context]
-                } else if local == 4 {
+                } else if local == CLAIM_COMPLETE_LOCAL_OFFSET {
                     self.claim(context as usize)
                 } else {
                     0
@@ -85,14 +96,14 @@ impl PlicState {
     pub fn write(&mut self, offset: u32, bytes: &[u8]) {
         let value = u32::from_le_bytes(bytes.try_into().unwrap());
         match offset {
-            0x000..0xFFC => {
+            PRIORITY_BASE..0xFFC => {
                 let word_index = offset / 4;
                 self.priority[word_index as usize] = value;
             },
-            0x1000..0x107C => {}, // pending is read only
-            0x2000..=ENABLE_REGION_END => {
-                let context = ((offset - 0x2000) / 0x80) as usize;
-                let word_index = (offset - 0x2000 - 0x80 * context as u32) / 4;
+            PENDING_BASE..0x107C => {}, // pending is read only
+            ENABLE_BASE..=ENABLE_REGION_END => {
+                let context = ((offset - ENABLE_BASE) / ENABLE_STRIDE) as usize;
+                let word_index = (offset - ENABLE_BASE - ENABLE_STRIDE * context as u32) / 4;
                 for i in 0..32 {
                     let source_id = 32 * word_index as usize + i;
                     if source_id <= NUM_SOURCES {
@@ -101,12 +112,12 @@ impl PlicState {
                 }
 
             },
-            0x20_0000..=CONTEXT_REGION_END => {
-                let context = ((offset - 0x20_0000) / 0x1000) as usize;
-                let local = (offset - 0x20_0000) % 0x1000;
-                if local == 0 {
+            CONTEXT_BASE..=CONTEXT_REGION_END => {
+                let context = ((offset - CONTEXT_BASE) / CONTEXT_STRIDE) as usize;
+                let local = (offset - CONTEXT_BASE) % CONTEXT_STRIDE;
+                if local == THRESHOLD_LOCAL_OFFSET {
                     self.threshold[context] = value;
-                } else if local == 4 {
+                } else if local == CLAIM_COMPLETE_LOCAL_OFFSET {
                     self.complete(context, value)
                 }
             },
