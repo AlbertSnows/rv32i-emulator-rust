@@ -1,103 +1,174 @@
 # Bug Log
 
-This is to keep track of bugs I encountered while developing
+Bugs found while building this project, kept here for the *why*
+even after the code itself has moved on. Roughly chronological order.
+The early ones were found fast, by tracing a failing test with
+temporary debug prints. The later ones, once riscv-tests/riscv-
+arch-test and then a real Linux boot were the thing being debugged
+against, took much longer to run down,  some of those needed a
+custom instrumented binary, billions of emulated steps, and
+cross-checking against real QEMU/GDB before the real cause showed up.
 
-## List
+## Early: first real riscv-tests pass (`rv32ui-p-add`)
 
-Found while working on the timer/UART chain, deferred briefly since
-they weren't blocking, then fixed on 2026-09-04:
+Four separate, previously-invisible bugs found in a row while getting
+the very first real riscv-tests binary to pass,  each one had been
+sitting under identical wrong assumptions in this project's own
+hand-written unit tests, so nothing had ever caught them:
 
-- **`src/cpu/definitions/cpu/csr.rs`**,  `guest_write`'s `SIP` arm had
-  the *exact* bug the `MIP` arm had before today's earlier fix: it
-  computed a masked return value but never assigned to `*property`, so
-  any S-mode write to its own `sip` (e.g. clearing `SSIP` for a
-  software interrupt) was silently discarded. Fixed the same shape as
-  `MIP`'s arm (mask `value` to the writable bits via the new
-  `masks::PER_SOURCE_SIP`, merge with the preserved bits, assign back).
-- **`src/cpu/definitions/cpu/bus.rs`**,  `direct_write`'s out-of-bounds
-  catch-all returned `TrapCause::LoadAccessFault` on the *write* path;
-  now correctly returns `StoreAccessFault`. The one test asserting the
-  old (wrong) fault type was updated, not deleted,  its actual intent
-  (an out-of-range write falls through cleanly rather than being
-  swallowed as a UART access) still holds.
+1. **`mhartid` (CSR `0xF14`) unmapped.** Real boot code reads it
+   immediately after zeroing registers ("am I hart 0?"), before
+   installing its own trap vector,  the resulting trap had nowhere
+   valid to go, landing PC at 0. Fixed by adding it, read-only,
+   always 0 (single-hart emulator).
+2. **The first `in_trap` design was too broad.** Real boot code
+   deliberately traps to probe optional CSRs without ever running
+   `MRET`, which the original "any second trap halts" rule couldn't
+   tell apart from a genuine double-fault. Fixed at the time by making
+   `step()`'s interrupt check defer instead of firing
+   (`&& !cpu.flags.in_trap`) and letting synchronous traps nest freely.
+   (This design didn't survive,  see the real, much deeper `in_trap`
+   bug below, found much later once real interrupts started arriving.)
+3. **`MRET`'s own PC write was silently overwritten.** `advance_pc()`
+   runs unconditionally after every instruction and didn't know about
+   `MRET`; it added 4 on top of the PC `MRET` had just set, skipping
+   the first instruction after every trap return. Invisible until now
+   because no earlier test had checked PC after a real `MRET`.
+4. **Store instructions wrote the register *index*, not its value.**
+   `inst_s_sb`/`sh`/`sw` passed `rs2` (a register number) directly to
+   memory instead of `reg_file.read(rs2)`. A real, pervasive bug in
+   every store instruction,  invisible because the existing unit tests
+   shared the identical wrong assumption, passing `rs2` as if it were
+   already a value. This is exactly the failure mode adopting an
+   independently-authored test suite is meant to catch.
 
+## The interrupt/UART chain (reaching a real Linux boot)
 
-- **The `in_trap` bug itself.** Why a single boolean can't represent
-  trap nesting; why real hardware doesn't need an equivalent concept
-  at all (`sstatus.SIE`/`mstatus.MIE` already do the whole job); why
-  cross-privilege-level nesting (an M-mode interrupt firing while
-  S-mode code, including an S-mode handler, runs) is safe without any
-  extra bookkeeping (separate `mepc`/`mcause` vs `sepc`/`scause`) while
-  same-level nesting isn't. This is genuinely one of the harder
-  pieces of RISC-V privileged-mode reasoning in the whole project,
-  worth a real walkthrough with a concrete timeline diagram of the
-  nested-trap corruption, not just "we removed a line and it worked."
+Four bugs in sequence, each one only surfacing once the previous was
+fixed and the boot got further than it ever had before. This whole
+chain is what motivated building `src/bin/debug_boot.rs`,  a copy of
+the boot loop instrumented with symbol resolution, a trap-cause tally,
+and PLIC/CSR state dumps,  since the failures involved real elapsed
+guest time (billions of steps) rather than anything a unit test could
+reproduce directly.
 
+**1. Missing supervisor-timer-interrupt handling.** `TrapCause` had no
+`SupervisorTimerInterrupt` variant at all, so `select_pending_interrupt`
+could never select one no matter what `mip`/`mie` said. Fixed by adding
+the variant plus its three call sites (`select_pending_interrupt`'s
+priority array, `handle_trap`'s two delegation matches). Adding it
+in only one of those three spots would have looked like it worked
+right up until the specific case the missing spot covered actually
+came up,  trap delegation for a cause needs its `mideleg`/`medeleg`
+mask *and* its priority-selection entry *and* its `tval`-clearing
+arm, not just one of the three.
 
-`tests/harness.rs`'s `test_rv32ui_p_add_passes` now
-genuinely passes. Getting there surfaced four separate,
-previously-invisible bugs in a row, each found by tracing a real
-riscv-tests binary with temporary debug prints (same pattern every
-time, reverted after each diagnosis):
+**2. `MIP`/`SIP` guest CSR writes were silently discarded.**
+`CSRState::guest_write`'s `MIP` (and later, identically, `SIP`) arm
+computed a correctly-masked return value but never assigned it back to
+`*property`,  so any S-mode software write to its own pending-interrupt
+bits (e.g. clearing `SSIP`) had no effect at all. This is precisely the
+kind of bug the `CSRState` refactor item exists
+because of: per-CSR special-casing in `guest_write` had already grown
+enough that a no-op path like this could hide in it.
 
-1. `mhartid` (CSR `0xF14`) unmapped. Real boot code reads it
-   immediately after zeroing registers (`csrr a0,mhartid; bnez
-   a0,<spin>`,  "am I hart 0" multi-hart check), *before* installing
-   its own trap vector,  the resulting trap had nowhere valid to go,
-   landing pc at 0. Fixed: added to `CSRState`, read-only, always 0
-   (single-hart emulator).
+**3. SIGBUS after the timer fix, from stale pre-`C`-extension
+assumptions.** Once interrupts actually started firing correctly,
+`j.rs`/`jalr.rs`'s leftover `% 4` alignment checks and hardcoded
+`pc+4` link-register writes,  both correct back when every instruction
+was 4 bytes wide, both stale the moment the `C` extension made 2-byte
+-aligned jump targets real,  started producing real crashes. Fixed by
+consolidating jump-target computation *and* the link-register write
+into `advance_pc` (which already had the correct `% 2` check and the
+real `advance_amount`), rather than patching the two alignment checks
+in place.
 
-2. The `in_trap` double-trap design itself was too broad (see the
-   "backlog: mhartid" section this replaced, and the design discussion
-   around it),  real boot code deliberately traps to probe optional
-   CSRs (`mnstatus`, `satp`, `pmpaddr0`, `pmpcfg0`) without ever
-   running MRET, which the old "any second trap halts" rule couldn't
-   tell apart from a genuine double-fault. Fixed: `step()`'s interrupt
-   check gained `&& !cpu.flags.in_trap` (defer the interrupt, don't
-   refire it); `handle_trap` lost its blanket `in_trap` check entirely
-   (synchronous traps now nest freely, matching real hardware,
-   overwriting `mepc`/`mcause` is fine, preserving it is software's
-   job). Two existing tests had their *expectations* deliberately
-   changed to match the corrected model, not just their setup:
-   `test_handle_trap_returns_halt_on_double_trap` ->
-   `test_handle_trap_allows_nested_synchronous_traps` (now expects
-   `Continue` + overwritten `mtval`, not `Halt`);
-   `test_interrupt_arriving_while_already_in_trap_halts` ->
-   `test_step_defers_interrupt_while_already_in_trap` (now expects a
-   real instruction to execute, not `Halt`).
+**4. Silent post-`/init` hang, no crash at all.** Two independent gaps
+compounded: nothing anywhere called `receive_uart_byte` (host keyboard
+input never reached the guest at all), and `UartState::read`'s LSR
+(line status register) always reported a hardcoded "no data waiting"
+byte regardless of the receive buffer's real state. Fixed by adding a
+stdin-reader-thread/channel (`utility/host_io.rs`, shared by `run_os`
+and `debug_boot`) feeding bytes in via `receive_uart_byte`, and making
+the LSR read reflect the receive buffer's actual state.
 
-3. MRET's own pc write was being silently overwritten. `perform_step()`
-   calls `advance_pc()` unconditionally after every instruction; MRET
-   sets pc directly (to `mepc`) inside its own `execute()`, but
-   `advance_pc`'s default case then added 4 on top, since MRET isn't
-   one of its special-cased `Format` variants (`JType`/`JalrType`/`BType`).
-   Landed on `mepc+4` instead of `mepc` every time,  skipped the first
-   instruction of wherever MRET returned to. Invisible before now
-   because no earlier test checked pc's value after a real MRET. Fixed:
-   added `Format::SystemType { op: SystemOp::MRet } => pc_value` (no
-   addition) to `advance_pc`'s match, same pattern as the other three.
+## The `in_trap` nested-trap bug,  the hardest one
 
-4. `inst_s_sb`/`sh`/`sw` (`s.rs`) wrote `rs2`,  the *register index*,
-   directly, instead of `reg_file.read(rs2)`,  the register's actual
-   *value*. Real, pervasive bug in every store instruction, invisible
-   until now because the existing unit tests shared the identical
-   wrong assumption (they passed `rs2` as if it were already a value,
-   e.g. `let rs2 = 0x12345678`, rather than a register index with a
-   value written into it first),  implementation and its own tests
-   agreed with each other, so nothing caught it. This is exactly the
-   failure mode adopting riscv-tests was meant to catch: an
-   independently-authored suite has no way to inherit a codebase's own
-   blind spot. Fixed both the implementation and all 7 affected tests
-   in `s.rs`.
+Even after all four fixes above, the boot still hung,  but now making
+real, extremely slow progress instead of failing outright, which took
+many billions of emulated steps and several separate background runs
+to even characterize.
 
-- `jalr`: `Fail(3)`. Same class of risk flagged when `advance_pc`'s
-  `pc_value` cast got fixed from `i32` to `u32`,  `JalrType`'s arm does
-  `(rs1_val as i32).wrapping_add(*imm)`, its own separate signed cast
-  that may need the identical bit-reinterpretation treatment
-  (`rs1_val.wrapping_add(*imm as u32)`, no `as i32` at all) rather than
-  the same fix having been applied there too. Not yet confirmed,
-  worth checking directly rather than assuming.
-- `ma_data`: `Fail(668)`. Misaligned-access behavior,  flagged earlier
-  (see the 42-file listing note above) as needing a real decision
-  about how this emulator handles unaligned loads/stores, not
-  necessarily a small bug.
+**First hypothesis, wrong:** `debug_boot.rs` grew its own external
+replica of `check_interrupt`'s supervisor-external-interrupt condition
+to log when an SEI *should* have fired, and that replica reported it
+never did,  pointing at "SEI can never fire" as the culprit. That
+replica turned out to have a bug of its own (most likely a wrong
+`SSTATUS` address assumption baked into the diagnostic, not the
+emulator), and chasing it wasted real time before being set aside as
+unreliable.
+
+**What actually cracked it:** a trap-cause tally (a `HashMap<(mode,
+cause), count>` incremented every time a new trap was entered) showed
+that *both* `SupervisorExternalInterrupt` and the previously-reliable
+`SupervisorTimerInterrupt` froze at the same moment,  not that one
+specific interrupt source was starved, but that interrupt delivery
+*itself* stopped working, all at once, right around when the first
+real PLIC-routed interrupt in the project's history occurred.
+
+**The real mechanism:** `cpu.flags.in_trap` was a single boolean
+standing in for "are we currently inside a trap handler." But an
+S-mode interrupt handler making a routine SBI `ecall` is itself a
+*nested* trap,  an inner M-mode trap running while the outer S-mode
+handler hasn't finished. That inner trap's own `mret` unconditionally
+cleared `in_trap` back to `false`, even though the outer handler was
+still mid-flight,  reopening the window for a second interrupt to be
+selected and delivered right on top of the first, clobbering the
+shared `sepc`/`scause` pair the outer handler still needed. Once that
+happened, both the trap-signature and trap-return state were
+corrupted, and interrupt delivery stayed wedged permanently.
+
+**Fix:** removed the `in_trap` gate from `select_pending_interrupt`
+entirely, rather than replacing it with a nesting counter. Real
+hardware doesn't need an equivalent mechanism at all, 
+`sstatus.SIE`/`mstatus.MIE`, already correctly cleared on trap entry
+via `set_pie`, are the actual, sufficient, already-implemented
+protection against this exact class of corruption. The single boolean
+was not just insufficiently precise, it was solving a problem real
+hardware doesn't have. (`cpu.flags.in_trap` is still *written* by
+`handle_trap`/`inst_i_xret`, but nothing reads it anymore,  an open
+question on whether to remove it outright.)
+
+Two smaller bugs turned up alongside this investigation, same shape as
+the earlier `MIP` bug: `guest_write`'s `SIP` arm had the identical
+discarded-write bug `MIP`'s arm had (masked value computed, never
+assigned back,  silently discarding S-mode writes to its own pending
+-interrupt bits), and `bus.rs`'s out-of-bounds `direct_write` catch-all
+returned `LoadAccessFault` on the *write* path instead of
+`StoreAccessFault`.
+
+## `C.LUI` HINT treated as illegal (found via riscv-arch-test)
+
+Found only once riscv-arch-test (ACT4) was extended to cover the `C`
+extension,  96 of 97 generated tests passed immediately; the one
+failure looked, from its own diagnostic output, like a privilege
+-delegation bug ("trap was being handled in S-Mode", expected a
+different trap-signature slot entirely).
+
+That diagnosis was a red herring. The actual failing instruction was
+`c.lui x0, ...`,  and per the RVC spec, `C.LUI` with `rd=x0` is a
+**HINT**, not a reserved/illegal encoding: HINTs must decode and
+execute without ever trapping. `parse_c_lui_or_addi16sp` conflated the
+two, raising `IllegalInstruction` for `rd==0` alongside the genuinely
+-reserved `imm==0` case. The test never expected any trap at all *for
+this instruction*,  which privilege mode would have handled it was
+never the real question; the bug was one layer up, in decode, not in
+delegation. Fixed by only treating `imm==0` as reserved when `rd != 0`;
+`rd==0` now falls through to a real (no-op, since register writes to
+`x0` are already discarded) `LUI`.
+
+This is the exact kind of bug the three-layer test strategy
+(`docs/dev/README.md`'s Design Decisions) exists to catch: 239 unit
+tests and riscv-tests' own compressed-instruction suite
+(`rv32uc-p-rvc`) both passed the whole time, because neither happened
+to construct this specific reserved-encoding corner case.
