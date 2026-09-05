@@ -2,21 +2,12 @@
 
 ## Why this is happening now
 
-This emulator has never implemented the C extension — RV32I plus M
-(multiply/divide) and A (atomics) only. That was a deliberate,
-low-cost choice for OpenSBI and the Linux kernel: both are built from
-source under this project's own control, so their build systems could
-simply be told not to emit compressed instructions
-(`PLATFORM_RISCV_ISA`/`CONFIG_RISCV_ISA_C`, see
-`docs/dev/boot_files_setup.md`).
-
-Userspace software doesn't offer that escape hatch. Building even a
-minimal busybox-based root filesystem (the current goal — reaching an
+Building a minimal busybox-based root filesystem (the current goal,  reaching an
 interactive shell) requires a real Linux userspace toolchain, and
 every one actually available (Fedora's `riscv32-linux-gnu-gcc`, and by
 extension any real distro's RISC-V toolchain) bundles prebuilt startup
 glue (`crtbegin.o`, `libgcc.a`) compiled with the C extension
-unconditionally — confirmed directly: `riscv32-linux-gnu-gcc
+unconditionally,  confirmed directly: `riscv32-linux-gnu-gcc
 -print-multi-lib` offers exactly two 32-bit variants, `rv32imac` and
 `rv32imafdc`, both including `c`. There is no `-march` flag that avoids
 recompiling those pieces from source, and building an entire custom
@@ -37,7 +28,7 @@ docs).
 The full RVC encoding space (Figures 3-5, §28.8, pp.164-166) includes
 RV64-only forms (`C.LD`/`C.SD`/`C.ADDIW`/`C.ADDW`/`C.SUBW`/`C.LDSP`/
 `C.SDSP`) and F/D-only forms (`C.FLD`/`C.FSD`/`C.FLW`/`C.FSW`/
-`C.FLDSP`/`C.FSDSP`/`C.FLWSP`/`C.FSWSP`) — this emulator needs neither
+`C.FLDSP`/`C.FSDSP`/`C.FLWSP`/`C.FSWSP`),  this emulator needs neither
 (RV32 only, no floating-point). Excluding those, the real scope is
 **24 instructions**, not the ~40 the full spec defines:
 
@@ -47,17 +38,17 @@ RV64-only forms (`C.LD`/`C.SD`/`C.ADDIW`/`C.ADDW`/`C.SUBW`/`C.LDSP`/
 | 1 (`inst[1:0]=01`) | `C.NOP`, `C.ADDI`, `C.JAL`, `C.LI`, `C.ADDI16SP`, `C.LUI`, `C.SRLI`, `C.SRAI`, `C.ANDI`, `C.SUB`, `C.XOR`, `C.OR`, `C.AND`, `C.J`, `C.BEQZ`, `C.BNEZ` |
 | 2 (`inst[1:0]=10`) | `C.SLLI`, `C.LWSP`, `C.JR`, `C.MV`, `C.EBREAK`, `C.JALR`, `C.ADD`, `C.SWSP` |
 
-`C.NOP` is really just `C.ADDI` with `rd=x0, imm=0` — same opcode,
+`C.NOP` is really just `C.ADDI` with `rd=x0, imm=0`,  same opcode,
 degenerate case, not separate decode logic.
 
 **HINTs (§28.7, p.163):** several code points in this list are defined
 as HINTs when specific operands are used (e.g., `C.ADDI` with `rd≠0,
-imm=0`; `C.LI`/`C.MV`/`C.ADD` with `rd=x0`) — architecturally required
+imm=0`; `C.LI`/`C.MV`/`C.ADD` with `rd=x0`),  architecturally required
 to execute as ordinary no-op-equivalent instructions, not fault.
 Expanding them through the normal instruction path (below) satisfies
 this for free, since e.g. `C.ADDI rd=x0` naturally expands to `addi
 x0, x0, 0`, which already behaves as a no-op through the existing
-`AluImmType` execution path — x0 writes are already discarded
+`AluImmType` execution path,  x0 writes are already discarded
 (`RegisterFile::write`, `cpu_definition.rs:86`). No special-casing
 needed.
 
@@ -88,7 +79,7 @@ operation the 24-instruction scope above needs:
 | `C.SUB`, `C.XOR`, `C.OR`, `C.AND`, `C.MV`, `C.ADD` | `RType` |
 | `C.EBREAK` | `SystemType` |
 
-This means **no new execution logic, no new `Format` variants** — the
+This means **no new execution logic, no new `Format` variants**,  the
 entire feature is a new decode path that produces the same `Format`
 values the rest of the emulator already knows how to run correctly
 (and which are already covered by the existing 191-test suite for
@@ -106,19 +97,19 @@ their execution semantics). The work is confined to:
 a full 4-byte word via `bus.guest_fetch(pc_value, ByteType::Word.as_num(), ...)`.
 With C enabled, "no instructions can raise instruction-address
 -misaligned exceptions" and instructions may start on any 2-byte
-boundary (§28.1, p.152, `IALIGN=16`) — fetch has to become: read a
+boundary (§28.1, p.152, `IALIGN=16`),  fetch has to become: read a
 16-bit halfword first, check its low 2 bits (`11` = this is actually
 the first half of a 4-byte instruction, fetch the second halfword too;
 anything else = this is a complete 2-byte instruction, decode it as
--is). This is the load-bearing check for the entire feature — every
+-is). This is the load-bearing check for the entire feature,  every
 other piece depends on knowing the instruction's real width before
 trying to decode it.
 
-### 2. New decoder module (`src/cpu/instructions/c.rs`, following the
-existing per-format module convention — `a.rs`, `b.rs`, `s.rs`, etc.)
+### 2. New decoder module 
+(`src/cpu/instructions/c.rs`, following the existing per-format module convention,  `a.rs`, `b.rs`, `s.rs`, etc.)
 
 `decode_word_to_instruction` (`src/cpu/decoder.rs`) dispatches purely
-on `opcode = mask(raw_word.0, masks::OP_CODE)` (bits 6:0) — for every
+on `opcode = mask(raw_word.0, masks::OP_CODE)` (bits 6:0),  for every
 existing 32-bit instruction, bits `[1:0]` are always `11`. A new check
 ahead of that dispatch (bits `[1:0] != 11`) routes to a new
 `parse_c_inst`-equivalent function, which itself dispatches further on
@@ -132,14 +123,14 @@ spec text:
 - **Register field encoding differs by format.** `CR`/`CI`/`CSS` use
   the full 5-bit register space (any of x0-x31); `CIW`/`CL`/`CS`/`CA`/
   `CB` use a 3-bit field that maps to only 8 registers, x8-x15 (§28.2,
-  p.154, Table 37) — i.e. `real_register = 8 + field_value`. Getting
+  p.154, Table 37),  i.e. `real_register = 8 + field_value`. Getting
   this mapping wrong for the wrong format is the single most likely
   source of a subtle bug here.
 - **Immediates are bit-scrambled, not stored in order** (§28.2, p.154:
   "Immediate fields have been scrambled... to reduce the number of
   immediate multiplexers required"). Each instruction's own figure in
   §28.3-28.5 spells out exactly which source bit maps to which
-  destination bit (e.g. `C.ADDI4SPN`'s `nzuimm[5:4|9:6|2|3]`) — these
+  destination bit (e.g. `C.ADDI4SPN`'s `nzuimm[5:4|9:6|2|3]`),  these
   have to be reassembled bit-by-bit per instruction; there's no
   shortcut, and copy-pasting one instruction's shuffle pattern for
   another will silently miscompute (already the shape of bug that
@@ -151,13 +142,13 @@ spec text:
 `advance_pc` (`src/cpu/instructions/pc.rs:8`) hardcodes `+4` as the
 fallthrough amount for every format that doesn't branch/jump (and as
 the "not taken" case for `BType`). This needs to become "+2 or +4"
-depending on the real instruction width — the cleanest approach is
+depending on the real instruction width,  the cleanest approach is
 probably passing the actual instruction length (2 or 4) into
 `advance_pc` alongside the already-expanded `Format`, since by the
 time `advance_pc` runs, the original 16-vs-32-bit distinction has
 already been erased by step 2's expansion. Jump/branch target
 computation itself (`pc_value.wrapping_add(imm)`) doesn't need to
-change — compressed jump/branch immediates already encode the real
+change,  compressed jump/branch immediates already encode the real
 byte offset, so once expanded into `JType`/`BType`/`JalrType` they
 behave identically to their 32-bit counterparts.
 
@@ -166,14 +157,14 @@ behave identically to their 32-bit counterparts.
 
 Every entry in Figures 3-5 has a fully worked example in the spec
 text's prose (e.g. "`C.LW` loads a 32-bit value... expands to `lw rd',
-offset(rs1')`") — cross-referencing this project's own established
+offset(rs1')`"),  cross-referencing this project's own established
 pattern (`programs/instructions.rs`-style raw hex constants exercised
 against the real decoder, matching how the base ISA's own tests work)
 is the most direct way to build confidence per-instruction, rather
 than relying on the eventual real-Linux-boot test alone. The riscv-
 arch-test suite (already integrated, `docs/plans/arch_test.md`) does
 **not** cover the C extension at all in this project's current 71/71
-passing set — worth checking whether `riscv-arch-test` upstream has a
+passing set,  worth checking whether `riscv-arch-test` upstream has a
 compressed-instruction test suite that could be pulled in the same way,
 once the hand-written tests pass.
 
