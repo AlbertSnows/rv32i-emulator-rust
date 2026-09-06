@@ -1,4 +1,15 @@
-use crate::cpu::definitions::cpu::csr::CsrAddress;
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub struct CsrAddress(u16);
+impl CsrAddress {
+    pub const fn new(value: u16) -> Option<Self> {
+        if value <= 0xFFF { Some(Self(value)) } else { None }
+    }
+
+    pub const fn value(self) -> u16 {
+        self.0
+    }
+}
 
 const fn csr(value: u16) -> CsrAddress {
     match CsrAddress::new(value) {
@@ -97,8 +108,14 @@ pub const TCONTROL: CsrAddress = csr(0x7a5);
 pub const MSCRATCH: CsrAddress = csr(0x340);
 pub const MCOUNTEREN: CsrAddress = csr(0x306);
 pub const SCOUNTNEREN: CsrAddress = csr(0x106);
+// ▎ "Up to 64 PMP entries are supported. Implementations may implement zero,
+// 16, or 64 PMP entries... For RV32, sixteen CSRs, pmpcfg0–pmpcfg15,
+// hold the configurations pmp0cfg–pmp63cfg for the 64 PMP entries."
+// We need some of these for the tests, but otherwise don't use them.
 pub const PMPCFG0: CsrAddress = csr(0x3A0);
+pub const PMPCFG3: CsrAddress = csr(0x3A3);
 pub const PMPADDR0: CsrAddress = csr(0x3B0);
+pub const PMPADDR15: CsrAddress = csr(0x3BF);
 // satp — a CSR, tells you where the tables are and whether translation is on:
 // 31        30            22 21                    0
 // | MODE(1) |  ASID(9)      |      PPN(22)          |

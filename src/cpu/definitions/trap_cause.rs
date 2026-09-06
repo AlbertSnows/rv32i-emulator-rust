@@ -1,5 +1,5 @@
 use crate::cpu::definitions::addresses::{MCAUSE, MEPC, MTVAL, MTVEC, SCAUSE, SEPC, STVAL, STVEC};
-use crate::cpu::definitions::cpu::csr::CsrAddress;
+use crate::cpu::definitions::addresses::CsrAddress;
 use crate::cpu::definitions::cpu::cpu_definition::CPUMode;
 use crate::cpu::definitions::{addresses, masks};
 use crate::cpu::definitions::masks::{GLOBAL_MIE, GLOBAL_SIE, MCAUSE_INTERRUPT, MPIE, MPP, SPIE, SPP};

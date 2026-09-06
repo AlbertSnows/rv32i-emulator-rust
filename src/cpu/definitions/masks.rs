@@ -129,6 +129,11 @@ pub const PTE_PPN_ONE: u32 = TWENTY_TO_THIRTY_ONE; // bits 31:20
 pub const PTE_PPN_ZERO: u32 = TEN_TO_NINETEEN;     // bits 19:10
 pub const PTE_A: u32 = 0b100_0000; // bit 6, accessed
 pub const PTE_D: u32 = 0b1000_0000; // bit 7, dirty
+pub const PTE_V: u32 = 0b1; // bit 0, valid
+pub const PTE_R: u32 = 0b10; // bit 1, readable
+pub const PTE_W: u32 = 0b100; // bit 2, writable
+pub const PTE_X: u32 = 0b1000; // bit 3, executable
+pub const PTE_U: u32 = 0b1_0000; // bit 4, user-accessible
 // MPRV ("Modify PRiVilege") -- lets M-mode's *data* accesses (loads and
 // stores only, never instruction fetches) be checked as if issued by
 // whatever privilege level MPP names, instead of M-mode's own real

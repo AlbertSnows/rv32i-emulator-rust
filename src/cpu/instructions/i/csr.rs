@@ -8,7 +8,8 @@
 
 use crate::cpu::definitions::codes::ExecutionSignal;
 use crate::cpu::definitions::cpu::cpu_definition::{CPUMode, RegisterFile};
-use crate::cpu::definitions::cpu::csr::{CSRState, CsrAddress};
+use crate::cpu::definitions::addresses::CsrAddress;
+use crate::cpu::definitions::cpu::csr::CSRState;
 use crate::cpu::definitions::masks;
 use crate::cpu::definitions::trap_cause::TrapCause;
 use crate::cpu::fetcher::Instruction;

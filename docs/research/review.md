@@ -784,6 +784,119 @@ to the page tables (refer to the virtual memory section)
   - the upper half of mstatus, gives more configuration options
 
 
+### Privilege Level
+Our CPU has the idea of modes as well
+as a privilege level. The idea here is
+to ensure that an instruction can only
+speak to the CSR if it has the appropriate
+level.
+
+### Read/Write access
+A separate concern. Assuming we can talk
+to the CSR, we should not try to write
+with an instruction if it has read-only
+access. 
+
+
+### Instret
+
+Instret is a counter for how many
+instructions have fully completed in contrast
+ones like EBREAK, which should be ignored.
+We do not want to update instret after 
+we have already written to it. 
+
+### Cycles
+
+The cycles update every step.
+
+### Interrupts
+
+From section 1.6,
+
+>  ...an exception is caused directly by the instruction currently executing, an interrupt is caused by something external, unrelated to whatever instruction happens to be running at that moment
+
+Interrupts can be thought of as *external* components 
+interrupting the CPU's actions.
+
+
+### Exceptions 
+
+Exceptions can be thought of as internal issues
+coming from processing instructions
+
+## BUS
+
+As discussed earlier, the bus handles
+cpu communication with external components.
+
+It holds the memory, clint, plic, and uart
+as well as other things. This section will
+highlight details in this section. 
+
+For the primary functions of direct reading 
+and writing, you can see that we match based
+on an address range to decide where the bus
+should write to.
+
+### UART
+
+The uart is essentially the terminal/console
+controller. For typing and printing, the
+UART handles transferring that information.
+
+### PLIC
+
+### Virtual Memory (mmu)
+
+Physical memory is pointing to the "actual" address. 
+Directly to it. Virtual memory acts as a barrier
+between software and the actual memory location.
+The advantage of this is safety, security, as
+well as convenience.
+
+M mode does not deal with virtual memory. It is
+for S or M mode operations. 
+
+VM has PPN, physical page numbers and page
+tables. 
+
+A page table is an array. It acts as a mapping
+from a virtual page number to a physical page
+number. In other words, virtual->physical 
+memory. 
+
+An entry in a page table is a PTE, a page
+table entry. It is always a Word. 
+
+SV32 is riscv's implementation of virtual memory. 
+It uses two page tables instead of one. 
+The root table, R, is 1024 entries.
+For R[i], that tells you where to look in the second 
+table, S. Indexes are referred to as VPN, virtual
+page number. 
+
+PPN is a physical page number. It counts in 
+4096 byte chunks. 
+
+More information can be found by referring to the
+MMU section below. 
+
+In conclusion, we use virtal memory for guest behavior
+to control access to the physical memory in the bus
+state. 
+
+## MMU
+
+MMU is where we store our virtual memory translation.
+The function's documentation mostly speaks for itself.
+The general idea is we want to take a virtual address
+and translate it to a physical address for bus
+to then directly write to. 
+
+For more information about the translation process,
+refer to section 12.3.2 in riscnv_privleged.
+
 
 
 
@@ -793,3 +906,5 @@ todo:
 - bit field
 - modes
 - virt mem
+- instret
+- 

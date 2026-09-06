@@ -1,3 +1,5 @@
+// MMIO = memory mapped input output
+
 use crate::utility::types::ByteType;
 
 // mtime/mtimecmp are memory-mapped

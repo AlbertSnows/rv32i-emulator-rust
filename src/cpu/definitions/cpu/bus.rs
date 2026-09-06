@@ -5,6 +5,7 @@ use crate::cpu::definitions::cpu::memory::{MemoryAccessType, MemoryState, build_
 use crate::cpu::definitions::masks::{MPP, MSTATUS_MPRV};
 use crate::cpu::definitions::trap_cause::TrapCause;
 use crate::cpu::mmu;
+use crate::cpu::mmu::VirtAddr;
 use crate::peripherals::plic::{NUM_CONTEXTS, NUM_SOURCES, PlicState};
 use crate::peripherals::uart::{UART_SOURCE_ID, UartState};
 use crate::utility::bit_operations::{extract_sub_bytes, mask_and_shift};
@@ -67,7 +68,7 @@ impl BUSState {
             addr
         } else {
             mmu::lookup_virt_to_phys(
-                addr,
+                VirtAddr::new(addr),
                 MemoryAccessType::Fetch,
                 self,
                 state,
@@ -99,7 +100,7 @@ impl BUSState {
             addr
         } else {
             mmu::lookup_virt_to_phys(
-                addr,
+                VirtAddr::new(addr),
                 MemoryAccessType::Load,
                 self,
                 state,
@@ -123,7 +124,7 @@ impl BUSState {
             addr
         } else {
             mmu::lookup_virt_to_phys(
-                addr,
+                VirtAddr::new(addr),
                 MemoryAccessType::Store,
                 self,
                 state,

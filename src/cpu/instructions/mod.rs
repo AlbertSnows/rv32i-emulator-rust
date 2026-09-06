@@ -20,7 +20,7 @@ use i::alu_imm_or_shift::{AluImmOp, IShOp};
 use i::system::SystemOp;
 use i::csr::CsrOp;
 use crate::cpu::definitions::cpu::cpu_definition::{CPUState, PCState, CPUMode};
-use crate::cpu::definitions::cpu::csr::CsrAddress;
+use crate::cpu::definitions::addresses::CsrAddress;
 use crate::cpu::definitions::codes::ExecutionSignal;
 use crate::cpu::definitions::trap_cause::TrapCause;
 

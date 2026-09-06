@@ -3,7 +3,8 @@ use crate::cpu::definitions::addresses;
 use crate::cpu::definitions::addresses::{MIE, MIP, MSTATUS, SSTATUS};
 use crate::cpu::definitions::codes::ExecutionSignal;
 use crate::cpu::definitions::cpu::cpu_definition::{CPUMode, CPUState};
-use crate::cpu::definitions::cpu::csr::{CPUCycles, CsrAddress, MIPBits};
+use crate::cpu::definitions::addresses::CsrAddress;
+use crate::cpu::definitions::cpu::csr::{CPUCycles, InterruptSource};
 use crate::cpu::definitions::masks::{GLOBAL_MIE, GLOBAL_SIE, MEIE, MEIP, MPIE, MTI, MTIE, MTIP, SEIE, SEIP, SPIE, STIE, STIP};
 use crate::cpu::definitions::trap_cause::{M_TRAP, S_TRAP};
 use crate::cpu::definitions::trap_cause::{TrapCause, TrapDestination};
@@ -193,9 +194,9 @@ pub fn handle_trap(cpu: &mut CPUState, trap_cause: TrapCause) -> ExecutionSignal
 pub fn step(cpu: &mut CPUState) -> Result<ExecutionSignal, TrapCause> {
     cpu.csr.update_cycle(CPUCycles::Cycle);
     cpu.bus.clint.update_time();
-    cpu.csr.update_mip_pending_bit(MIPBits::MTI, (cpu.bus.clint.mtime >= cpu.bus.clint.mtimecmp) as u32);
-    cpu.csr.update_mip_pending_bit(MIPBits::MEI, cpu.bus.plic.compute_eip(M_CONTEXT) as u32);
-    cpu.csr.update_mip_pending_bit(MIPBits::SEI, cpu.bus.plic.compute_eip(S_CONTEXT) as u32);
+    cpu.csr.set_interrupt_pending(InterruptSource::MTI, (cpu.bus.clint.mtime >= cpu.bus.clint.mtimecmp));
+    cpu.csr.set_interrupt_pending(InterruptSource::MEI, cpu.bus.plic.compute_eip(M_CONTEXT));
+    cpu.csr.set_interrupt_pending(InterruptSource::SEI, cpu.bus.plic.compute_eip(S_CONTEXT));
 
     if let Some(cause) = select_pending_interrupt(cpu) {
        return Ok(handle_trap(cpu, cause))
