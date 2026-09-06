@@ -3,7 +3,7 @@ use crate::cpu::definitions::addresses;
 use crate::cpu::definitions::addresses::{MIE, MIP, MSTATUS, SSTATUS};
 use crate::cpu::definitions::codes::ExecutionSignal;
 use crate::cpu::definitions::cpu::cpu_definition::{CPUMode, CPUState};
-use crate::cpu::definitions::cpu::csr::{CPUCycles, MIPBits};
+use crate::cpu::definitions::cpu::csr::{CPUCycles, CsrAddress, MIPBits};
 use crate::cpu::definitions::masks::{GLOBAL_MIE, GLOBAL_SIE, MEIE, MEIP, MPIE, MTI, MTIE, MTIP, SEIE, SEIP, SPIE, STIE, STIP};
 use crate::cpu::definitions::trap_cause::{M_TRAP, S_TRAP};
 use crate::cpu::definitions::trap_cause::{TrapCause, TrapDestination};
@@ -246,7 +246,7 @@ pub fn check_interrupt(mip: u32,
     let (status_field, global_field) = match cpu.mode {
         CPUMode::M => (MSTATUS, GLOBAL_MIE),
         CPUMode::S => (SSTATUS, GLOBAL_SIE),
-        CPUMode::U => (0, 0),
+        CPUMode::U => (CsrAddress::new(0).unwrap(), 0),
     };
     let must_handle_interrupt = current_level < target_level
         || (current_level == target_level

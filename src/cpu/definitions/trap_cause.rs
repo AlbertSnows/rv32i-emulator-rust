@@ -1,4 +1,5 @@
 use crate::cpu::definitions::addresses::{MCAUSE, MEPC, MTVAL, MTVEC, SCAUSE, SEPC, STVAL, STVEC};
+use crate::cpu::definitions::cpu::csr::CsrAddress;
 use crate::cpu::definitions::cpu::cpu_definition::CPUMode;
 use crate::cpu::definitions::{addresses, masks};
 use crate::cpu::definitions::masks::{GLOBAL_MIE, GLOBAL_SIE, MCAUSE_INTERRUPT, MPIE, MPP, SPIE, SPP};
@@ -28,10 +29,10 @@ pub const S_TRAP: TrapDestination = TrapDestination {
 };
 
 pub struct TrapDestination {
-    pub epc: usize,
-    pub cause: usize,
-    pub tval: usize,
-    pub tvec: usize,
+    pub epc: CsrAddress,
+    pub cause: CsrAddress,
+    pub tval: CsrAddress,
+    pub tvec: CsrAddress,
     pub pp_mask: u32,
     pub ie_mask: u32,
     pub pie_mask: u32,

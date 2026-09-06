@@ -2,15 +2,15 @@ use crate::cpu::definitions::addresses;
 use crate::cpu::definitions::codes::MISA_STATE;
 use crate::cpu::definitions::cpu::cpu_definition::CPUMode;
 use crate::cpu::definitions::masks;
-use crate::cpu::definitions::masks::{MEIP, MSTATUS_TVM, MTI, SEIP};
+use crate::cpu::definitions::masks::{CSR_ACCESS_TYPE, CSR_PRIVILEGE_LEVEL, MEIP, MSTATUS_TVM, MTI, SEIP};
 use crate::cpu::definitions::trap_cause::TrapCause;
 use crate::utility::bit_operations::{mask_and_shift, set_bit_range};
 
-const ACCESS_TYPE_LOCATION: u32 = 10;
-const MINIMUM_PRIVILEGE_LOCATION: u32 = 8;
+// The top two bits (csr[11:10]) indicate whether the register is read/write (00, 01, or 10)
+// or read-only (11).
 const READ_ONLY: u32 = 0b11;
 
-#[derive(Debug, Copy, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum CPUCycles {
     Cycle,
     Instret,
@@ -59,6 +59,7 @@ pub fn build_csr_state() -> CSRState {
 
 // CSR (Control and Status Register) address space is 12 bits wide (0..4096), per the Zicsr extension 
 // separate storage from the general-purpose, not reg file
+// This means that for a given address in CSR A, A is 12 bits wide.
 #[derive(Debug, Copy, PartialEq, Clone)]
 pub struct CSRState {
     // todo: look into bit flags, bit field, crate
@@ -115,9 +116,21 @@ pub enum MIPBits {
     SEI
 }
 
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub struct CsrAddress(u16);
+impl CsrAddress {
+    pub const fn new(value: u16) -> Option<Self> {
+        if value <= 0xFFF { Some(Self(value)) } else { None }
+    }
+
+    pub const fn value(self) -> u16 {
+        self.0
+    }
+}
+
 impl CSRState {
 
-    fn field_for(&mut self, address: usize) -> Result<&mut u32, TrapCause> {
+    fn field_for(&mut self, address: CsrAddress) -> Result<&mut u32, TrapCause> {
         match address {
             addresses::MSTATUS | addresses::SSTATUS => Ok(&mut self.mstatus),
             addresses::MTVEC => Ok(&mut self.mtvec),
@@ -144,16 +157,18 @@ impl CSRState {
             addresses::MSCRATCH => Ok(&mut self.mscratch),
             addresses::MCOUNTEREN => Ok(&mut self.mcounteren),
             addresses::SCOUNTNEREN => Ok(&mut self.scounteren),
-            addresses::PMPCFG0..=0x3A3 => Ok(&mut self.pmpcfg[address - addresses::PMPCFG0]),
-            addresses::PMPADDR0..=0x3BF => Ok(&mut self.pmpaddr[address - addresses::PMPADDR0]),
+            addr if (addresses::PMPCFG0.value()..=0x3A3).contains(&addr.value()) =>
+                Ok(&mut self.pmpcfg[(addr.value() - addresses::PMPCFG0.value()) as usize]),
+            addr if (addresses::PMPADDR0.value()..=0x3BF).contains(&addr.value()) =>
+                Ok(&mut self.pmpaddr[(addr.value() - addresses::PMPADDR0.value()) as usize]),
             addresses::SATP => Ok(&mut self.satp),
             addresses::MSTATUSH => Ok(&mut self.mstatush),
             _ => Err(TrapCause::IllegalInstruction { instruction: None }),
         }
     }
 
-    pub fn read(&self, address: usize, current_mode: CPUMode) -> Result<u32, TrapCause> {
-        let privilege_level = mask_and_shift(address as u32, 0b11 << MINIMUM_PRIVILEGE_LOCATION);
+    pub fn read(&self, address: CsrAddress, current_mode: CPUMode) -> Result<u32, TrapCause> {
+        let privilege_level = mask_and_shift(address.value() as u32, CSR_PRIVILEGE_LEVEL);
         let meets_minimum_privilege = privilege_level <= current_mode.as_privilege_level();
         if !meets_minimum_privilege {
             return Err(TrapCause::IllegalInstruction { instruction: None });
@@ -215,8 +230,10 @@ impl CSRState {
             addresses::MCOUNTEREN => Ok(self.mcounteren),
             addresses::SCOUNTNEREN => Ok(self.scounteren),
 
-            addresses::PMPCFG0..=0x3A3 => Ok(self.pmpcfg[address - addresses::PMPCFG0]),
-            addresses::PMPADDR0..=0x3BF => Ok(self.pmpaddr[address - addresses::PMPADDR0]),
+            addr if (addresses::PMPCFG0.value()..=0x3A3).contains(&addr.value()) =>
+                Ok(self.pmpcfg[(addr.value() - addresses::PMPCFG0.value()) as usize]),
+            addr if (addresses::PMPADDR0.value()..=0x3BF).contains(&addr.value()) =>
+                Ok(self.pmpaddr[(addr.value() - addresses::PMPADDR0.value()) as usize]),
 
             addresses::SATP => {
                 if current_mode == CPUMode::S && mask_and_shift(self.mstatus, masks::MSTATUS_TVM) == 1 {
@@ -237,14 +254,14 @@ impl CSRState {
     //   but the legal value returned should deterministically depend on the illegal 
     //   written value and the architectural state of the hart."
     // https://docs.riscv.org/reference/isa/_attachments/riscv-privileged.pdf
-    pub fn guest_write(&mut self, address: usize, value: u32, current_mode: CPUMode) -> Result<u32, TrapCause> {
-        let has_write_access = mask_and_shift(address as u32, 0b11 << ACCESS_TYPE_LOCATION) != READ_ONLY;
-        let privilege_level = mask_and_shift(address as u32, 0b11 << MINIMUM_PRIVILEGE_LOCATION);
+    pub fn guest_write(&mut self, address: CsrAddress, value: u32, current_mode: CPUMode) -> Result<u32, TrapCause> {
+        let has_write_access = mask_and_shift(address.value() as u32, CSR_ACCESS_TYPE) != READ_ONLY;
+        let privilege_level = mask_and_shift(address.value() as u32, CSR_PRIVILEGE_LEVEL);
         let meets_minimum_privilege = privilege_level <= current_mode.as_privilege_level();
         if !has_write_access | !meets_minimum_privilege {
             // todo: encode more info about the specific trap failure?
             return Err(TrapCause::IllegalInstruction { instruction: None });
-        } else if(address == addresses::MISA) {
+        } else if address == addresses::MISA {
             return Ok(MISA_STATE);
         }
         let is_instret = address == addresses::MINSTRET
@@ -363,14 +380,14 @@ mod tests {
     fn test_csr_write_denies_insufficient_privilege() {
         // mepc (0x341) requires M -- writing from S should be rejected.
         let mut csr = build_csr_state();
-        let outcome = csr.guest_write(0x341, 42, CPUMode::S);
+        let outcome = csr.guest_write(CsrAddress::new(0x341).unwrap(), 42, CPUMode::S);
         assert!(outcome.is_err());
     }
 
     #[test]
     fn test_csr_write_allows_sufficient_privilege() {
         let mut csr = build_csr_state();
-        let outcome = csr.guest_write(0x341, 42, CPUMode::M);
+        let outcome = csr.guest_write(CsrAddress::new(0x341).unwrap(), 42, CPUMode::M);
         assert!(outcome.is_ok());
     }
 

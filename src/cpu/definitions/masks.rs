@@ -52,6 +52,13 @@ pub const I_TYPE_ALU_IMM: u32 = TWENTY_TO_THIRTY_ONE;
 pub const I_TYPE_LOAD: u32 = TWENTY_TO_THIRTY_ONE;
 pub const BIT_TWENTY: u32 = 0b1_0000_0000_0000_0000_0000;
 pub const CSR_ADDRESS: u32 = TWENTY_TO_THIRTY_ONE;
+// Sub-fields within a CSR *address* itself (not within a CSR's value):
+// csr[11:10] (read/write vs. read-only) and csr[9:8] (minimum required
+// privilege level). Positions are relative to the CSR address's own
+// 12 bits, so these compose with `mask_and_shift(address.value() as u32, ...)`,
+// not with a raw 32-bit instruction word.
+pub const CSR_ACCESS_TYPE: u32 = 0b11 << 10;
+pub const CSR_PRIVILEGE_LEVEL: u32 = 0b11 << 8;
 pub const MPP: u32 = TWELVE_AND_ELEVEN;
 pub const MPIE: u32 = 0b1000_0000;
 pub const GLOBAL_MIE: u32 = 0b1000;
