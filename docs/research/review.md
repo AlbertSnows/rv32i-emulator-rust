@@ -1243,7 +1243,8 @@ Nearly the same, except RAM_LENGTH and STACK_SIZE are scaled down.
 Removed RVMODEL_BOOT/RVMODEL_BOOT_TO_MMODE, 
 RVMODEL_ACCESS_FAULT_ADDRESS, and the entire real UART/PLIC/CLINT 
 interrupt block. All are hardware-specific to CORE-V-Wally's actual 
-peripherals, none of which this emulator implements.
+peripherals, none of which this emulator has not opted to wire
+into the test.
 
 RVMODEL_IO_WRITE_STR is rewritten. This project uses CVW, which is
 CORE-V-Wally. It is meant for writing a store instruction out
@@ -1253,7 +1254,8 @@ meaningfully, physically connected. Specifically, quote:
 
 We don't use that, so we have to switch our UART structure
 instead. Our approach is to use the tohost address instead, 
-a cmd marker, and the character. So we just store it locally. instead.
+a cmd marker, and the character. It follows the HTIF console
+covention. 
 
 
 RVMODEL_SET_*_INT/RVMODEL_CLR_*_INT are kept as required no-op stubs 
@@ -1275,7 +1277,13 @@ graceful error messages for illegal instructions. However, a simple
 core such as an RV32I microcontroller may not enable 
 STANDARD_SM_SUPPORTED and will not set up a trap handler."
 
+#### sail.json
 
+- xlen is 32
+- phyaddr_bits is 32
+- vendorid/etc. is 0
+- no wfi
+- 
 
 
 # Booting
