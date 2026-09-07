@@ -10,11 +10,16 @@ pub fn read_u64(bytes: &[u8], offset: usize) -> u64 {
     u64::from_le_bytes(bytes[index_range].try_into().unwrap())
 }
 
-pub fn resolve_string_from_bytes(bytes: &[u8], offset: usize) -> &str {
+pub fn find_null_terminator(bytes: &[u8], offset: usize) -> usize {
     let mut end = offset;
     while bytes[end] != 0 {
         end += 1;
     }
+    end
+}
+
+pub fn read_string_until_terminator(bytes: &[u8], offset: usize) -> &str {
+    let end = find_null_terminator(bytes, offset);
     std::str::from_utf8(&bytes[offset..end]).unwrap()
 }
 

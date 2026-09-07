@@ -1,8 +1,11 @@
 use crate::cpu::definitions::cpu::cpu_definition::CPUState;
 use crate::cpu::definitions::trap_cause::TrapCause;
 use crate::utility::bit_operations::{read_u16, read_u32};
-use crate::utility::bit_operations::resolve_string_from_bytes;
+use crate::utility::bit_operations::read_string_until_terminator;
+use crate::utility::types::ByteType;
+
 // ELF = Executable and Linkable Format
+// refer to the elf.pdf for more details about how elf files are defined
 // standard format for compiled unix programs
 // gcc outputs elf
 // ELF has three parts
@@ -15,97 +18,173 @@ use crate::utility::bit_operations::resolve_string_from_bytes;
 // header table
 /// list of segments. segments describe contiguous chunk of program.
 pub const PT_LOAD: u32 = 1;
+// the identifier for the symbol table
 pub const SHT_SYMTAB: u32 = 2;
+
+// ELF header (Elf32_Ehdr) field offsets, relative to the start of the
+// file (docs/books/elf.pdf, Figure 1-3, p.1-4).
+const E_ENTRY: usize = 24; // virtual address of the first instruction to run
+const E_PHOFF: usize = 28; // where the program header table starts in the file
+const E_SHOFF: usize = 32; // where the section header table starts in the file
+const E_PHENTSIZE: usize = 42; // size in bytes of one program header entry
+const E_SHENTSIZE: usize = 46; // size in bytes of one section header entry
+const E_PHNUM: usize = 44; // how many program header entries there are
+const E_SHNUM: usize = 48; // how many section header entries there are
+
+// Program header (Elf32_Phdr) field offsets, relative to the start of
+// one entry (docs/books/elf.pdf, Figure 2-1, p.2-2).
+const P_TYPE: usize = 0; // what kind of segment this is -- only PT_LOAD ones get loaded
+const P_OFFSET: usize = 4; // where this segment's bytes start in the file
+const P_VADDR: usize = 8; // where those bytes should be placed in memory
+const P_FILESZ: usize = 16; // how many bytes of the segment actually exist in the file
+// how many bytes the segment occupies once loaded (>= FILESZ, remainder zero-filled)
+const P_MEMSZ: usize = 20;
+// Section header (Elf32_Shdr) field offsets, relative to the start of
+// one entry (docs/books/elf.pdf, Figure 1-8, p.1-10).
+const SH_NAME: usize = 0; // index into the string table for this section's own name
+const SH_TYPE: usize = 4; // what kind of section this is -- used to find SHT_SYMTAB
+const SH_OFFSET: usize = 16; // where this section's data starts in the file
+const SH_SIZE: usize = 20; // total size in bytes of this section's data
+const SH_LINK: usize = 24; // for a symtab section, the index of its associated string table section
+const SH_ENTSIZE: usize = 36; // size of one record, when this section is an array of fixed-size records
+
 // segments exist for the loader
 // these bytes go in memory
 pub fn load_elf(elf_bytes: &[u8], cpu: &mut CPUState, base_address: usize) -> Result<usize, TrapCause> {
-    let e_entry = read_u32(elf_bytes, 24); // pc start address
-    let e_phoff = read_u32(elf_bytes, 28); // byte offset to the header table
-    let e_phentsize = read_u16(elf_bytes, 42); // size of an entry
-    let e_phnum = read_u16(elf_bytes, 44); // how many entries there are
-    let mut highest_end = 0;
+    let header_table_location = read_u32(elf_bytes, E_PHOFF) as usize; // byte offset to the header table
+    let header_entry_size = read_u16(elf_bytes, E_PHENTSIZE); // size of an entry
+    let number_of_header_entries = read_u16(elf_bytes, E_PHNUM); // how many entries there are
     // Number of segments varies per ELF file. e_phnum lists how many segments there are
-    // A segment is a contiguous chunk of the program. 
-    for i in 0..e_phnum {
-        let segment_start = e_phoff as usize;
-        let segment_location = (i as usize) * (e_phentsize as usize);
-        let current_segment_location = segment_start + segment_location;
-        let p_type = read_u32(elf_bytes, current_segment_location);
-        if p_type != PT_LOAD {
-            continue;
+    // A segment is a contiguous chunk of the program.
+
+    // Find every program header entry's location, keep only the
+    // PT_LOAD ones. The rest (PT_NOTE, PT_DYNAMIC, etc.) don't describe
+    // bytes the loader is responsible for placing in memory.
+    let mut loadable_segment_locations = Vec::new();
+    for header_entry_index in 0..number_of_header_entries {
+        let segment_location = (header_entry_index as usize) * (header_entry_size as usize);
+        let current_segment_location = header_table_location + segment_location;
+        // p type identifies the kind of segment we're reading
+        let p_type = read_u32(elf_bytes, current_segment_location + P_TYPE);
+        // PT_LOAD: The array element specifies a loadable segment, described by p_filesz and
+        // p_memsz. The bytes from the file are mapped to the beginning of the memory segment.
+        if p_type == PT_LOAD {
+            loadable_segment_locations.push(current_segment_location);
         }
-        let p_offset = read_u32(elf_bytes, current_segment_location + 4) as usize;
-        let p_vaddr = read_u32(elf_bytes, current_segment_location + 8) as usize; // location to write to in memory 
-        let p_filesz = read_u32(elf_bytes, current_segment_location + 16) as usize; // size of the segment in elf
-        // p_memsz: always >= p_filez, indicates how large the segment is once in memory 
-        let p_memsz = read_u32(elf_bytes, current_segment_location + 20) as usize;
-        let end = base_address + p_vaddr + p_memsz;
-        if end > highest_end {
-            highest_end = end;
+    }
+
+    let mut loaded_image_end = 0;
+    // Copy each loadable segment's bytes into memory.
+    for current_segment_location in loadable_segment_locations {
+        // location to write to in memory
+        let destination_address = read_u32(elf_bytes, current_segment_location + P_VADDR) as usize;
+        // p_memsz: always >= p_filez, indicates how large the segment is once in memory
+        let memory_byte_count = read_u32(elf_bytes, current_segment_location + P_MEMSZ) as usize;
+        let segment_start = base_address + destination_address;
+        let segment_end = segment_start + memory_byte_count;
+        if segment_end > loaded_image_end {
+            loaded_image_end = segment_end;
         }
-        cpu.bus.direct_write(base_address + p_vaddr, &elf_bytes[p_offset..p_offset + p_filesz])?; // write elf data to mem
+        // size of the segment in elf
+        let file_byte_count = read_u32(elf_bytes, current_segment_location + P_FILESZ) as usize;
+        let file_offset = read_u32(elf_bytes, current_segment_location + P_OFFSET) as usize;
+        let file_byte_range = file_offset..file_offset + file_byte_count;
+        cpu.bus.direct_write(segment_start, &elf_bytes[file_byte_range])?; // write elf data to mem
         // If the segment's memory size p_memsz is larger than the file size p_filesz, 
         /// the 'extra' bytes are defined to hold the value 0 and to follow the segment's initialized area.
-        let zero_count = p_memsz - p_filesz;
-        cpu.bus.direct_write(base_address + p_vaddr + p_filesz, &vec![0u8; zero_count])?;
+        let zero_padding_start = segment_start + file_byte_count;
+        let zero_fill_count = memory_byte_count - file_byte_count;
+        cpu.bus.direct_write(zero_padding_start, &vec![0u8; zero_fill_count])?;
     }
-    cpu.pc.write(base_address + e_entry as usize);
-    Ok(highest_end)
-}
 
-//               sh_name  sh_type  sh_flags  sh_addr  sh_offset  sh_size  sh_link  sh_info  sh_addralign  sh_entsize
-// offset        0        4        8         12       16         20       24       28       32            36
-// size (bytes)  4        4        4         4        4          4        4        4        4             4
+    let e_entry = read_u32(elf_bytes, E_ENTRY); // pc start address
+    cpu.pc.write(base_address + e_entry as usize);
+    Ok(loaded_image_end)
+}
 
 // tohost is where test program writes pass/fail results
 // address depends on linker
 // find_symbol is finding where the pass/fail results where stored via tohost
-// sections exist for tools. it tells you what part of the file you're working with 
+// sections exist for tools. it tells you what part of the file you're working with
 // todo: refactor
-pub fn find_symbol(elf_bytes: &[u8], symbol_name: &str) -> Option<u32> {
-    // find the section header table (e_shoff, e_shnum, e_shentsize)
-    let e_shoff = read_u32(elf_bytes, 32); // where file starts
-    let e_shnum = read_u16(elf_bytes, 48); // how many sections are in the list
-    let e_shentsize = read_u16(elf_bytes, 46); // how big the entry iss
 
-    // symtab is the name=>address table
-    // this loop iterates through the section header table, looking for the start of 
-    let mut symtab_entry_location = 0;
-    for section_number in 0..e_shnum {
-        let section_start = e_shoff as usize;
-        let section_location = (section_number as usize) * (e_shentsize as usize);
-        let current_section_location = section_start + section_location;
-        let sh_type = read_u32(elf_bytes, current_section_location + 4);
+// Walks the section header table looking for the one section whose
+// sh_type is SHT_SYMTAB (In our files, there is only one).
+//
+// Elf32_Shdr (one section header entry, 40 bytes)
+// byte:   0        4        8        12       16          20      24       28       32             36
+// field: [sh_name][sh_type][sh_flags][sh_addr][sh_offset][sh_size][sh_link][sh_info][sh_addralign][sh_entsize]
+fn find_symtab_metadata_location(elf_bytes: &[u8], file_start_location: usize, number_of_sections: usize, entry_size: usize) -> Option<usize> {
+    for section_number in 0..number_of_sections {
+        let section_offset = section_number * entry_size;
+        let shdr_record_start = file_start_location + section_offset;
+        let sh_type = read_u32(elf_bytes, shdr_record_start + SH_TYPE);
         if sh_type == SHT_SYMTAB {
-            symtab_entry_location = current_section_location;
-            break;
+            return Some(shdr_record_start);
         }
     }
-    // sh_name    @ 0   (4 bytes)
-    // sh_type    @ 4   (4 bytes)
-    // sh_flags   @ 8   (4 bytes)
-    // sh_addr    @ 12  (4 bytes)
-    // sh_offset  @ 16  
-    let sh_offset = read_u32(elf_bytes, symtab_entry_location + 16); // where the section data is
-    let sh_size = read_u32(elf_bytes, symtab_entry_location + 20); // total size of the data in symtab
-    let sh_link = read_u32(elf_bytes, symtab_entry_location + 24); // section index of .strtab
-    let sh_entsize = read_u32(elf_bytes, symtab_entry_location + 36); // size of one record of the section, if the section is an array
-    let strtab_entry_location = e_shoff as usize + (sh_link as usize) * (e_shentsize as usize);
-    let strtab_offset = read_u32(elf_bytes, strtab_entry_location + 16); // where the st_name list begins.
+    None
+}
 
-    let number_of_records = sh_size / sh_entsize;
-    let symtab_end = sh_offset as usize + sh_size as usize;
-    let symtab_record_indexes = (sh_offset as usize..symtab_end).step_by(sh_entsize as usize);
-    // this loop iterates through symtab
-    for current_record_location in symtab_record_indexes {
-        let st_name_index = read_u32(elf_bytes, current_record_location); // st_name is the first 4 bytes of a record
-        let st_name_start = (strtab_offset + st_name_index) as usize;
-        let st_name = resolve_string_from_bytes(elf_bytes, st_name_start);
-        let st_value = read_u32(elf_bytes, current_record_location + 4);
-        if st_name == symbol_name {
+pub fn find_symbol(elf_bytes: &[u8], symbol_name: &str) -> Option<u32> {
+    // find the section header table (e_shoff, e_shnum, e_shentsize)
+    let file_start_location = read_u32(elf_bytes, E_SHOFF) as usize; // where file starts
+    let number_of_sections = read_u16(elf_bytes, E_SHNUM) as usize; // how many sections are in the list
+    let entry_size = read_u16(elf_bytes, E_SHENTSIZE) as usize; // how big the entry iss
+
+    // symtab is the name=>address table
+    // sht_symtab is the symbol table, the symbol table is an array of Elf32_Sym structs
+    // we need to symbol table to get the symbol we're looking for
+    let symbol_table_metadata_start = find_symtab_metadata_location(elf_bytes,
+                                                                    file_start_location,
+                                                                    number_of_sections,
+                                                                    entry_size)?;
+
+
+    // where the string table's own name text starts in the file
+    // where symtab's own records start in the file
+    let symbol_table_start = read_u32(elf_bytes, symbol_table_metadata_start + SH_OFFSET) as usize;
+    // total size in bytes of all symtab records
+    let symtab_data_size = read_u32(elf_bytes, symbol_table_metadata_start + SH_SIZE);
+    // size of one record
+    let symtab_record_size = read_u32(elf_bytes, symbol_table_metadata_start + SH_ENTSIZE);
+    let symtab_end = symbol_table_start + symtab_data_size as usize;
+    let symtab_record_indexes = (symbol_table_start..symtab_end).step_by(symtab_record_size as usize);
+
+    // SH_LINK is only relevant to an Elf struct whose sh type is SHT_SYMTAB.
+    // SH_LINK represents the section number of my paired string table.
+    // which section holds symtab's associated names; an index, not a byte location
+    let strtab_section_index = read_u32(elf_bytes, symbol_table_metadata_start + SH_LINK);
+    let strtab_entry_offset = (strtab_section_index as usize) * (entry_size);
+    // location of the str table's header entry
+    let strtab_entry_location = file_start_location + strtab_entry_offset;
+    let strtab_start = read_u32(elf_bytes, strtab_entry_location + SH_OFFSET);
+
+    // Definition of an Elf32_Sym
+    // byte:    0    1    2    3    4    5    6    7    8    9   10   11   12   13   14   15
+    // field:  [------ st_name ------][------ st_value -----][--- st_size ---][info][oth][-shndx-]
+
+    // symbtab holds the symbol table, e.g. 3 => <value we're looking for>
+    // str tab holds the string identifier we're looking for, e.g. tohost => 3
+    // thus we get tohost => 3 => <target value>
+    // string table is just an array of bytes:
+    // byte:     0    1    2    3    4    5    6    7    8    9   10   11   12  ...
+    // data:    \0   't'  'o'  'h'  'o'  's'  't'  \0  'f'  'o'  'o'  \0  ...
+    //     ^                                  ^                  ^
+    //     offset 0                          offset 7           offset 12
+    //     (empty string,                    "tohost"           "foo"
+    //      conventional)
+    for symtab_record_start in symtab_record_indexes {
+        // st_name hold the offset into strtab's text data
+        let name_offset_into_strtab = read_u32(elf_bytes, symtab_record_start);
+        let name_location = (strtab_start + name_offset_into_strtab) as usize;
+        let string_table_value = read_string_until_terminator(elf_bytes, name_location);
+        let st_value = read_u32(elf_bytes, symtab_record_start + ByteType::Word.as_num());
+        if string_table_value == symbol_name {
             return Some(st_value);
         }
     }
     None
-
 }
+
+

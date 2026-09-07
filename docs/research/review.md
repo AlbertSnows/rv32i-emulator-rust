@@ -1124,6 +1124,77 @@ running cpu.
 
 ## ELF
 
+This repo has a pdf to the ELF specs. ELF is a 
+format that specifies how a compiled program
+gets packaged. 
+
+An ELF has three parts:
+- a header 
+- a program header table
+- section header table
+
+### Why?
+
+The software we opted to settle on uses elf
+to package its instructions, so we need a 
+way to unpack our elf files and load
+them into memory to be run by our cpu.
+
+Load elf does just that, as well as setting
+the pc to the correct starting location.
+
+### load_elf, details
+
+We need to process the elf. To do so, we 
+need to read out all the data to be 
+written into memory. That's defined
+by PT_LOAD. 
+
+Then, for the segments we extract,
+we need to load the segment into 
+memory, and zero pad it the rest
+of the way out. (Refer to the 
+documentation about this)
+
+Once we have done so, we set the pc
+to the start, and we'll have the
+elf file loaded into memory.
+
+### find_symbol
+
+riscv arch-tests communicate a test pass or 
+failure by writing to a specific memory address
+it calls tohost. The only way to know
+where tohost landed in a test outcome binary
+is to look it up by name in that binary's
+lookup table. 
+
+The symbol is broken into two separate 
+tables; the symbol table and the 
+string table. 
+
+Suppose our test, T, stores the pass
+fail outcome at a location identified
+as "foo". 
+
+The structure looks like this:
+"foo" => <some number, say 70>
+70= => <test outcome> 
+
+so the full path is "foo" => 70 => 
+outcome. 
+
+This function, given "foo", maps it to
+70 and then maps it to outcome. 
+
+To do so, we need to do the following steps:
+1. Find the symbol table's metadata entry info
+2. Get the symbol table's indexes for each record
+3. Find the string table's starting location
+4. search through the string table until
+we find they symbol we're looking for, and
+return its value from the symbol table
+
 # Testing
 
 # Booting
