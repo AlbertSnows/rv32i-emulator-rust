@@ -2,7 +2,7 @@ use std::collections::HashSet;
 use std::sync::mpsc;
 use std::thread;
 use std::fs;
-use rv32i_emulator::cpu::core::step;
+use rv32i_emulator::cpu::core::cycle;
 use rv32i_emulator::cpu::definitions::addresses;
 use rv32i_emulator::cpu::definitions::codes::ExecutionSignal;
 use rv32i_emulator::cpu::definitions::cpu::cpu_definition::{build_cpu_state, CPUMode};
@@ -131,7 +131,7 @@ fn main() {
             }
         }
 
-        let outcome = step(&mut cpu);
+        let outcome = cycle(&mut cpu);
         let pc = cpu.pc.read() as u32;
 
         if cpu.mode == CPUMode::U {

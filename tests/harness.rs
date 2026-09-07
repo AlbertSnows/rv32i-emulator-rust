@@ -1,6 +1,6 @@
 use rv32i_emulator::cpu::definitions::cpu::cpu_definition::{build_cpu_state};
 use rv32i_emulator::cpu::elf::{load_elf, find_symbol};
-use rv32i_emulator::cpu::core::step;
+use rv32i_emulator::cpu::core::cycle;
 
 #[derive(Debug, PartialEq)]
 pub enum TestOutcome {
@@ -17,7 +17,7 @@ pub fn run_tests(elf_bytes: &[u8]) -> TestOutcome {
     load_elf(elf_bytes, &mut cpu, 0).expect("load elf should succeed");
     let tohost_addr = find_symbol(elf_bytes, "tohost").expect("tohost should resolve") as usize;
     for _ in 0..MAX_ITERATIONS {
-        let _ = step(&mut cpu);
+        let _ = cycle(&mut cpu);
         let tohost_value = cpu.bus.direct_read(tohost_addr, 4).unwrap();
         if tohost_value != 0 {
             return if tohost_value == 1 {

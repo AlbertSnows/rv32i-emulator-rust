@@ -1,6 +1,6 @@
 use std::path::Path;
 use std::process::exit;
-use rv32i_emulator::cpu::core::step;
+use rv32i_emulator::cpu::core::cycle;
 use rv32i_emulator::cpu::definitions::cpu::cpu_definition::build_cpu_state;
 use rv32i_emulator::cpu::elf::{find_symbol, load_elf};
 
@@ -16,7 +16,7 @@ fn main() {
     let tohost_addr = find_symbol(&elf_bytes, "tohost").expect("tohost should resolve") as usize;
     let name = elf_path.file_name().unwrap().to_str().unwrap();
     for _ in 0..MAX_ITERATIONS {
-        let _ = step(&mut cpu);
+        let _ = cycle(&mut cpu);
         let tohost_value = cpu.bus.direct_read(tohost_addr, 4).unwrap();
         if tohost_value != 0 {
             let tohost_h_value = cpu.bus.direct_read(tohost_addr + 4, 4).unwrap();

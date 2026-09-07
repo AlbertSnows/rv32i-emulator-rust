@@ -666,7 +666,43 @@ the program it was running before.
 
 There is much to go over in the trapping section, outlined below.
 
-### TODO: trapping 
+## Handling a trap
+
+Much of the behavior is documented in trap.rs. 
+This section will cover each kind of change that is
+stored in brief.
+
+### MCAUSE
+
+mcause is a record that records why a trap fired. To 
+do so, we need a code. Each trap has an associated
+mcause code, which informs what kind of trap
+was hit. 
+
+### EPC
+
+Stores the last instruction that was looked at. 
+
+### PP
+
+Previous privilege. Records the mode prior to trapping.
+
+### CAUSE
+
+Stores the cause that set off by the trap.
+
+### TVAL
+
+Stores more useful information regarding the trap
+
+### PIE
+
+Stores the global interrupt state (MIE), and then resets
+it so another interrupt does not fire.
+
+### Jump
+
+sets the current pc to the value in TVEC
 
 ## The CSR
 
@@ -845,7 +881,10 @@ The uart is essentially the terminal/console
 controller. For typing and printing, the
 UART handles transferring that information.
 
-### PLIC
+### Clint
+
+Clint is core-local interruptor. It is responsible for
+handling cycle related information; namely TIME.
 
 ### Virtual Memory (mmu)
 
@@ -897,14 +936,197 @@ to then directly write to.
 For more information about the translation process,
 refer to section 12.3.2 in riscnv_privleged.
 
+## PLIC
+
+PLIC is the platform level interrupt controller.
+We know that the bus handles communication between
+the cpu and external components. The PLIC is a supporting
+subsystem of this behavior. Its job is specifically
+to coordinate and keep track of the behavior and state
+of the interrupts that this CPU is willing to liten to.
+For example, UART. 
+
+## Modes
+
+A cpu has three major modes, M, S, and U.
+We do not interact with U much in this project.
+We spend most of our time in M mode in the cpu, and S mode
+for things external to the cpu. M mode is the highest,
+followed by S mode. These modes are used to gate access
+to various parts of the system to prevent weaker modes
+from interacting with parts of the system that are more
+integral than the mode grants access to.
+
+## Bit Field
+
+Various registers, such as MSTATUS, are actually a kind
+of mini-state machine meant to hold the state of specific
+true/false flags, or other kinds of configurations. 
+
+For example, here are the bit identifiers inside MSTATUS.
+
+```
+31 30–23 22  21 20  19  18  17  16–15 14–13 12–11 10–9 8   7    6   5    4    3   2    1   0
+SD WPRI  TSR TW TVM MXR SUM MPRV XS    FS    MPP   VS   SPP MPIE UBE SPIE WPRI MIE WPRI SIE WPRI
+```
+Refer to the spec for more details about the different
+purposes of each identifier. 
+
+## Instructions
+
+This section covers briefly covering each format kind.
+
+### I
+
+I type covers a lot of various miscellaneous instruction 
+types. All of them have rd and rs2, as well as an immediate.
+
+#### Alu_imm
+
+These are like R types, but use an immediate.
+
+#### Shift
+
+Bit shifts a register.
+
+#### Load
+
+rs1, imm. Computes a memory address and stores it in rd.
+
+#### Jalr
+
+rs1, imm. Computes a jump target. Writes a new pc 
+to rd. 
 
 
+#### Csr
+
+Interfaces with the CSR. rd gets the csr's old value.
+rs1 supplies the new bits.
+
+#### System
+
+Handles several notable system operations
+
+##### ECall
+
+Used to switch to a different mode
+
+##### EBreak
+
+Traps as a breakpoint, used for debuggers
+
+##### MRet/SRet
+
+ret is how we reset the cpu after it returns from a trap. 
+It restores the pc, mode, interrupt enable bit, and resets pp to
+the least privileged mode.
+
+##### WFI
+
+Wait for interrupt. A no op.
+
+##### SFenceVma
+
+essentially a no op, but tvm should be allowed to be run by s mode.
+
+### A
+
+A is for atomics. Shaped like R type. Introduces bits
+for aquiring and releasing ordering. Atomics nede to encode
+memory-ordering constraints. 
+
+### B
+
+B is for branching. It compares rs1 and rs2.
+The imm encodes a signed, pc-relative offset.
+It only touches pc.
+
+### C
+
+C type is compressed. It allows us to use 16 bit instructions.
+In our case, since it's just a condenser, all C type
+instructions parse to other existing formats.
+
+C has quadrants, which structure the different data that needs 
+to be parsed in the instruction. 
+
+### Fence
+
+a no op
+
+### J
+
+J is for jump, jump and link. It is similar to U type.
+It writes a return address to rd, but imm is in a different
+structure. Only touches pc.
+
+### R
+
+R type is for register math. It doesn't interact with
+memory.
+
+### S
+
+S is for storage. The addresses come from rs1 + imm. 
+The value is rs2. 
+
+### U
+
+Used to build constants. It injects a  fresh value rather
+than computing from an existing one. It takes rd 
+and a 20bit immediate. 
+
+## Core
+
+At this point, we have remarked on all the core 
+design features of the cpu except the core execution
+itself. Let's visit that in this section. 
+
+### Step
+
+Each cycle of the cpu performs a step. A step is 
+responsible for handling the answer to the question,
+"On a given cycle, what do we need to worry about 
+changing?" 
+
+In the case of the cpu, we need to worry about
+the cycles, the time of clint, as well as the
+pending state of the interrupts. 
+
+If there is an appropriate pending interrupt, we
+need to handle that instead of performing an
+instruction. Otherwise, we need to actually preform
+a step. In doing so, we can only get an Ok or Err
+outcome. We know that an exception is erronious 
+behavior that occurs during the cpu instruction 
+processing, so that should be handled as a trap.
+Otherwise, we should update all cycles except
+possibly instret. 
+
+### Excuting an instruction, Part 2
+
+This is arguably the core cpu behavior. It consists
+of four steps.
+1. fetch the instruction from memory
+2. decode the instruction into something parsable
+3. execute the instruction
+4. advance the pc
+
+As explained back at the very beginning, these
+are the core steps needed to update the cpu 
+state machine. At this point, you have a 
+running cpu. 
+
+
+
+## ELF
+
+# Testing
+
+# Booting
 
 todo:
-- mmu
-- interrupts
-- bit field
-- modes
-- virt mem
-- instret
-- 
+- elf
+- tests
+- bios

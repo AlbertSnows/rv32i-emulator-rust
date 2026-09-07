@@ -7,3 +7,4 @@ pub mod programs;
 pub mod core;
 pub mod elf;
 pub mod mmu;
+pub mod trap;
