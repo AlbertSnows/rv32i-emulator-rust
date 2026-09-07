@@ -181,7 +181,7 @@ interactions with bits.
 
 In rust, we have a type known as "u32". This is an "unsigned integer type."
 So there's no sign. If there was a sign, that'd be i32. 
-but for now, we'd have 3u32 + 1u32 = 432. What does that look like in bits?
+but for now, we'd have 3u32 + 1u32 = 4u32. What does that look like in bits?
 That'd be 0b11 + 0b1 = 0b100. 
 
 4 in binary is, of course, 0b100. So now we know how to sum two numbers in binary.
@@ -259,7 +259,8 @@ Imagine 3 + 1 again in binary, what happens?
 The bits reset, and the next bit is flipped on. But what happens when
 there's no next bit to flip?
 
-Then it just...resets. Imagine u32::MAX = 0b11
+Then it just...resets. Imagine using a 2bit register where 
+the max is 0b11.
 If you do 0b11 + 1, now you'd get 0b00 instead. That's what it
 means to overflow. So we ignore any concerns or considerations regarding
 adding too large numbers, and instead just reset to 0.
@@ -681,7 +682,7 @@ was hit.
 
 ### EPC
 
-Stores the last instruction that was looked at. 
+Stores the last instruction that was looked at, pc. 
 
 ### PP
 
@@ -808,10 +809,11 @@ to the page tables (refer to the virtual memory section)
 
 #### Physical Memory Protection
 
-- PMPCFG
-  - unused
-- PMPADDR
-  - unused
+addr and cfg define a memory protection specification. 
+addr is address, cfg is config. Address specifies where the 
+memory protected region is. The config defines the structure
+of what can touch that reason and how its interpreted. Data
+is stored there, but otherwise unused. 
 
 #### MISC
 - MCOUNTINHIBIT
@@ -979,7 +981,7 @@ This section covers briefly covering each format kind.
 ### I
 
 I type covers a lot of various miscellaneous instruction 
-types. All of them have rd and rs2, as well as an immediate.
+types. All of them have rs1 and rd, as well as an immediate.
 
 #### Alu_imm
 
@@ -1028,7 +1030,7 @@ Wait for interrupt. A no op.
 
 ##### SFenceVma
 
-essentially a no op, but tvm should be allowed to be run by s mode.
+essentially a no op, but faults in S mode when tvm=1
 
 ### A
 
