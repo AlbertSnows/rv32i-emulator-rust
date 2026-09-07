@@ -38,14 +38,33 @@
 #ifndef _RVMODEL_MACROS_H
 #define _RVMODEL_MACROS_H
 
-#define STANDARD_SM_SUPPORTED
-
 #define RVMODEL_DATA_SECTION \
         .pushsection .tohost,"aw",@progbits;                \
         .balign 8; .global tohost; tohost: .dword 0;         \
         .balign 8; .global fromhost; fromhost: .dword 0;     \
-        .popsection
+        .popsection;
 
+#define STANDARD_SM_SUPPORTED
+
+##### STARTUP #####
+
+# Perform boot operations. Can be empty or left undefined unless needed for
+# DUT-specific behavior such as turning on a memory controller or
+# initializing custom state.
+//#define RVMODEL_BOOT
+
+// Custom RVMODEL_BOOT_TO_MMODE overrides default RVTEST_BOOT_TO_MMODE
+// if defined.  For most DUTs, the default should work and this macro
+// should not be defined.  If no M-mode or CSRs are implemented, define this
+// macro as blank to bypass the boot process.  If a nonconforming
+// M-mode is implemented, define this macro to set up the necessary
+// state in a fashion similar to RVTEST_BOOT_TO_MMODE.
+//#define RVMODEL_BOOT_TO_MMODE
+
+##### TERMINATION #####
+
+# Terminate test with a pass indication.
+# When the test is run in simulation, this should end the simulation.
 #define RVMODEL_HALT_PASS  \
   li x1, 1                ;\
   la t0, tohost           ;\
@@ -55,6 +74,8 @@
     j write_tohost_pass   ;\
 
 
+# Terminate test with a fail indication.
+# When the test is run in simulation, this should end the simulation.
 #define RVMODEL_HALT_FAIL \
   li x1, 3                ;\
   la t0, tohost           ;\
@@ -62,6 +83,8 @@
     sw x1, 0(t0)          ;\
     sw x0, 4(t0)          ;\
     j write_tohost_fail   ;\
+
+##### IO #####
 
 #define RVMODEL_IO_WRITE_STR(_R1, _R2, _R3, _STR_PTR)               \
 1:                                                                 ;\
@@ -76,7 +99,12 @@
   j 1b                                                             ;\
 3:
 
+##### Interrupt Latency #####
+
 #define RVMODEL_INTERRUPT_LATENCY 1
+
+##### Machine Timer #####
+
 #define RVMODEL_TIMER_INT_SOON_DELAY 100
 
 #define RVMODEL_SET_MEXT_INT(_R1, _R2)
@@ -88,4 +116,4 @@
 #define RVMODEL_SET_SSW_INT(_R1, _R2)
 #define RVMODEL_CLR_SSW_INT(_R1, _R2)
 
-#endif
+#endif // _RVMODEL_MACROS_H

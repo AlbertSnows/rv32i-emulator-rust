@@ -1197,6 +1197,87 @@ return its value from the symbol table
 
 # Testing
 
+We have two separate test suites on top of unit tests; riscv-tests and riscv-arch-tests.
+
+## RISCV Tests
+
+Refer to: https://github.com/riscv/riscv-test-env
+
+We fall under the p section, so we refer to riscv_test.h.
+We also look at an example test, e.g. add.s here: https://github.com/riscv/riscv-test-env/blob/6de71edb142be36319e380ce782c3d1830c65d68/p/riscv_test.h
+
+We see that the test data is handled from `RVTEST_DATA_BEGIN`. 
+In our header, we see that we push the data under "tohost", which
+gives us the insight we need to know that the data is stored
+under the tohost section. 
+
+## RISCV Arch Tests
+
+Refer to https://github.com/riscv/riscv-arch-test#getting-started. 
+We start with mise. We also need a compiler, say gcc. Then, we
+need to instal `riscv64-unknown-elf-gcc`. Then it needs to be
+on the path. Once that's set up, we need the sail model. This is
+used as our reference checker. 
+
+Now we need to set up the configuration. Ours are set up under
+the `arch_test_config` directory. It cites some example
+configurations here: https://github.com/riscv/riscv-arch-test/blob/act4/config/cores/cvw/cvw-rv64gc. 
+These are what we will use to define our configuration. 
+
+### Changes from the example
+
+#### test_config.yaml
+
+Mostly renames, but same structure. We also add `include_priv_tests`.
+
+#### run_cmd.txt
+
+Ours just points to our arch test runner binary. 
+
+#### link.ld
+
+Nearly the same, except RAM_LENGTH and STACK_SIZE are scaled down.
+
+#### rvmodel_macros.h
+
+Removed RVMODEL_BOOT/RVMODEL_BOOT_TO_MMODE, 
+RVMODEL_ACCESS_FAULT_ADDRESS, and the entire real UART/PLIC/CLINT 
+interrupt block. All are hardware-specific to CORE-V-Wally's actual 
+peripherals, none of which this emulator implements.
+
+RVMODEL_IO_WRITE_STR is rewritten. This project uses CVW, which is
+CORE-V-Wally. It is meant for writing a store instruction out
+to UART's address (in contrast to ram). It assumes a UART is 
+meaningfully, physically connected. Specifically, quote: 
+>  Expects a PC16550-compatible UART
+
+We don't use that, so we have to switch our UART structure
+instead. Our approach is to use the tohost address instead, 
+a cmd marker, and the character. So we just store it locally. instead.
+
+
+RVMODEL_SET_*_INT/RVMODEL_CLR_*_INT are kept as required no-op stubs 
+(must exist syntactically per check_defines.h, as the file's own 
+comment explains). The bodies are empty since there's no interrupt 
+injection yet.
+
+RVMODEL_INTERRUPT_LATENCY/RVMODEL_TIMER_INT_SOON_DELAY are kept with 
+different numeric values (1/100 vs 10/1000). 
+These are needed even though they're unused since nothing calls the 
+timer path.
+
+STANDARD_SM_SUPPORTED was added. Why?
+> "UDB also provides the STANDARD_SM_SUPPORTED parameter, which is 
+true when the DUT implements mandatory portions of the M-mode 
+spec... if the UDB contains STANDARD_SM_SUPPORTED, then the trap 
+handler is enabled even for unprivileged tests, helping produce 
+graceful error messages for illegal instructions. However, a simple 
+core such as an RV32I microcontroller may not enable 
+STANDARD_SM_SUPPORTED and will not set up a trap handler."
+
+
+
+
 # Booting
 
 todo:
