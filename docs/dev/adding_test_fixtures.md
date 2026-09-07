@@ -4,6 +4,22 @@ How the existing `tests/fixtures/*-p-*` ELF binaries were built, and how
 to add more (e.g. picking up the next ISA extension's conformance
 tests).
 
+## The fast path: scripts/build_fixtures.sh
+
+```bash
+./scripts/build_fixtures.sh rv32uc   # or rv32um, rv32ua, ...
+```
+
+Reads the extension's own `Makefrag` directly (the `${ext}_sc_tests`
+list) instead of that list being copied into a shell loop by hand, then
+builds every instruction in it straight into `tests/fixtures/` with the
+recipe below. Assumes the `riscv-tests` checkout lives at
+`~/Documents/programming/riscv/riscv-tests` and the xpack GCC lives
+under `~/opt/xpack-riscv-none-elf-gcc-*/`; override with the
+`RISCV_TESTS`/`GCC` env vars if either doesn't hold. The rest of this
+doc explains what that script is actually doing, and how to do it by
+hand for a one-off instruction.
+
 ## Where the sources come from
 
 The [`riscv-tests`](https://github.com/riscv-software-src/riscv-tests)

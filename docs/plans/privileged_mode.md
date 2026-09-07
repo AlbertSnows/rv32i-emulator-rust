@@ -1,10 +1,10 @@
-# Privileged mode / CSR conformance — S-mode, delegation, and what's already here
+# Privileged mode / CSR conformance,  S-mode, delegation, and what's already here
 
 ## Why
 
 Everything built so far runs entirely in M-mode. That's fine for
 bare-metal firmware, but an actual OS kernel runs in S-mode, under an
-M-mode firmware layer (think: OpenSBI underneath Linux) — and the plan
+M-mode firmware layer (think: OpenSBI underneath Linux),  and the plan
 doc's own framing is right that this is a foundational item. "an
 S-mode kernel under an M-mode firmware runs on nothing else." Without
 S-mode CSRs, SRET, and trap delegation, there's no mechanism for
@@ -12,7 +12,7 @@ control to ever reach or return from a less-privileged mode in a way
 software actually relies on.
 
 Source: `docs/books/riscv_privleged.pdf` (RISC-V Instruction Set
-Manual, Volume II: Privileged Architecture) — Section 3.1.8 (Machine
+Manual, Volume II: Privileged Architecture),  Section 3.1.8 (Machine
 Trap Delegation), pp. 42-43, and Chapter 12 (Supervisor-Level ISA),
 pp. 112-120.
 
@@ -22,7 +22,7 @@ pp. 112-120.
   (`src/definitions/cpu/cpu_definition.rs`), with conversions to/from
   the 2-bit privilege encoding (PRIV_U/S/M).
 - `TrapCause` already distinguishes `EnvironmentCallFromUMode` /
-  `EnvironmentCallFromSMode` / `EnvironmentCallFromMMode` separately —
+  `EnvironmentCallFromSMode` / `EnvironmentCallFromMMode` separately, 
   the current-mode tracking this all depends on is already wired
   through the trap path.
 - M-mode CSR state exists and works: `mstatus`, `mtvec`, `mepc`,
@@ -48,7 +48,7 @@ does *not* need new `sstatus`/`sie`/`sip` fields; it needs
 `sstatus`/`sie`/`sip` *reads and writes* implemented as masked
 accessors into the existing `mstatus`/`mie`/`mip` storage. Concretely,
 `sstatus` exposes (at minimum, for what this codebase needs next): SIE
-(bit 1), SPIE (bit 5), SPP (bit 8) — the S-mode-visible slice of the
+(bit 1), SPIE (bit 5), SPP (bit 8),  the S-mode-visible slice of the
 same bits MPIE (bit 7) and MPP (bits 12:11) already occupy for M-mode.
 This is the same xIE/xPIE/xPP "two-level stack" pattern already
 implemented for M-mode, just at the S level:
@@ -66,14 +66,14 @@ those as real new fields on `CSRState`.
 
 ## 2. New CSR addresses
 
-(Section 2.2.2, Table 5, p.17 — "Currently allocated RISC-V
+(Section 2.2.2, Table 5, p.17,  "Currently allocated RISC-V
 supervisor-level CSR addresses")
 
 | Address | Name       | Notes                                    |
 | ------- | ---------- | ----------------------------------------- |
 | `0x100` | `sstatus`  | masked view into `mstatus`, see above     |
 | `0x104` | `sie`      | masked view into `mie`                    |
-| `0x105` | `stvec`    | real storage — S-mode's own trap vector base |
+| `0x105` | `stvec`    | real storage,  S-mode's own trap vector base |
 | `0x140` | `sscratch` | real storage                              |
 | `0x141` | `sepc`     | real storage                              |
 | `0x142` | `scause`   | real storage                              |
@@ -107,7 +107,7 @@ When a trap *is* delegated to S-mode (Section 3.1.8, p.42):
 - `mstatus.SPIE` <- the current value of `mstatus.SIE`
 - `mstatus.SIE` <- 0
 - `mcause`, `mepc`, `mtval`, and `mstatus`'s MPP/MPIE fields are
-  explicitly **not** touched by a delegated trap — only the M-mode path
+  explicitly **not** touched by a delegated trap,  only the M-mode path
   writes those.
 
 One hard rule to get right, since it's easy to get backwards: **traps
@@ -139,7 +139,7 @@ different opcode:
 | MRET        | `0x302` (already implemented: `0x30200073`) |
 | SRET        | `0x102` (new: `0x10200073`) |
 
-Both are SYSTEM-opcode (`0b1110011`), rs1=0, rd=0, funct3=0 — the
+Both are SYSTEM-opcode (`0b1110011`), rs1=0, rd=0, funct3=0,  the
 existing `SystemOp`/`parse_system_inst` in
 `src/instructions/i/system.rs` already has the shape for this; SRET is
 a sibling match arm to MRET, not new architecture. Semantics,
@@ -154,6 +154,6 @@ substituting S for M throughout `inst_i_mret`'s existing logic:
 One new legality check MRET didn't need: SRET is illegal (traps as an
 illegal instruction) if executed from a mode with insufficient
 privilege to use it, i.e. from U-mode, or from S-mode when
-`mstatus.TSR=1` (trap-SRET, meant for hypervisor emulation — out of
+`mstatus.TSR=1` (trap-SRET, meant for hypervisor emulation,  out of
 scope here, so treat TSR as hardwired 0 for now and just check
 `current_mode != U`).

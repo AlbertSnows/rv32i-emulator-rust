@@ -405,7 +405,7 @@ fn parse_c_lui_or_addi16sp(half_word: u32) -> Result<Format, TrapCause> {
         let imm_high = mask(half_word, 1 << 12) >> 7;
         let imm_unsigned = imm_high | imm_low;
         let imm6 = shake_to_signed(imm_unsigned, 6);
-        if rd == 0 || imm6 == 0 {
+        if rd != 0 && imm6 == 0 {
             return Err(TrapCause::IllegalInstruction { instruction: Some(half_word) });
         }
         let imm_upper = imm6 << 12;
@@ -735,9 +735,9 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_c_lui_reserved_rd_zero_is_illegal() {
+    fn test_parse_c_lui_rd_zero_is_hint_not_illegal() {
         let result = parse_c_lui_or_addi16sp(0x600D);
-        assert_eq!(result, Err(TrapCause::IllegalInstruction { instruction: Some(0x600D) }));
+        assert_eq!(result, Ok(Format::UType { op: UOp::Lui, rd: 0, imm_upper: 0x3000 }));
     }
 
     #[test]

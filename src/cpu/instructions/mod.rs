@@ -20,6 +20,7 @@ use i::alu_imm_or_shift::{AluImmOp, IShOp};
 use i::system::SystemOp;
 use i::csr::CsrOp;
 use crate::cpu::definitions::cpu::cpu_definition::{CPUState, PCState, CPUMode};
+use crate::cpu::definitions::addresses::CsrAddress;
 use crate::cpu::definitions::codes::ExecutionSignal;
 use crate::cpu::definitions::trap_cause::TrapCause;
 
@@ -36,7 +37,7 @@ pub enum Format {
     JalrType { rd: usize, rs1: usize, imm: i32 },
     IShiftType { op: IShOp, rd: usize, rs1: usize, shamt: usize },
     SystemType { op: SystemOp },
-    CsrType { op: CsrOp, rd: usize, rs1_or_uimm: usize, csr: usize },
+    CsrType { op: CsrOp, rd: usize, rs1_or_uimm: usize, csr: CsrAddress },
     FENCEType,
 }
 

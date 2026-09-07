@@ -100,8 +100,7 @@ this codebase.
 
 ## 3. The single-hart simplification
 
-This is the one place A is *easier* to implement here than the spec's
-framing suggests. Every complication in the spec text — `aq`/`rl`
+Every complication in the spec text — `aq`/`rl`
 memory ordering, reservation-set granularity, livelock freedom
 guarantees, "can be observed by another hart" — exists to define
 behavior across *multiple* concurrent harts. This emulator runs one
@@ -135,19 +134,3 @@ same failure mode this codebase's load/store path
 produces, so the memory-access helper they call should already do the
 right thing; just route through it rather than re-deriving alignment
 logic.
-
-## 5. What needs to change in this codebase
-
-- `src/definitions/op_codes.rs`: add `AMO = 0b0101111`.
-- `src/decoder.rs`: new match arm, `op_codes::AMO => parse_a_inst(raw_word)`.
-- `src/instructions/mod.rs`: new `Format::AType` variant (fields above)
-  plus its `execute()` match arm.
-- `src/instructions/a.rs` (new file): `AmoOp` enum (11 variants),
-  `parse_a_inst` (funct5+funct3 -> `AmoOp`, same match-tuple shape
-  `r.rs::parse_r_inst` already uses for funct7+funct3), `execute_a_type`
-  dispatch table, and the 11 `inst_a_*` functions.
-- `src/definitions/cpu/cpu_definition.rs`: add a reservation field to
-  `CPUState` (e.g. `reservation: Option<u32>`), initialized to `None`
-  in `build_cpu_state`.
-- No new `TrapCause` variants needed — misaligned-address traps already
-  exist and cover this.

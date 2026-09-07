@@ -1,7 +1,7 @@
 use std::io::Read;
 use std::sync::mpsc;
 use std::thread;
-use rv32i_emulator::cpu::core::step;
+use rv32i_emulator::cpu::core::cycle;
 use rv32i_emulator::cpu::definitions::codes::ExecutionSignal;
 use rv32i_emulator::cpu::definitions::cpu::cpu_definition::build_cpu_state;
 use rv32i_emulator::loader::boot_kernel;
@@ -23,7 +23,7 @@ fn main() {
         if let Ok(byte) = rx.try_recv() {
             cpu.bus.receive_uart_byte(byte);
         }
-        execution_outcome = step(&mut cpu).unwrap_or_else(|m| {
+        execution_outcome = cycle(&mut cpu).unwrap_or_else(|m| {
             println!("{:?}", m);
             ExecutionSignal::Halt
         })

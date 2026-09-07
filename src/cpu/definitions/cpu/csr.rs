@@ -1,16 +1,18 @@
+use std::ops::RangeInclusive;
 use crate::cpu::definitions::addresses;
+pub(crate) use crate::cpu::definitions::addresses::CsrAddress;
 use crate::cpu::definitions::codes::MISA_STATE;
 use crate::cpu::definitions::cpu::cpu_definition::CPUMode;
 use crate::cpu::definitions::masks;
-use crate::cpu::definitions::masks::{MEIP, MSTATUS_TVM, MTI, SEIP};
+use crate::cpu::definitions::masks::{CSR_ACCESS_TYPE, CSR_PRIVILEGE_LEVEL, MEIP, MSTATUS_TVM, MTI, SEIP};
 use crate::cpu::definitions::trap_cause::TrapCause;
 use crate::utility::bit_operations::{mask_and_shift, set_bit_range};
 
-const ACCESS_TYPE_LOCATION: u32 = 10;
-const MINIMUM_PRIVILEGE_LOCATION: u32 = 8;
+// The top two bits (csr[11:10]) indicate whether the register is read/write (00, 01, or 10)
+// or read-only (11).
 const READ_ONLY: u32 = 0b11;
 
-#[derive(Debug, Copy, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum CPUCycles {
     Cycle,
     Instret,
@@ -59,6 +61,7 @@ pub fn build_csr_state() -> CSRState {
 
 // CSR (Control and Status Register) address space is 12 bits wide (0..4096), per the Zicsr extension 
 // separate storage from the general-purpose, not reg file
+// This means that for a given address in CSR A, A is 12 bits wide.
 #[derive(Debug, Copy, PartialEq, Clone)]
 pub struct CSRState {
     // todo: look into bit flags, bit field, crate
@@ -106,18 +109,64 @@ impl CSRState {
     }
 }
 
-// Which interrupt-pending bit in mip is being updated. Only MTI exists for
-// now since it's the only interrupt source currently implemented
+fn index_within_range(addr: CsrAddress, range: RangeInclusive<CsrAddress>) -> Option<usize> {
+    let distance_from_start = addr.value().checked_sub(range.start().value())?;
+    let range_span = range.end().value() - range.start().value();
+    (distance_from_start <= range_span).then_some(distance_from_start as usize)
+}
+
+
+// Which interrupt-pending bit in mip is being updated.
 #[derive(Debug, Copy, Clone, PartialEq)]
-pub enum MIPBits {
+pub enum InterruptSource {
     MTI,
     MEI,
     SEI
 }
 
+
 impl CSRState {
 
-    fn field_for(&mut self, address: usize) -> Result<&mut u32, TrapCause> {
+
+    // Merge only `mask`'s bits from `value` into `*property`, leaving every
+    // other bit untouched, then return the property masked down to just
+    // those bits -- the shape every "per-source" CSR write (MIP/SIP/
+    // SSTATUS/SIE) shares: guest software only ever gets to touch its own
+    // slice of a register the hardware/other privilege levels also use.
+    fn write_masked(property: &mut u32, value: u32, mask: u32) -> u32 {
+        let bits_to_write = value & mask;
+        let preserved_bits = *property & !mask;
+        *property = preserved_bits | bits_to_write;
+        *property & mask
+    }
+
+    fn check_satp_access(&self, address: CsrAddress, current_mode: CPUMode) -> Result<(), TrapCause> {
+        // When mstatus.TVM ("Trap Virtual Memory") is set, S-mode accessing
+        // satp (or executing sfence.vma) must trap illegal-instruction
+        // instead of succeeding -- this lets M-mode intercept and virtualize
+        // address-translation management instead of giving S-mode direct
+        // control over it.
+        if address == addresses::SATP
+            && current_mode == CPUMode::S
+            && mask_and_shift(self.mstatus, MSTATUS_TVM) == 1
+        {
+            return Err(TrapCause::IllegalInstruction { instruction: None });
+        }
+        Ok(())
+    }
+
+    fn field_for(&mut self, address: CsrAddress) -> Result<&mut u32, TrapCause> {
+        // Both PMP arrays (pmpcfg: 4 entries, pmpaddr: 16 entries) are addressed
+        // as a contiguous CSR range starting at PMPCFG0/PMPADDR0. These two
+        // helpers turn "is this address in range, and if so which array slot"
+        // into one Option<usize> each, instead of that logic being duplicated
+        // inline (once in field_for, once in read) as match guards.
+        if let Some(idx) = index_within_range(address, addresses::PMPCFG0..=addresses::PMPCFG3) {
+            return Ok(&mut self.pmpcfg[idx]);
+        }
+        if let Some(idx) = index_within_range(address, addresses::PMPADDR0..=addresses::PMPADDR15) {
+            return Ok(&mut self.pmpaddr[idx]);
+        }
         match address {
             addresses::MSTATUS | addresses::SSTATUS => Ok(&mut self.mstatus),
             addresses::MTVEC => Ok(&mut self.mtvec),
@@ -144,19 +193,23 @@ impl CSRState {
             addresses::MSCRATCH => Ok(&mut self.mscratch),
             addresses::MCOUNTEREN => Ok(&mut self.mcounteren),
             addresses::SCOUNTNEREN => Ok(&mut self.scounteren),
-            addresses::PMPCFG0..=0x3A3 => Ok(&mut self.pmpcfg[address - addresses::PMPCFG0]),
-            addresses::PMPADDR0..=0x3BF => Ok(&mut self.pmpaddr[address - addresses::PMPADDR0]),
             addresses::SATP => Ok(&mut self.satp),
             addresses::MSTATUSH => Ok(&mut self.mstatush),
             _ => Err(TrapCause::IllegalInstruction { instruction: None }),
         }
     }
 
-    pub fn read(&self, address: usize, current_mode: CPUMode) -> Result<u32, TrapCause> {
-        let privilege_level = mask_and_shift(address as u32, 0b11 << MINIMUM_PRIVILEGE_LOCATION);
+    pub fn read(&self, address: CsrAddress, current_mode: CPUMode) -> Result<u32, TrapCause> {
+        let privilege_level = mask_and_shift(address.value() as u32, CSR_PRIVILEGE_LEVEL);
         let meets_minimum_privilege = privilege_level <= current_mode.as_privilege_level();
         if !meets_minimum_privilege {
             return Err(TrapCause::IllegalInstruction { instruction: None });
+        }
+        if let Some(idx) = index_within_range(address, addresses::PMPCFG0..=addresses::PMPCFG3) {
+            return Ok(self.pmpcfg[idx]);
+        }
+        if let Some(idx) = index_within_range(address, addresses::PMPADDR0..=addresses::PMPADDR15) {
+            return Ok(self.pmpaddr[idx]);
         }
         match address {
             addresses::MSTATUS => Ok(self.mstatus),
@@ -215,13 +268,8 @@ impl CSRState {
             addresses::MCOUNTEREN => Ok(self.mcounteren),
             addresses::SCOUNTNEREN => Ok(self.scounteren),
 
-            addresses::PMPCFG0..=0x3A3 => Ok(self.pmpcfg[address - addresses::PMPCFG0]),
-            addresses::PMPADDR0..=0x3BF => Ok(self.pmpaddr[address - addresses::PMPADDR0]),
-
             addresses::SATP => {
-                if current_mode == CPUMode::S && mask_and_shift(self.mstatus, masks::MSTATUS_TVM) == 1 {
-                    return Err(TrapCause::IllegalInstruction { instruction: None })
-                }
+                self.check_satp_access(address, current_mode)?;
                 Ok(self.satp)
             },
             _ => Err(TrapCause::IllegalInstruction { instruction: None }),
@@ -237,16 +285,18 @@ impl CSRState {
     //   but the legal value returned should deterministically depend on the illegal 
     //   written value and the architectural state of the hart."
     // https://docs.riscv.org/reference/isa/_attachments/riscv-privileged.pdf
-    pub fn guest_write(&mut self, address: usize, value: u32, current_mode: CPUMode) -> Result<u32, TrapCause> {
-        let has_write_access = mask_and_shift(address as u32, 0b11 << ACCESS_TYPE_LOCATION) != READ_ONLY;
-        let privilege_level = mask_and_shift(address as u32, 0b11 << MINIMUM_PRIVILEGE_LOCATION);
+    pub fn guest_write(&mut self, address: CsrAddress, value: u32, current_mode: CPUMode) -> Result<u32, TrapCause> {
+        let has_write_access = mask_and_shift(address.value() as u32, CSR_ACCESS_TYPE) != READ_ONLY;
+        let privilege_level = mask_and_shift(address.value() as u32, CSR_PRIVILEGE_LEVEL);
         let meets_minimum_privilege = privilege_level <= current_mode.as_privilege_level();
         if !has_write_access | !meets_minimum_privilege {
             // todo: encode more info about the specific trap failure?
             return Err(TrapCause::IllegalInstruction { instruction: None });
-        } else if(address == addresses::MISA) {
+        } else if address == addresses::MISA {
             return Ok(MISA_STATE);
         }
+
+        // Do not double write to instret
         let is_instret = address == addresses::MINSTRET
             || address == addresses::INSTRET
             || address == addresses::MINSTRETH
@@ -255,42 +305,18 @@ impl CSRState {
             self.flags.skip_instret_increment = true;
         }
 
-        if address == addresses::SATP && current_mode == CPUMode::S && mask_and_shift(self.mstatus, MSTATUS_TVM) == 1 {
-            return Err(TrapCause::IllegalInstruction { instruction: None })
-        }
+        self.check_satp_access(address, current_mode)?;
 
         let property = self.field_for(address)?;
         match address {
-            addresses::MIP => {
-                let bits_to_write = value & masks::PER_SOURCE_MIP;
-                let bits_minus_mip = *property & !masks::PER_SOURCE_MIP;
-                let updated_mip = bits_minus_mip | bits_to_write;
-                *property = updated_mip;
-                Ok(*property & masks::PER_SOURCE_MIP)
-            },
-            addresses::SIP => {
-                let bits_to_write = value & masks::PER_SOURCE_SIP;
-                let bits_minus_sip = *property & !masks::PER_SOURCE_SIP;
-                let updated_sip = bits_minus_sip | bits_to_write;
-                *property = updated_sip;
-                Ok(*property & masks::SIP)
-            },
-            addresses::SSTATUS => {
-                let bits_to_write = value & masks::SSTATUS;
-                let bits_minus_sstatus = *property & !masks::SSTATUS;
-                let updated_mstatus = bits_minus_sstatus | bits_to_write;
-                *property = updated_mstatus;
-                Ok(*property & masks::SSTATUS)
-            },
-            addresses::SIE => {
-                let bits_to_write = value & masks::PER_SOURCE_SIE;
-                let bits_minus_sie = *property & !masks::PER_SOURCE_SIE;
-                let updated_sie = bits_minus_sie | bits_to_write;
-                *property = updated_sie;
-                Ok(*property & masks::PER_SOURCE_SIE)
-            },
+            addresses::MIP => Ok(Self::write_masked(property, value, masks::PER_SOURCE_MIP)),
+            addresses::SIP => Ok(Self::write_masked(property, value, masks::SIP)),
+            addresses::SSTATUS => Ok(Self::write_masked(property, value, masks::SSTATUS)),
+            addresses::SIE => Ok(Self::write_masked(property, value, masks::PER_SOURCE_SIE)),
             addresses::STVEC | addresses::MTVEC => {
-                *property = value & !0b11; // becomes 11...1100, forcing out of vectored mode
+                // we do not support vectored mode, which is designated in [1:0], so
+                // we force any writes to direct mode, 0b00
+                *property = value & !0b11;
                 Ok(*property)
             },
             addresses::MSTATUSH => Ok(*property),
@@ -320,17 +346,20 @@ impl CSRState {
         }
     }
 
-    pub fn update_mip_pending_bit(&mut self, location_id: MIPBits, location_value: u32) {
+    pub fn set_interrupt_pending(&mut self, location_id: InterruptSource, is_pending: bool) {
+        // MIP is machine interrupt pending
+        // this function is used to handle updating specific kinds of interrupts
+        let pending_num = is_pending as u32;
         match location_id {
-            MIPBits::MTI => {
+            InterruptSource::MTI => {
                 // (mtime >= mtimecmp) as u32
-                self.mip = set_bit_range(self.mip, location_value, 1, MTI.trailing_zeros() as usize);
+                self.mip = set_bit_range(self.mip, pending_num, 1, MTI.trailing_zeros() as usize);
             },
-            MIPBits::MEI => {
-                self.mip = set_bit_range(self.mip, location_value, 1, MEIP.trailing_zeros() as usize);
+            InterruptSource::MEI => {
+                self.mip = set_bit_range(self.mip, pending_num, 1, MEIP.trailing_zeros() as usize);
             },
-            MIPBits::SEI => {
-                self.mip = set_bit_range(self.mip, location_value, 1, SEIP.trailing_zeros() as usize);
+            InterruptSource::SEI => {
+                self.mip = set_bit_range(self.mip, pending_num, 1, SEIP.trailing_zeros() as usize);
             },
         }
     }
@@ -339,6 +368,62 @@ impl CSRState {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_index_within_range_at_start_of_pmpcfg_range() {
+        assert_eq!(index_within_range(addresses::PMPCFG0, addresses::PMPCFG0..=addresses::PMPCFG3), Some(0));
+    }
+
+    #[test]
+    fn test_index_within_range_in_middle_of_pmpcfg_range() {
+        let addr = CsrAddress::new(0x3A2).unwrap(); // PMPCFG0 + 2
+        assert_eq!(index_within_range(addr, addresses::PMPCFG0..=addresses::PMPCFG3), Some(2));
+    }
+
+    #[test]
+    fn test_index_within_range_at_end_of_pmpcfg_range() {
+        assert_eq!(index_within_range(addresses::PMPCFG3, addresses::PMPCFG0..=addresses::PMPCFG3), Some(3));
+    }
+
+    #[test]
+    fn test_index_within_range_just_past_end_of_pmpcfg_range_is_none() {
+        let addr = CsrAddress::new(0x3A4).unwrap(); // PMPCFG3 + 1
+        assert_eq!(index_within_range(addr, addresses::PMPCFG0..=addresses::PMPCFG3), None);
+    }
+
+    #[test]
+    fn test_index_within_range_below_pmpcfg_range_is_none() {
+        // MSTATUS (0x300) is a real CSR, but nowhere near the PMPCFG range --
+        // checked_sub must return None here, not underflow/panic.
+        assert_eq!(index_within_range(addresses::MSTATUS, addresses::PMPCFG0..=addresses::PMPCFG3), None);
+    }
+
+    #[test]
+    fn test_index_within_range_at_start_of_pmpaddr_range() {
+        assert_eq!(index_within_range(addresses::PMPADDR0, addresses::PMPADDR0..=addresses::PMPADDR15), Some(0));
+    }
+
+    #[test]
+    fn test_index_within_range_in_middle_of_pmpaddr_range() {
+        let addr = CsrAddress::new(0x3B8).unwrap(); // PMPADDR0 + 8
+        assert_eq!(index_within_range(addr, addresses::PMPADDR0..=addresses::PMPADDR15), Some(8));
+    }
+
+    #[test]
+    fn test_index_within_range_at_end_of_pmpaddr_range() {
+        assert_eq!(index_within_range(addresses::PMPADDR15, addresses::PMPADDR0..=addresses::PMPADDR15), Some(15));
+    }
+
+    #[test]
+    fn test_index_within_range_just_past_end_of_pmpaddr_range_is_none() {
+        let addr = CsrAddress::new(0x3C0).unwrap(); // PMPADDR15 + 1
+        assert_eq!(index_within_range(addr, addresses::PMPADDR0..=addresses::PMPADDR15), None);
+    }
+
+    #[test]
+    fn test_index_within_range_below_pmpaddr_range_is_none() {
+        assert_eq!(index_within_range(addresses::MSTATUS, addresses::PMPADDR0..=addresses::PMPADDR15), None);
+    }
 
     #[test]
     fn test_update_cycle_increments_cycle_and_time_together() {
@@ -363,14 +448,14 @@ mod tests {
     fn test_csr_write_denies_insufficient_privilege() {
         // mepc (0x341) requires M -- writing from S should be rejected.
         let mut csr = build_csr_state();
-        let outcome = csr.guest_write(0x341, 42, CPUMode::S);
+        let outcome = csr.guest_write(CsrAddress::new(0x341).unwrap(), 42, CPUMode::S);
         assert!(outcome.is_err());
     }
 
     #[test]
     fn test_csr_write_allows_sufficient_privilege() {
         let mut csr = build_csr_state();
-        let outcome = csr.guest_write(0x341, 42, CPUMode::M);
+        let outcome = csr.guest_write(CsrAddress::new(0x341).unwrap(), 42, CPUMode::M);
         assert!(outcome.is_ok());
     }
 
