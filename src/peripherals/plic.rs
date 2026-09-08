@@ -8,9 +8,9 @@
 //// "the hart" = "the cpu
 /// traps:  the cpu stops running normal instructions and jumps to run different code
 /// mip: refer to addresses.rs, it's about what's currently interrupting/what's pending
-/// trap handler: the code, whereever it is en memory, that handles the trap
+/// trap handler: the code, wherever it is en memory, that handles the trap
 /// context: a listener
-//// a listener is a destination that con receive interrupt notifications
+//// a listener is a destination that con receives interrupt notifications
 //// we have two: the CPU in either M mode or S mode
 pub const NUM_SOURCES: usize = 96;
 pub const NUM_CONTEXTS: usize = 2; // = 2 x # of harts
@@ -24,9 +24,11 @@ pub struct PlicState {
     pub(crate) priority: [u32; NUM_SOURCES + 1],
     // represents: is here a request waiting right now?
     pub(crate) pending: [bool; NUM_SOURCES + 1],
-    // represents: for a given context C, C[source_id] represents "do i listen to interrupts for this source?"
+    // represents: for a given context C, C[source_id] represents
+    // "do I listen to interrupts for this source?"
+    // we have two contexts, M and S
     pub(crate) enabled: [[bool; NUM_SOURCES + 1]; NUM_CONTEXTS],
-    // represents: how important does an interrupt have to be before i handle it?
+    // represents: how important does an interrupt have to be before I handle it?
     pub(crate) threshold: [u32; NUM_CONTEXTS],
     // armed[source_id] represents: is source_id currently allowed to create new requests?
     pub armed: [bool; NUM_SOURCES + 1],
@@ -38,9 +40,15 @@ pub struct PlicState {
 pub const PRIORITY_BASE: u32 = 0x000;
 pub const PENDING_BASE: u32 = 0x1000;
 pub const ENABLE_BASE: u32 = 0x2000;
+// 64x2 bytes, one range per mode, M and S
+//"Interrupt Enable A bit of Interrupt Source #0 to #1023 for 15872 contexts"
+// "Register Block Size in Byte: (1024 / 8) * 15872 = 2031616(0x1f0000) bytes"
+// "Each Interrupt Enable Bit occupies 1-bit from this register block"
 pub const ENABLE_STRIDE: u32 = 0x80;
 pub const CONTEXT_BASE: u32 = 0x20_0000;
-pub const CONTEXT_STRIDE: u32 = 0x1000;
+// "Priority Threshold... Register Block Size in Byte: 4096 * 15872 = 65011712(0x3e00000)
+// bytes... setting for each context"
+pub const CONTEXT_STRIDE: u32 = 0x1000; // 4096
 pub const THRESHOLD_LOCAL_OFFSET: u32 = 0;
 pub const CLAIM_COMPLETE_LOCAL_OFFSET: u32 = 4;
 
@@ -64,11 +72,14 @@ impl PlicState {
                         result |= 1 << i;
                     }
                 }
+                // a bit field where result[source_id] tells you if it's pending
                 result
             },
             ENABLE_BASE..=ENABLE_REGION_END => {
-                let context = ((offset - ENABLE_BASE) / ENABLE_STRIDE) as usize;
-                let word_index = (offset - ENABLE_BASE - (ENABLE_STRIDE * context as u32)) / 4;
+                let enable_region_offset = offset - ENABLE_BASE;
+                let context = (enable_region_offset / ENABLE_STRIDE) as usize;
+                let context_start = (ENABLE_STRIDE * context as u32);
+                let word_index = (enable_region_offset - context_start) / 4;
                 let mut result: u32 = 0;
                 for i in 0..32 {
                     let source_id = 32 * word_index as usize + i;
@@ -78,13 +89,18 @@ impl PlicState {
                 }
                 result
             },
+            // When reading in the context base range, we want to do different tasks based
+            // on where *in a context region* the offset is asking.
+            // If it's threshold, we want to read the threshold for that context.
+            // If it's claim, we want to claim for that context.
             CONTEXT_BASE..=CONTEXT_REGION_END => {
-                let context = ((offset - CONTEXT_BASE) / CONTEXT_STRIDE) as usize;
-                let local = (offset - CONTEXT_BASE) % CONTEXT_STRIDE;
-                if local == THRESHOLD_LOCAL_OFFSET {
+                let offset_from_context_base_start = offset - CONTEXT_BASE;
+                let context = (offset_from_context_base_start / CONTEXT_STRIDE) as usize;
+                let offset_from_desired_context_start = offset_from_context_base_start % CONTEXT_STRIDE;
+                if offset_from_desired_context_start == THRESHOLD_LOCAL_OFFSET {
                     self.threshold[context]
-                } else if local == CLAIM_COMPLETE_LOCAL_OFFSET {
-                    self.claim(context as usize)
+                } else if offset_from_desired_context_start == CLAIM_COMPLETE_LOCAL_OFFSET {
+                    self.claim(context)
                 } else {
                     0
                 }
@@ -150,7 +166,7 @@ impl PlicState {
     }
 
     // answers the question:
-    // is there any soruce id where
+    // is there any source id where
     // - this device has something waiting
     // - the listener is subscribed to it
     // - it's important enough to do now
