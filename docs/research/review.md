@@ -1351,7 +1351,7 @@ Per the README:
 > "used to specify all of the implementation details for your DUT. 
 > This includes all of the supported extensions and the value of all relevant parameters."
 
-This is our udb config file.
+This is our udb config file. Refer to https://github.com/riscv/riscv-unified-db
 
 
 ### arch-tests continued
