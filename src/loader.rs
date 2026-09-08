@@ -3,30 +3,42 @@ use crate::cpu::definitions::trap_cause::TrapCause;
 use crate::cpu::elf::load_elf;
 use std::path::Path;
 use crate::cpu::definitions::cpu::bus::BASE_ADDRESS;
-use crate::utility::bit_operations::read_u64;
+use crate::utility::bit_operations::{read_u64, WORD};
+
+// RISC-V ABI register numbers (x10-x12 = a0-a2), per OpenSBI's own
+// handoff contract (docs/firmware/fw.md): a0 = hart ID, a1 = DTB
+// address, a2 = fw_dynamic_info address (FW_DYNAMIC-specific).
+const A0: usize = 10;
+const A1: usize = 11;
+const A2: usize = 12;
+
+// OpenSBI's FW_DYNAMIC handoff struct (include/sbi/fw_dynamic.h).
+const FW_DYNAMIC_MAGIC: u32 = 0x4942534f; // "OSBI" ASCII
+const FW_DYNAMIC_INFO_VERSION: u32 = 0x2;
+const FW_DYNAMIC_INFO_NEXT_MODE_S: u32 = 0x1;
 
 // trying to copy kernel image into emulator memory
 pub fn load_sbi(open_sbi_path: &Path, cpu: &mut CPUState) -> Result<usize, TrapCause> {
     let open_sbi_bytes = std::fs::read(open_sbi_path).unwrap();
     let sbi_end = load_elf(&open_sbi_bytes, cpu, BASE_ADDRESS as usize)?;
-    let a0 = 10;
-    cpu.register.write(a0, 0);
+    cpu.register.write(A0, 0);
     Ok(sbi_end)
 }
 
 pub fn boot_kernel(cpu: &mut CPUState) -> Result<(), TrapCause> {
     let sbi_path = "/var/home/ajsnow/opt/opensbi/build/platform/generic/firmware/fw_dynamic.elf";
-    let kernel_path = "/var/home/ajsnow/opt/linux/arch/riscv/boot/Image";
-    let dtb_location = "/var/home/ajsnow/opt/virt_earlycon_narrowed.dtb";
     let open_sbi_end = load_sbi(sbi_path.as_ref(), cpu)?;
+
+    let kernel_path = "/var/home/ajsnow/opt/linux/arch/riscv/boot/Image";
     let (kernel_start, kernel_size) = load_kernel(kernel_path, open_sbi_end as u32, cpu)?;
+
+    let dtb_location = "/var/home/ajsnow/opt/virt_earlycon_narrowed.dtb";
     let (dtb_start, dtb_size) = load_dtb(kernel_start, kernel_size, dtb_location, cpu)?;
+
     let fw_dyn_addr = build_fw_dynamic_info(dtb_start, dtb_size, kernel_start, cpu)?;
 
-    let a1 = 11;
-    let a2 = 12;
-    cpu.register.write(a1, dtb_start as u32);
-    cpu.register.write(a2, fw_dyn_addr as u32);
+    cpu.register.write(A1, dtb_start as u32);
+    cpu.register.write(A2, fw_dyn_addr as u32);
     Ok(())
 }
 
@@ -34,15 +46,15 @@ fn build_fw_dynamic_info(dtb_start: usize, dtb_size: usize, kernel_start: usize,
     -> Result<usize, TrapCause> {
     let write_location = dtb_start + dtb_size;
     let contents_to_write = [
-        0x4942534fu32.to_le_bytes(),
-        0x2u32.to_le_bytes(),
+        FW_DYNAMIC_MAGIC.to_le_bytes(),
+        FW_DYNAMIC_INFO_VERSION.to_le_bytes(),
         (kernel_start as u32).to_le_bytes(),
-        0x1u32.to_le_bytes(),
-        0u32.to_le_bytes(),
-        0u32.to_le_bytes()
+        FW_DYNAMIC_INFO_NEXT_MODE_S.to_le_bytes(),
+        0u32.to_le_bytes(), // options
+        0u32.to_le_bytes(), // boot_hart
     ];
     for (i, bytes) in contents_to_write.iter().enumerate() {
-        cpu.bus.direct_write(write_location + i * 4, bytes)?;
+        cpu.bus.direct_write(write_location + i * WORD, bytes)?;
     }
     Ok(write_location)
 }
@@ -59,15 +71,21 @@ fn load_dtb(kernel_start: usize, kernel_size: usize, dtb_location: &str, cpu: &m
 // text offset is the 3rd entry, after two u32's, each is a word in size, so the starting location
 // of text offset location is 4 + 4 = 8
 // const TEXT_OFFSET_LOCATION: u32 = 8;
+const IMAGE_SIZE_LOCATION: usize = 16;
+
+const MIB: usize = 1024 * 1024;
+// RISC-V kernel docs, "Kernel location": "The RISC-V kernel expects to
+// be placed at a PMD boundary (2MB aligned for rv64 and 4MB aligned
+// for rv32)." (docs.kernel.org/arch/riscv/boot.html)
+const KERNEL_ALIGNMENT: usize = 4 * MIB;
 
 fn load_kernel(kernel_path: &str, open_sbi_end: u32, cpu: &mut CPUState)
     -> Result<(usize, usize), TrapCause> {
     let kernel_bytes = std::fs::read(kernel_path).unwrap();
     // let text_offset = read_u64(&kernel_bytes, TEXT_OFFSET_LOCATION as usize);
-    let mib = 1024 * 1024;
-    let kernel_start = align_up(open_sbi_end as usize, 4 * mib);
+    let kernel_start = align_up(open_sbi_end as usize, KERNEL_ALIGNMENT);
     cpu.bus.direct_write(kernel_start, &kernel_bytes)?;
-    let image_size = read_u64(&kernel_bytes, 16);
+    let image_size = read_u64(&kernel_bytes, IMAGE_SIZE_LOCATION);
     Ok((kernel_start, image_size as usize))
 }
 

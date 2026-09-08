@@ -791,8 +791,8 @@ half of the bits.
   - this register activates virtual memory, and directs the CPU
 to the page tables (refer to the virtual memory section)
     - contains MODE, ASID, and PPN
-      - ASID: TODO
-      - PPN: TODO
+      - ASID: address space identifier
+      - PPN: Physical page number
 
 #### Identification
 - MHARTID
@@ -938,6 +938,11 @@ to then directly write to.
 For more information about the translation process,
 refer to section 12.3.2 in riscnv_privleged.
 
+### Super page
+
+A super page is a page table entry. I tmaps
+a 4MB chunk of memory. 
+
 ## PLIC
 
 PLIC is the platform level interrupt controller.
@@ -947,6 +952,55 @@ subsystem of this behavior. Its job is specifically
 to coordinate and keep track of the behavior and state
 of the interrupts that this CPU is willing to liten to.
 For example, UART. 
+
+PlicState defines our state machine. A source
+id is our primary identify for the source
+of an interrupt.
+It is a struct of arrays. With the folllowing
+structure: 
+- priority - used to define the importance of 
+a given source id
+- pending - keeps track of whether a source
+id is currently waiting to have its interrupt
+handled
+- enabled - keeps track of for which contexts
+a source will be listened to
+- threshold - for a given context C, defines
+the needed importance before it's handled
+- armed - keeps track of whether a given
+source id is currently being processed. The
+intent is to prevent processing an interrupt
+twice until complete is called. 
+
+
+### Reading
+
+- Pending returns a bit field representing
+the pending state per source id
+- Enabled does the same thing, but represents
+if a source id is enabled for the defined
+context.
+- Context has *per-context* behavior. That
+means that depending on address X or Y in
+context C, we might want to do different
+things. In this case, threshold or claiming.
+
+### Writing
+
+This section reflects reading, except there
+is no behavior on pending, and we complete
+instead of claiming.
+
+
+### Compute eip
+
+This function is to answer a very specific 
+question. Take context C. For C, should
+its external-interrupt-pending flag be set
+right now? It affects MEI in the CSR. 
+
+EIP = External Interrupt Pending
+
 
 ## Modes
 
@@ -1229,6 +1283,7 @@ These are what we will use to define our configuration.
 #### test_config.yaml
 
 Mostly renames, but same structure. We also add `include_priv_tests`.
+This is test_config.yaml. 
 
 #### run_cmd.txt
 
@@ -1283,12 +1338,162 @@ STANDARD_SM_SUPPORTED and will not set up a trap handler."
 - phyaddr_bits is 32
 - vendorid/etc. is 0
 - no wfi
-- 
+- disabled all the extensions we don't support
+- ram is lowered
+- zcf/zcd false, sv23 true
+-  writable_hpm_counters is 0, no hpm counters
+- mcounteren/scounteren_writable_bits is 0x7, we implment 3 counters
+- mideleg.delegatable_bits is shortened to 32 bits
+#
+#### rv32i-emulator.yaml
+
+Per the README: 
+> "used to specify all of the implementation details for your DUT. 
+> This includes all of the supported extensions and the value of all relevant parameters."
+
+This is our udb config file.
+
+
+### arch-tests continued
+
+The build_arch_tests compiles the tests for us.
+
+We use the run_cmd.txt file to point to
+our `arch_test_runner.rs` file, which
+does the work to load the programs 
+into memory, grab the outcome from
+to host, and check the test outcome.
 
 
 # Booting
 
-todo:
-- elf
-- tests
-- bios
+To boot, we need to initialize into a BIOS, a device tree blob, 
+and an operating system. To do so, we need
+to do the following. 
+
+1. boot the kernel
+2. spawn a uart thread so we have a working
+console
+3. cycle until finished, just as normal
+
+The uart section uses a thread to run a 
+separate process that keeps track of the
+stdin. This prevents stdin  from blocking
+the cpu until a key is pressed. 
+
+With that said, we can focus on the kernel.
+
+## Booting the kernel
+
+A kernel is the core program of an operating
+system. I think of it as the "brain" of the
+OS where the CPU is the brain of the whole
+system. 
+
+To be a bit more specific, the kernel is 
+the interface controller between the programs
+on the OS and the actual hardware of the 
+machine. It is what is run in S-mode in our
+project, handles virtual memory, and talks
+to other devices such as UART and PLIC.
+
+Once a kernel has successfully been loaded 
+into our CPU, it will be able to handle
+tasks such as providing the interactive shell,
+which is our final goal. 
+
+To boot a kernel, we need to load the sbi,
+load the actual kernel, load the DTB, and
+finally load fw_dyn_addr. Fw_dyn is a small
+struct specific to open sbi to hand off
+control to the kernel. 
+
+## loading open sbi
+
+Let's take a step back. What do we need to 
+do to load an OS? Let's start with what we know.
+Fundamentally, an OS is just a bunch of 
+instructions loaded into memory, and the pc
+needs to point to...somewhere...to begin 
+processing these instructions. 
+
+We also know 
+that we won't want any of these instructions
+to run in M mode, but the cpu operates in M
+mode by default. Sooo, we need some sort of 
+interface that acts as a "handler" that 
+manages the mode of the machine as programs
+are executed. Linux is written assuming that
+it operates in S mode, so at the very least 
+we'd need to include instructions to do that, 
+but we may need much more.
+
+Let's call this interface the mediator. Any 
+time the CPU needs to run M commands, the
+mediator should be responsible for handing off
+that responsibility from the OS. So this
+mediator will set Linux to the correct mode,
+operate in the background and wait for
+M mode requests. 
+
+OpenSBI is the answer to this need. 
+SBI = Supervisor Binary Interface. It does
+many things, namely:
+- it drops the privilege to OS level
+- adds an address to mtvec to handle
+ecall from S mode traps and stands by for
+future requests
+
+So if we load this into memory, we can use
+this code to supervise our OS. We have
+our interface. One other thing we want to keep
+in mind: 
+> "The previous booting stage will pass 
+> information via the following registers of 
+> RISC-V CPU: hartid via a0 register, device 
+> tree blob address in memory via a1 
+> register."
+
+So we also need to ensure we set a0 to 0
+to indicate we're core 0. 
+
+## loading the kernel
+
+We've loaded the sbi. Let's assume
+its length is 22 bits long.
+
+Now we need to load the actual OS. We can
+load it in right after the sbi, can't we?
+Yes, but not quite. Per the spec: 
+> "The RISC-V kernel expects to be placed at 
+> a PMD boundary (2MB aligned for rv64 and 
+> 4MB aligned for rv32). Note that the EFI stub 
+> will physically relocate the kernel if that's 
+> not the case."
+> Source: https://docs.kernel.org/arch/riscv/boot.html
+
+ 
+So we do load it in after the sbi, but only at
+the next 4MB boundary. 
+
+
+## loading the dtb
+
+Nothing special here, just load it into memory
+
+## load thefw dynamic info
+
+This is what was mentioned earlier. sbi
+ask that you hold specific information in 
+memory to hand off between the cpu and OS.
+
+## A1 and A2
+
+A1 is the DTB's address for sbi
+
+a2 is the dyn struct for sbi
+
+
+With all this information loaded in, our
+system is set up to appropriately run an
+operating system! 
