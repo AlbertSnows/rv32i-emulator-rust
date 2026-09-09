@@ -3,9 +3,6 @@
 A comprehensive self-test. This also acts as a useful Q&A for certain
 design decisions. 
 
-Sections roughly track how deep the questions go, not the codebase
-layout. The later sections (testing, peripherals, boot) get more
-questions on purpose.
 
 ## 1. The pipeline: fetch, decode, execute
 
